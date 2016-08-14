@@ -11,11 +11,17 @@
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
 #define REALLY_MAX_FLOAT 1e24f
 
-#define ATTRIB_POS 0
-#define ATTRIB_TEX_COORD 1
-#define ATTRIB_LIGHTMAP_COORD 2
-#define ATTRIB_NORMAL 3
-#define ATTRIB_TEX_MAP 4
+struct Attrib
+{
+	enum
+	{
+		Pos= 0,
+		TexCoord,
+		LightmapCoord,
+		Normal,
+		TexMaps,
+	};
+};
 
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
@@ -168,33 +174,31 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		
 		plb_Vertex v; unsigned int offset;
 		offset= ((char*)v.pos) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( ATTRIB_POS, 3, GL_FLOAT, false, offset );
+		polygons_vbo_.VertexAttribPointer( Attrib::Pos, 3, GL_FLOAT, false, offset );
 		offset= ((char*)v.tex_coord) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( ATTRIB_TEX_COORD, 2, GL_FLOAT, false, offset );
+		polygons_vbo_.VertexAttribPointer( Attrib::TexCoord, 2, GL_FLOAT, false, offset );
 		offset= ((char*)v.lightmap_coord) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( ATTRIB_LIGHTMAP_COORD, 2, GL_FLOAT, false, offset );
+		polygons_vbo_.VertexAttribPointer( Attrib::LightmapCoord, 2, GL_FLOAT, false, offset );
 		offset= ((char*)&v.tex_maps[0]) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointerInt( ATTRIB_TEX_MAP, 3, GL_UNSIGNED_BYTE, offset );
+		polygons_vbo_.VertexAttribPointerInt( Attrib::TexMaps, 3, GL_UNSIGNED_BYTE, offset );
 
 		glGenBuffers( 1, &polygon_vbo_vertex_normals_vbo_ );
 		glBindBuffer( GL_ARRAY_BUFFER, polygon_vbo_vertex_normals_vbo_ );
 		glBufferData( GL_ARRAY_BUFFER, normals.size() * sizeof(plb_Normal), &*normals.begin(), GL_STATIC_DRAW );
 
-		glEnableVertexAttribArray( ATTRIB_NORMAL );
-		glVertexAttribPointer( ATTRIB_NORMAL, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
+		glEnableVertexAttribArray( Attrib::Normal );
+		glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
 	}// create world VBO
 
 	// TODO - set proper attribs
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "shaders/preview_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/preview_v.glsl", g_glsl_version) );
-	polygons_preview_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	polygons_preview_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	polygons_preview_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//polygons_preview_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	polygons_preview_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
-	//polygons_preview_shader_.SetAttribLocation( "texture_array", ATTRIB_TEXTURE_ARRAY );
-	//polygons_preview_shader_.SetAttribLocation( "texture_layer", ATTRIB_TEXTURE_LAYER );
+	polygons_preview_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	polygons_preview_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	polygons_preview_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	polygons_preview_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	polygons_preview_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	polygons_preview_shader_.Create();
 
 	/*{
@@ -328,60 +332,54 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		rLoadShader( "shaders/point_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	point_light_pass_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	point_light_pass_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	point_light_pass_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//point_light_pass_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	point_light_pass_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
+	point_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	point_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	point_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	point_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	point_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
 	point_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
 		rLoadShader( "shaders/point_light_shadowmap_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_shadowmap_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_shadowmap_g.glsl", g_glsl_version));
-	point_light_shadowmap_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	point_light_shadowmap_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	point_light_shadowmap_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//point_light_shadowmap_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	point_light_shadowmap_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
+	point_light_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	point_light_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	point_light_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	point_light_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	point_light_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
 	point_light_shadowmap_shader_.Create();
 
 	secondary_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/secondary_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/secondary_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/secondary_light_pass_g.glsl", g_glsl_version));
-	secondary_light_pass_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	secondary_light_pass_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	secondary_light_pass_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//secondary_light_pass_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	secondary_light_pass_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
-	//secondary_light_pass_shader_.SetAttribLocation( "texture_array", ATTRIB_TEXTURE_ARRAY );
-	//secondary_light_pass_shader_.SetAttribLocation( "texture_layer", ATTRIB_TEXTURE_LAYER );
+	secondary_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	secondary_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	secondary_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	secondary_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	secondary_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	secondary_light_pass_shader_.Create();
 
 	directional_shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shaders/sun_shadowmap_v.glsl", g_glsl_version));
-	directional_shadowmap_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	directional_shadowmap_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	directional_shadowmap_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//directional_shadowmap_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	directional_shadowmap_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
-	//directional_shadowmap_shader_.SetAttribLocation( "texture_array", ATTRIB_TEXTURE_ARRAY );
-	//directional_shadowmap_shader_.SetAttribLocation( "texture_layer", ATTRIB_TEXTURE_LAYER );
+	directional_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	directional_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	directional_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	directional_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	directional_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	directional_shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	directional_light_pass_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	directional_light_pass_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
-	directional_light_pass_shader_.SetAttribLocation( "lightmap_coord", ATTRIB_LIGHTMAP_COORD );
-	//directional_light_pass_shader_.SetAttribLocation( "lightmap_layer", ATTRIB_LIGHTMAP_LAYER );
-	directional_light_pass_shader_.SetAttribLocation( "normal", ATTRIB_NORMAL );
-	//directional_light_pass_shader_.SetAttribLocation( "texture_array", ATTRIB_TEXTURE_ARRAY );
-	//directional_light_pass_shader_.SetAttribLocation( "texture_layer", ATTRIB_TEXTURE_LAYER );
+	directional_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	directional_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	directional_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	directional_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	directional_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	directional_light_pass_shader_.Create();
 }
 
@@ -415,8 +413,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	texture_show_shader_.ShaderSource(
 		rLoadShader("shaders/texture_show_f.glsl", g_glsl_version),
 		rLoadShader("shaders/texture_show_v.glsl", g_glsl_version) );
-	texture_show_shader_.SetAttribLocation( "pos", ATTRIB_POS );
-	texture_show_shader_.SetAttribLocation( "tex_coord", ATTRIB_TEX_COORD );
+	texture_show_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	texture_show_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
 	texture_show_shader_.Create();
 
 	// cubemap show buffer
@@ -442,8 +440,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	memcpy( cubemap_show_data + 20, cubemap_show_data + 8, sizeof(float) * 4 ); // v6
 
 	cubemap_show_buffer_.VertexData( cubemap_show_data, sizeof(float) * 6 * 4, sizeof(float)*4 );
-	cubemap_show_buffer_.VertexAttribPointer( ATTRIB_POS, 2, GL_FLOAT, false, 0);
-	cubemap_show_buffer_.VertexAttribPointer( ATTRIB_TEX_COORD, 2, GL_FLOAT, false, sizeof(float)*2 );
+	cubemap_show_buffer_.VertexAttribPointer( Attrib::Pos, 2, GL_FLOAT, false, 0);
+	cubemap_show_buffer_.VertexAttribPointer( Attrib::TexCoord, 2, GL_FLOAT, false, sizeof(float)*2 );
 	cubemap_show_buffer_.SetPrimitiveType(GL_TRIANGLES);
 }
 

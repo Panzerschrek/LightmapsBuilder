@@ -5,9 +5,10 @@ uniform mat4 view_matrix;
 in vec3 pos;
 in vec2 tex_coord;
 in vec2 lightmap_coord;
-in uint lightmap_layer;
-in uint texture_array;
-in uint texture_layer;
+//in uint lightmap_layer;
+//in uint texture_array;
+//in uint texture_layer;
+in vec3 tex_maps;
 in vec3 normal;
 
 out vec3 f_pos;
@@ -22,10 +23,10 @@ const float eps= 0.01;
 void main()
 {
 	f_pos= pos;
-	f_tex_coord= vec3( tex_coord, float(texture_layer) + eps );
-	f_texture_array= float(texture_array) + eps;
+	f_tex_coord= vec3( tex_coord, float(tex_maps.y) + eps );
+	f_texture_array= float(tex_maps.x) + eps;
 
-	f_lightmap_coord= vec3( lightmap_coord, float(lightmap_layer) + eps );
+	f_lightmap_coord= vec3( lightmap_coord, float(tex_maps.z) + eps );
 	f_normal= normal;
 
 	gl_Position= view_matrix * vec4( pos, 1.0 );
