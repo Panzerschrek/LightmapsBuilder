@@ -37,7 +37,8 @@ SOURCES += \
 	../../panzer_ogl_lib/ogl_state_manager.cpp
 
 HEADERS += \
-	../../camera_controller.hpp \
+	../src/camera_controller.hpp \
+	../src/formats.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
 	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
 	../../panzer_ogl_lib/polygon_buffer.hpp \
