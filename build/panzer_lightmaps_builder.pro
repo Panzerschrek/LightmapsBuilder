@@ -36,6 +36,7 @@ PLB_DUBUG {
 SOURCES += \
 	../src/camera_controller.cpp \
 	../src/curves.cpp \
+	../src/lightmaps_builder.cpp \
 	../src/main.cpp \
 	../src/q3_bsp_loader.cpp \
 	../src/textures_manager.cpp \
@@ -55,6 +56,7 @@ HEADERS += \
 	../src/camera_controller.hpp \
 	../src/curves.hpp \
 	../src/formats.hpp \
+	../src/lightmaps_builder.hpp \
 	../src/q3_bsp_loader.hpp \
 	../src/textures_manager.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
