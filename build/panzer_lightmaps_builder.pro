@@ -8,9 +8,12 @@ CONFIG( debug, debug|release ) {
 	CONFIG+= PLB_DUBUG
 }
 
+Q3_SRC_DIR = ../../Quake-III-Arena
+
 SDL_INCLUDES_DIR = ../../SDL2-2.0.3/include
 SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
 
+INCLUDEPATH += $$Q3_SRC_DIR
 INCLUDEPATH += $$SDL_INCLUDES_DIR
 INCLUDEPATH += ../../panzer_ogl_lib
 INCLUDEPATH += ../src
@@ -27,6 +30,10 @@ PLB_DUBUG {
 SOURCES += \
 	../src/camera_controller.cpp \
 	../src/main.cpp \
+	../src/q3_bsp_loader.cpp \
+	../../Quake-III-Arena/common/bspfile.c \
+	../../Quake-III-Arena/common/cmdlib.c \
+	../../Quake-III-Arena/common/scriplib.c \
 	../../panzer_ogl_lib/polygon_buffer.cpp \
 	../../panzer_ogl_lib/shaders_loading.cpp \
 	../../panzer_ogl_lib/texture.cpp \
