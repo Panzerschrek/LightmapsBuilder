@@ -1,4 +1,9 @@
-﻿#include "formats.hpp"
+﻿#include <cstring>
+#include <iostream>
+
+#include "formats.hpp"
+
+#include "q3_bsp_loader.hpp"
 
 extern "C"
 {
@@ -15,7 +20,7 @@ typedef int qboolean;
 #define INV_Q_UNITS_IN_METER 0.015625f
 #define Q3_LIGHTMAP_SIZE 128
 
-void GetTextures( const std::vector<dshader_t>* in_textues, std::vector<plb_ImageInfo>* out_textures )
+static void GetTextures( const std::vector<dshader_t>* in_textues, std::vector<plb_ImageInfo>* out_textures )
 {
 	out_textures->reserve( in_textues->size() );
 	for( std::vector<dshader_t>::const_iterator t= in_textues->begin(); t< in_textues->end(); t++ )
@@ -26,7 +31,7 @@ void GetTextures( const std::vector<dshader_t>* in_textues, std::vector<plb_Imag
 	}
 }
 
-void BuildPolygons(
+static void BuildPolygons(
 	const std::vector<dsurface_t>* in_surfaces, const std::vector<drawVert_t>* in_vertices, const std::vector<dshader_t>* in_textures,
 	std::vector<plb_Polygon>* out_polygons, std::vector<plb_Vertex>* out_vertices,
 	std::vector<plb_CurvedSurface>* out_curves, std::vector<plb_Vertex>* out_curves_vertices )
@@ -128,7 +133,9 @@ void BuildPolygons(
 	}// for polygons
 }
 
-void TransformPolygons( std::vector<plb_Polygon>* polygons, std::vector<plb_Vertex>* vertices )
+static void TransformPolygons(
+	std::vector<plb_Polygon>* polygons,
+	std::vector<plb_Vertex>* vertices )
 {
 	// transform vertices
 	const float inv_64= 1.0f / 64.0f;
@@ -180,7 +187,9 @@ void TransformPolygons( std::vector<plb_Polygon>* polygons, std::vector<plb_Vert
 	}
 }
 
-void TransformCurves( std::vector<plb_CurvedSurface>* curves, std::vector<plb_Vertex>* curves_vertices )
+static void TransformCurves(
+	std::vector<plb_CurvedSurface>* curves,
+	std::vector<plb_Vertex>* curves_vertices )
 {
 	const float inv_64= 1.0f / 64.0f;
 	for( std::vector<plb_Vertex>::iterator it= curves_vertices->begin(); it< curves_vertices->end(); it++ )
@@ -213,7 +222,9 @@ void TransformCurves( std::vector<plb_CurvedSurface>* curves, std::vector<plb_Ve
 	}
 }
 
-void GenCurvesNormalizedLightmapCoords( std::vector<plb_CurvedSurface>* curves, std::vector<plb_Vertex>* curves_vertices )
+static void GenCurvesNormalizedLightmapCoords(
+	std::vector<plb_CurvedSurface>* curves,
+	std::vector<plb_Vertex>* curves_vertices )
 {
 	const float infinity= 1e16f;
 	const float eps= 1e-3f;
@@ -258,6 +269,83 @@ void GenCurvesNormalizedLightmapCoords( std::vector<plb_CurvedSurface>* curves, 
 	}// for curves
 }
 
+inline static bool IsCharLexemSeparator(char c)
+{
+	return c == '\n' || c == ' ' || c == '\t';
+}
+
+static void ParseColor( const char* str, unsigned char* out_color )
+{
+	for( unsigned int i= 0; i< 3; i++ )
+	{
+		while(IsCharLexemSeparator(*str)) str++;
+		int c;
+		sscanf( str, "%d", &c );
+		if( c > 255 ) c= 255; if( c < 0 ) c= 0;
+		out_color[i]= c;
+		while(!IsCharLexemSeparator(*str)) str++;
+	}
+}
+
+static void ParseColorF( const char* str, unsigned char* out_color )
+{
+	for( unsigned int i= 0; i< 3; i++ )
+	{
+		while(IsCharLexemSeparator(*str)) str++;
+		float c;
+		sscanf( str, "%f", &c );
+		c*= 255.0f;
+		if( c > 255.0f ) c= 255.0f; if( c < 0.0f ) c= 0.0f;
+		out_color[i]= (unsigned char)(c);
+		while(!IsCharLexemSeparator(*str)) str++;
+	}
+}
+
+void ParseOrigin( const char* str, float* out_origin )
+{
+	for( unsigned int i= 0; i< 3; i++ )
+	{
+		while(IsCharLexemSeparator(*str)) str++;
+		sscanf( str, "%f", &out_origin[i] );
+		while(!IsCharLexemSeparator(*str)) str++;
+	}
+}
+
+static void GetBSPLights( std::vector<plb_PointLight>* out_lights )
+{
+	for( unsigned int i= 0; i < (unsigned int)num_entities; i++ )
+	{
+		const entity_t& ent = entities[i];
+		if( ent.epairs == nullptr ) continue;
+
+		if( std::strcmp( ent.epairs->key, "classname" ) == 0 &&
+			std::strcmp( ent.epairs->value, "light" ) == 0 )
+		{
+			plb_PointLight light;
+			light.intensity = 0.0f;
+			light.color[0]= light.color[1]= light.color[2]= 255;
+
+			const epair_t* epair= ent.epairs->next;
+			while( epair != nullptr )
+			{
+				if( std::strcmp( epair->key, "light" ) == 0 )
+					light.intensity= std::atof(epair->value);
+				else if( std::strcmp( epair->key, "color" ) == 0 )
+					ParseColor( epair->value, light.color );
+				else if( std::strcmp( epair->key, "_color" ) == 0 )
+					ParseColorF( epair->value, light.color );
+				else if( std::strcmp( epair->key, "origin" ) == 0 )
+					ParseOrigin( epair->value, light.pos );
+
+				epair= epair->next;
+			}
+
+			out_lights->push_back(light);
+		} // if light
+
+	} // for entities
+}
+
 void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 {
 	FILE* f= fopen( file_name, "rb" );
@@ -298,8 +386,9 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 	if( level_data->curved_surfaces .size() > 0 )
 		GenCurvesNormalizedLightmapCoords( &level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
 
-	// TODO - read lights
-	//GetBSPLights( header->lumps[LUMP_ENTITIES].fileofs + file_data, header->lumps[LUMP_ENTITIES].filelen, &level_data->point_lights );
+	LoadBSPFile( file_name );
+	ParseEntities();
+	GetBSPLights( &level_data->point_lights );
 
 	delete[] file_data;
 }

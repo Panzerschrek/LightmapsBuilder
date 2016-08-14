@@ -4,6 +4,8 @@
 
 #include <panzer_ogl_lib.hpp>
 
+#include "q3_bsp_loader.hpp"
+
 static void FatalError(const char* message)
 {
 	std::cout << message << std::endl;
@@ -15,6 +17,9 @@ extern "C" int main(int argc, char *argv[])
 	// TODO - work with parameters
 	(void)argc;
 	(void)argv;
+
+	plb_LevelData level_data;
+	LoadQ3Bsp( "maps/q3dm6.bsp", &level_data );
 
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
 		FatalError("Can not initialize sdl video");
