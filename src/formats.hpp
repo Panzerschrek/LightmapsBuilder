@@ -102,6 +102,8 @@ struct plb_Config
 	unsigned int inv_lightmap_scale_log2; // log2( texture_texels / lightmap_texels )
 	unsigned int out_inv_lightmap_scale_log2; // size for output lightmaps
 
+	unsigned int sun_light_shadowmap_size_log2;
+
 	unsigned int lightmaps_atlas_size[2]; // size of big texture, where shall plased textures
 
 	// Otnošenije razmera ishodnoj karty osvescenija k karte osvescenija ot vtoricnyh istocnikov

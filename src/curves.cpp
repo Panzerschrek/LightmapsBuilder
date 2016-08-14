@@ -157,9 +157,6 @@ void GenCurvesMeshes(
 					m_Vec2( v_p[ curve->first_vertex_number + x+2 + (y+2) * curve->grid_size[0] ].tex_coord ),
 				};
 				unsigned int base_vertex_index= curve->first_vertex_number + x +  y * curve->grid_size[0];
-				//unsigned char lightmap_layer_id= v_p[ base_vertex_index ].lightmap_layer_id;
-				//unsigned char texture_array_id= v_p[ base_vertex_index ].texture_array_id;
-				//unsigned char texture_layer_id= v_p[ base_vertex_index ].texture_layer_id;
 				unsigned char tex_maps[4];
 				std::memcpy(tex_maps, v_p[ base_vertex_index ].tex_maps, 4 );
 
@@ -206,10 +203,6 @@ void GenCurvesMeshes(
 						vert[ind].pos[0]= pos.x;
 						vert[ind].pos[1]= pos.y;
 						vert[ind].pos[2]= pos.z;
-						//vert[ind].lightmap_layer_id= lightmap_layer_id;
-						//vert[ind].texture_array_id= texture_array_id;
-						//vert[ind].texture_layer_id= texture_layer_id;
-						unsigned char tex_maps[4];
 						std::memcpy(vert[ind].tex_maps, tex_maps, 4 );
 
 						m_Vec2 lightmap_coord= 

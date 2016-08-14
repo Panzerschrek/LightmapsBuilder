@@ -23,8 +23,7 @@ void main()
 	//c= vec3( 0.5, 0.5, 0.5 );
 	vec3 linear_color= c * lightmap_light;
 
-	color= vec4( vec3(1.0, 1.0, 1.0) - exp(-2.0 * linear_color), 1.0);
-	//color= vec4( linear_color, 1.0 );
+	color= vec4( vec3(1.0, 1.0, 1.0) - exp(-0.5 * linear_color), 1.0);
 
 	//color= vec4( f_normal * 0.5 + vec3(0.5,0.5,0.5), 1.0 );
 }

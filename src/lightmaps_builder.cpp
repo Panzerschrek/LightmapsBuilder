@@ -190,7 +190,6 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
 	}// create world VBO
 
-	// TODO - set proper attribs
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "shaders/preview_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/preview_v.glsl", g_glsl_version) );
@@ -594,8 +593,8 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 
 void plb_LightmapsBuilder::CreateDirectionalLightShadowmap()
 {
-	directional_light_shadowmap_.size[0]= 4096;
-	directional_light_shadowmap_.size[1]= 4096;
+	directional_light_shadowmap_.size[0]= 1 << config_.sun_light_shadowmap_size_log2;
+	directional_light_shadowmap_.size[1]= 1 << config_.sun_light_shadowmap_size_log2;
 
 	glGenTextures( 1, &directional_light_shadowmap_.depth_tex_id );
 	glBindTexture( GL_TEXTURE_2D, directional_light_shadowmap_.depth_tex_id );
@@ -1028,7 +1027,7 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 			v_p[v].lightmap_coord[1]+= float(poly->lightmap_data.coord[1]);
 			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
-			v_p[v].tex_maps[3]= poly->lightmap_data.atlas_id;
+			v_p[v].tex_maps[2]= poly->lightmap_data.atlas_id;
 		}
 	}// for polygons
 
@@ -1047,7 +1046,7 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(curve->lightmap_data.size[1]) + float(curve->lightmap_data.coord[1]);
 				v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
-				v_p[v].tex_maps[3]= curve->lightmap_data.atlas_id;
+				v_p[v].tex_maps[2]= curve->lightmap_data.atlas_id;
 			}
 		}// for curves
 	}

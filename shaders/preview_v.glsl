@@ -3,10 +3,7 @@ uniform mat4 view_matrix;
 in vec3 pos;
 in vec2 tex_coord;
 in vec2 lightmap_coord;
-//in uint lightmap_layer;
-//in uint texture_array;
-//in uint texture_layer;
-in vec3 tex_maps;
+in ivec3 tex_maps;
 in vec3 normal;
 
 out vec3 f_pos;

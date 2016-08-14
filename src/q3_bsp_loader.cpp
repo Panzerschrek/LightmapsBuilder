@@ -340,6 +340,11 @@ static void GetBSPLights( std::vector<plb_PointLight>* out_lights )
 				epair= epair->next;
 			}
 
+			// Change coord system
+			std::swap(light.pos[1], light.pos[2]);
+			for( unsigned int j = 0; j < 3; j++)
+				light.pos[j]*= INV_Q_UNITS_IN_METER;
+
 			out_lights->push_back(light);
 		} // if light
 
