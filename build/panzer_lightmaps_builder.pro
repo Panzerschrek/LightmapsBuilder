@@ -13,13 +13,19 @@ Q3_SRC_DIR = ../../Quake-III-Arena
 SDL_INCLUDES_DIR = ../../SDL2-2.0.3/include
 SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
 
+DEVIL_INCLUDES_DIR = ../../DevIL/include
+DEVIL_LIBS_DIR = ../../DevIL/lib
+
 INCLUDEPATH += $$Q3_SRC_DIR
 INCLUDEPATH += $$SDL_INCLUDES_DIR
+INCLUDEPATH += $$DEVIL_INCLUDES_DIR
 INCLUDEPATH += ../../panzer_ogl_lib
 INCLUDEPATH += ../src
 
 LIBS += $$SDL_LIBS_DIR/SDL2main.lib
 LIBS += $$SDL_LIBS_DIR/SDL2.lib
+LIBS += $$DEVIL_LIBS_DIR/DevIL.lib
+LIBS += $$DEVIL_LIBS_DIR/ILU.lib
 LIBS+= libopengl32
 
 PLB_DUBUG {
@@ -32,6 +38,7 @@ SOURCES += \
 	../src/curves.cpp \
 	../src/main.cpp \
 	../src/q3_bsp_loader.cpp \
+	../src/textures_manager.cpp \
 	../../Quake-III-Arena/common/bspfile.c \
 	../../Quake-III-Arena/common/cmdlib.c \
 	../../Quake-III-Arena/common/scriplib.c \
@@ -49,6 +56,7 @@ HEADERS += \
 	../src/curves.hpp \
 	../src/formats.hpp \
 	../src/q3_bsp_loader.hpp \
+	../src/textures_manager.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
 	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
 	../../panzer_ogl_lib/polygon_buffer.hpp \
