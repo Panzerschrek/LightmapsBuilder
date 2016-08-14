@@ -13,6 +13,7 @@ SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
 
 INCLUDEPATH += $$SDL_INCLUDES_DIR
 INCLUDEPATH += ../../panzer_ogl_lib
+INCLUDEPATH += ../src
 
 LIBS += $$SDL_LIBS_DIR/SDL2main.lib
 LIBS += $$SDL_LIBS_DIR/SDL2.lib
@@ -24,6 +25,7 @@ PLB_DUBUG {
 }
 
 SOURCES += \
+	../src/camera_controller.cpp \
 	../src/main.cpp \
 	../../panzer_ogl_lib/polygon_buffer.cpp \
 	../../panzer_ogl_lib/shaders_loading.cpp \
@@ -35,6 +37,7 @@ SOURCES += \
 	../../panzer_ogl_lib/ogl_state_manager.cpp
 
 HEADERS += \
+	../../camera_controller.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
 	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
 	../../panzer_ogl_lib/polygon_buffer.hpp \
