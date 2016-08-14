@@ -3,3 +3,7 @@ build-*
 
 # QtCreatir project user settings
 build/*.pro.user
+
+# Windows binaries
+*.dll
+*.exe
