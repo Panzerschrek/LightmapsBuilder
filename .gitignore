@@ -1,0 +1,5 @@
+# QtCreator build
+build-*
+
+# QtCreatir project user settings
+build/*.pro.user
