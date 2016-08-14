@@ -29,6 +29,7 @@ PLB_DUBUG {
 
 SOURCES += \
 	../src/camera_controller.cpp \
+	../src/curves.cpp \
 	../src/main.cpp \
 	../src/q3_bsp_loader.cpp \
 	../../Quake-III-Arena/common/bspfile.c \
@@ -45,6 +46,7 @@ SOURCES += \
 
 HEADERS += \
 	../src/camera_controller.hpp \
+	../src/curves.hpp \
 	../src/formats.hpp \
 	../src/q3_bsp_loader.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
