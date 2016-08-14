@@ -1,5 +1,3 @@
-#version 400
-
 uniform vec3 ambient_light_color;
 
 out vec4 color;

@@ -1,5 +1,3 @@
-#version 430
-
 uniform sampler2DArray lightmap;
 uniform sampler2DArray textures[8];
 

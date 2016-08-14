@@ -1,5 +1,3 @@
-#version 430
-
 uniform vec4 clip_plane;
 
 in vec3 pos;

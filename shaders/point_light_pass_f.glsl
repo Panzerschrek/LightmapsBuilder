@@ -1,5 +1,3 @@
-#version 400
-
 uniform samplerCubeShadow cubemap;
 uniform float inv_max_light_dst;
 uniform vec3 light_pos;

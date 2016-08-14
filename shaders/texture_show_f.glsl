@@ -1,5 +1,3 @@
-#version 430
-
 uniform samplerCube cubemap;
 uniform samplerCube cubemap_multipler;
 

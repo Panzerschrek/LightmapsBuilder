@@ -1,5 +1,3 @@
-#version 430
-
 uniform mat4 view_matrix;
 uniform vec4 clip_planes[4];
 

@@ -1,5 +1,3 @@
-#version 430
-
 uniform float inv_max_light_dst;
 
 out vec4 color;

@@ -1,5 +1,3 @@
-#version 430
-
 in vec2 pos;
 in vec2 tex_coord;
 

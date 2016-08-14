@@ -1,5 +1,3 @@
-#version 400
-
 uniform mat4 view_matrix;
 
 in vec3 pos;

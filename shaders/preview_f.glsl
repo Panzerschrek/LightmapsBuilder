@@ -1,5 +1,3 @@
-#version 400
-
 uniform sampler2DArray lightmap;
 uniform sampler2DArray lightmap_test;
 uniform samplerCubeShadow cubemap;

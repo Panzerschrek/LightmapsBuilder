@@ -1,5 +1,3 @@
-#version 430
-
 in vec3 pos;
 in vec2 tex_coord;
 in vec2 lightmap_coord;

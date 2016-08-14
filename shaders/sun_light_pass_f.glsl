@@ -1,5 +1,3 @@
-#version 400
-
 uniform sampler2DShadow shadowmap;
 uniform mat4 view_matrix;
 uniform vec3 light_dir;
