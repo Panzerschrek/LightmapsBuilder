@@ -134,91 +134,67 @@ static void BuildPolygons(
 }
 
 static void TransformPolygons(
-	std::vector<plb_Polygon>* polygons,
-	std::vector<plb_Vertex>* vertices )
+	plb_Polygons& polygons,
+	plb_Vertices& vertices )
 {
 	// transform vertices
-	const float inv_64= 1.0f / 64.0f;
-	for( std::vector<plb_Vertex>::iterator v= vertices->begin(); v< vertices->end(); v++ )
+	for( plb_Vertex& v : vertices )
 	{
-		float tmp = v->pos[1];
-		v->pos[1]= v->pos[2];
-		v->pos[2]= tmp;
-		v->pos[0]*= inv_64;
-		v->pos[1]*= inv_64;
-		v->pos[2]*= inv_64;
+		std::swap(v.pos[1], v.pos[2]);
+		v.pos[0]*= INV_Q_UNITS_IN_METER;
+		v.pos[1]*= INV_Q_UNITS_IN_METER;
+		v.pos[2]*= INV_Q_UNITS_IN_METER;
 	}
 
-	plb_Vertex* v_p= &*vertices->begin();
+	plb_Vertex* v_p= vertices.data();
 
 	// transform polygons
-	for( std::vector<plb_Polygon>::iterator p= polygons->begin(); p< polygons->end(); p++ )
+	for( plb_Polygon& p : polygons )
 	{
-		float tmp= p->normal[1];
-		p->normal[1]= p->normal[2];
-		p->normal[2]= tmp;
+		std::swap(p.normal[1], p.normal[2]);
 
-		tmp= p->lightmap_basis[0][1];
-		p->lightmap_basis[0][1]= p->lightmap_basis[0][2];
-		p->lightmap_basis[0][2]= tmp;
-
-		tmp= p->lightmap_basis[1][1];
-		p->lightmap_basis[1][1]= p->lightmap_basis[1][2];
-		p->lightmap_basis[1][2]= tmp;
+		for( unsigned int i= 0 ;i < 2; i++ )
+			std::swap( p.lightmap_basis[i][1], p.lightmap_basis[i][2] );
 
 		float k= 1.0f / 1.0f;
-		p->lightmap_basis[0][0]*= k;
-		p->lightmap_basis[0][1]*= k;
-		p->lightmap_basis[0][2]*= k;
-		p->lightmap_basis[0][3]*= INV_Q_UNITS_IN_METER * k;
-		p->lightmap_basis[1][0]*= k;
-		p->lightmap_basis[1][1]*= k;
-		p->lightmap_basis[1][2]*= k;
-		p->lightmap_basis[1][3]*= INV_Q_UNITS_IN_METER * k;
+		p.lightmap_basis[0][0]*= k;
+		p.lightmap_basis[0][1]*= k;
+		p.lightmap_basis[0][2]*= k;
+		p.lightmap_basis[0][3]*= INV_Q_UNITS_IN_METER * k;
+		p.lightmap_basis[1][0]*= k;
+		p.lightmap_basis[1][1]*= k;
+		p.lightmap_basis[1][2]*= k;
+		p.lightmap_basis[1][3]*= INV_Q_UNITS_IN_METER * k;
 
-		for( unsigned int v= p->first_vertex_number, v2= p->first_vertex_number + p->vertex_count - 1;
-			 v< p->first_vertex_number + p->vertex_count/2;
+		for( unsigned int v= p.first_vertex_number, v2= p.first_vertex_number + p.vertex_count - 1;
+			 v< p.first_vertex_number + p.vertex_count/2;
 			v++, v2-- )
-		{
-			plb_Vertex tmp_v= v_p[v];
-			v_p[v]= v_p[v2];
-			v_p[v2]= tmp_v;
-		}
+			std::swap( v_p[v], v_p[v2] );
 	}
 }
 
 static void TransformCurves(
-	std::vector<plb_CurvedSurface>* curves,
-	std::vector<plb_Vertex>* curves_vertices )
+	plb_CurvedSurfaces& curves,
+	plb_Vertices& curves_vertices )
 {
-	const float inv_64= 1.0f / 64.0f;
-	for( std::vector<plb_Vertex>::iterator it= curves_vertices->begin(); it< curves_vertices->end(); it++ )
+	for( plb_Vertex& v : curves_vertices )
 	{
-		float tmp= it->pos[1];
-		it->pos[1]= it->pos[2];
-		it->pos[2]= tmp;
-
-		it->pos[0]*= inv_64;
-		it->pos[1]*= inv_64;
-		it->pos[2]*= inv_64;
+		std::swap(v.pos[1], v.pos[2]);
+		v.pos[0]*= INV_Q_UNITS_IN_METER;
+		v.pos[1]*= INV_Q_UNITS_IN_METER;
+		v.pos[2]*= INV_Q_UNITS_IN_METER;
 	}
 
-	for( std::vector<plb_CurvedSurface>::iterator it= curves->begin(); it< curves->end(); it++ )
+	for( plb_CurvedSurface& curve : curves )
 	{
-		float tmp= it->bb_min[1];
-		it->bb_min[1]= it->bb_min[2];
-		it->bb_min[2]= tmp;
+		std::swap(curve.bb_min[1], curve.bb_min[2]);
+		std::swap(curve.bb_max[1], curve.bb_max[2]);
 
-		tmp= it->bb_max[1];
-		it->bb_max[1]= it->bb_max[2];
-		it->bb_max[2]= tmp;
-
-		it->bb_min[0]*= inv_64;
-		it->bb_min[1]*= inv_64;
-		it->bb_min[2]*= inv_64;
-		it->bb_max[0]*= inv_64;
-		it->bb_max[1]*= inv_64;
-		it->bb_max[2]*= inv_64;
+		for( unsigned int i= 0; i < 3; i++ )
+		{
+			curve.bb_min[i]*= INV_Q_UNITS_IN_METER;
+			curve.bb_max[i]*= INV_Q_UNITS_IN_METER;
+		}
 	}
 }
 
@@ -385,8 +361,8 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 	BuildPolygons( &surfaces, &vertices, &textures,
 		&level_data->polygons, &level_data->vertices,
 		&level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
-	TransformPolygons( &level_data->polygons, &level_data->vertices );
-	TransformCurves( &level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
+	TransformPolygons(level_data->polygons, level_data->vertices );
+	TransformCurves( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
 
 	if( level_data->curved_surfaces .size() > 0 )
 		GenCurvesNormalizedLightmapCoords( &level_data->curved_surfaces , &level_data->curved_surfaces_vertices );

@@ -27,43 +27,43 @@ static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
 
 static void TriangulatePolygons(
-	const std::vector<plb_Polygon>* in_polygons,
+	const plb_Polygons& in_polygons,
 	unsigned int base_vertex,
-	std::vector<unsigned int>* out_indeces )
+	std::vector<unsigned int>& out_indeces )
 {
 	unsigned int triangle_count= 0;
-	for( unsigned int i= 0; i< in_polygons->size(); i++ )
-		triangle_count+= (*in_polygons)[i].vertex_count - 2;
+	for( unsigned int i= 0; i< in_polygons.size(); i++ )
+		triangle_count+= in_polygons[i].vertex_count - 2;
 
-	out_indeces->resize( out_indeces->size() + triangle_count * 3 );
+	out_indeces.resize( out_indeces.size() + triangle_count * 3 );
 
-	unsigned int* i_p= (&*out_indeces->begin()) + out_indeces->size() - triangle_count * 3;
+	unsigned int* i_p= out_indeces.data() + out_indeces.size() - triangle_count * 3;
 
-	for( std::vector<plb_Polygon>::const_iterator poly= in_polygons->begin(); poly< in_polygons->end(); poly++ )
-		for( unsigned int j= 0; j< poly->vertex_count - 2; j++ )
+	for( const plb_Polygon& poly : in_polygons )
+		for( unsigned int j= 0; j< poly.vertex_count - 2; j++ )
 		{
-			i_p[0]= base_vertex + poly->first_vertex_number;
-			i_p[1]= base_vertex + poly->first_vertex_number + j + 1;
-			i_p[2]= base_vertex + poly->first_vertex_number + j + 2;
+			i_p[0]= base_vertex + poly.first_vertex_number;
+			i_p[1]= base_vertex + poly.first_vertex_number + j + 1;
+			i_p[2]= base_vertex + poly.first_vertex_number + j + 2;
 			i_p+= 3;
 		}
 }
 
 static void GenPolygonsVerticesNormals(
-	const std::vector<plb_Polygon>* in_polygons,
-	const std::vector<plb_Vertex>* in_vertices,
-	std::vector<plb_Normal>* out_normals )
+	const plb_Polygons& in_polygons,
+	const plb_Vertices& in_vertices,
+	plb_Normals& out_normals )
 {
-	out_normals->resize( out_normals->size() + in_vertices->size() );
+	out_normals.resize( out_normals.size() + in_vertices.size() );
 
-	plb_Normal* n_p= (&*out_normals->begin()) + out_normals->size() - in_vertices->size();
+	plb_Normal* n_p= out_normals.data() + out_normals.size() - in_vertices.size();
 
-	for( std::vector<plb_Polygon>::const_iterator poly= in_polygons->begin(); poly< in_polygons->end(); poly++ )
+	for( const plb_Polygon& poly : in_polygons )
 	{
 		plb_Normal normal;
 		for( unsigned int c= 0; c< 3; c++ )
-			normal.xyz[c]= (char)(poly->normal[c] * 127.0f);
-		for( unsigned int v= poly->first_vertex_number; v< poly->first_vertex_number + poly->vertex_count; v++ )
+			normal.xyz[c]= (char)(poly.normal[c] * 127.0f);
+		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 			n_p[v]= normal;
 	}
 }
@@ -147,7 +147,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	config_= *config;
 
 	LoadQ3Bsp( file_name , &level_data_ );
-	textures_manager_ = new plb_TexturesManager( &config_, &level_data_.textures );
+	textures_manager_ = new plb_TexturesManager( &config_, level_data_.textures );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
@@ -155,22 +155,22 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	CalculateLevelBoundingBox();
 
 	{ // create wold vbo
-		std::vector<plb_Vertex> combined_vertices( level_data_.vertices );
-		std::vector<plb_Normal> normals;
+		plb_Vertices combined_vertices( level_data_.vertices );
+		plb_Normals normals;
 		std::vector<unsigned int> index_buffer;
 
-		TriangulatePolygons( &level_data_.polygons, 0, &index_buffer );
-		GenPolygonsVerticesNormals( &level_data_.polygons, &level_data_.vertices, &normals );
+		TriangulatePolygons( level_data_.polygons, 0, index_buffer );
+		GenPolygonsVerticesNormals( level_data_.polygons, level_data_.vertices, normals );
 
 		if( level_data_.curved_surfaces.size() > 0 )
-			GenCurvesMeshes( &level_data_.curved_surfaces, &level_data_.curved_surfaces_vertices,
-				&combined_vertices, &index_buffer, &normals );
+			GenCurvesMeshes( level_data_.curved_surfaces, level_data_.curved_surfaces_vertices,
+				combined_vertices, index_buffer, normals );
 
 		polygons_vbo_.VertexData(
-			&*combined_vertices.begin(),
+			combined_vertices.data(),
 			combined_vertices.size() * sizeof(plb_Vertex), sizeof(plb_Vertex) );
 
-		polygons_vbo_.IndexData( &*index_buffer.begin(), index_buffer.size() * sizeof(unsigned int), GL_UNSIGNED_INT, GL_TRIANGLES );
+		polygons_vbo_.IndexData( index_buffer.data(), index_buffer.size() * sizeof(unsigned int), GL_UNSIGNED_INT, GL_TRIANGLES );
 		
 		plb_Vertex v; unsigned int offset;
 		offset= ((char*)v.pos) - ((char*)&v);
@@ -184,7 +184,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 
 		glGenBuffers( 1, &polygon_vbo_vertex_normals_vbo_ );
 		glBindBuffer( GL_ARRAY_BUFFER, polygon_vbo_vertex_normals_vbo_ );
-		glBufferData( GL_ARRAY_BUFFER, normals.size() * sizeof(plb_Normal), &*normals.begin(), GL_STATIC_DRAW );
+		glBufferData( GL_ARRAY_BUFFER, normals.size() * sizeof(plb_Normal), normals.data(), GL_STATIC_DRAW );
 
 		glEnableVertexAttribArray( Attrib::Normal );
 		glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
@@ -726,29 +726,29 @@ void plb_LightmapsBuilder::BuildLightmapBasises()
 {
 	float basis_scaler= 1.0f / float( 1 << config_.inv_lightmap_scale_log2 );
 
-	plb_Vertex* v_p= &*level_data_.vertices.begin();
-	for( std::vector<plb_Polygon>::iterator it= level_data_.polygons.begin(); it< level_data_.polygons.end(); it++ )
+	const plb_Vertex* v_p= level_data_.vertices.data();
+	for( plb_Polygon& poly : level_data_.polygons )
 	{
 		float min_uv[2]= { REALLY_MAX_FLOAT, REALLY_MAX_FLOAT };
 
-		for( unsigned int v= it->first_vertex_number; v< it->first_vertex_number + it->vertex_count; v++ )
+		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
 			float uv[2]= {
-				m_Vec3( v_p[v].pos ) * m_Vec3( it->texture_basis[0] ) + it->texture_basis[0][3],
-				m_Vec3( v_p[v].pos ) * m_Vec3( it->texture_basis[1] ) + it->texture_basis[1][3] };
+				m_Vec3( v_p[v].pos ) * m_Vec3( poly.texture_basis[0] ) + poly.texture_basis[0][3],
+				m_Vec3( v_p[v].pos ) * m_Vec3( poly.texture_basis[1] ) + poly.texture_basis[1][3] };
 			if( uv[0] < min_uv[0] ) min_uv[0]= uv[0];
 			if( uv[1] < min_uv[1] ) min_uv[1]= uv[1];
 		}
 
-		m_Vec3 scaled_u_basis(it->texture_basis[0]);
+		m_Vec3 scaled_u_basis(poly.texture_basis[0]);
 		scaled_u_basis*= basis_scaler;
-		m_Vec3 scaled_v_basis(it->texture_basis[1]);
+		m_Vec3 scaled_v_basis(poly.texture_basis[1]);
 		scaled_v_basis*= basis_scaler;
 		
-		ARR_VEC3_CPY( it->lightmap_basis[0], scaled_u_basis );
-		ARR_VEC3_CPY( it->lightmap_basis[1], scaled_v_basis );
-		it->lightmap_basis[0][3]= -floorf(min_uv[0]) * basis_scaler;
-		it->lightmap_basis[1][3]= -floorf(min_uv[1]) * basis_scaler;
+		ARR_VEC3_CPY( poly.lightmap_basis[0], scaled_u_basis );
+		ARR_VEC3_CPY( poly.lightmap_basis[1], scaled_v_basis );
+		poly.lightmap_basis[0][3]= -floorf(min_uv[0]) * basis_scaler;
+		poly.lightmap_basis[1][3]= -floorf(min_uv[1]) * basis_scaler;
 
 	}// for polygons
 }
@@ -758,6 +758,7 @@ UNFINISHED
 */
 void plb_LightmapsBuilder::DevideLongPolygons()
 {
+#if 0
 	plb_Vertex* v_p= &*level_data_.vertices.begin();
 	unsigned int initial_polygons_count= level_data_.polygons.size();
 
@@ -778,92 +779,86 @@ void plb_LightmapsBuilder::DevideLongPolygons()
 		}
 		//printf( "uv: min(%f:%f) max(%f:%f)\n", min_uv[0], min_uv[1], max_uv[0], max_uv[1] );
 	}// for polygons
+#endif
 }
 
 void plb_LightmapsBuilder::TransformTexturesCoordinates()
 {
-	plb_Vertex* v_p= &*level_data_.vertices.begin();
-	for( std::vector<plb_Polygon>::iterator polygon= level_data_.polygons.begin(); polygon< level_data_.polygons.end(); polygon++ )
+	plb_Vertex* v_p= level_data_.vertices.data();
+	for( const plb_Polygon& polygon : level_data_.polygons )
 	{
-		plb_ImageInfo* img= &level_data_.textures[ polygon->texture_id ];
-		for( unsigned int v= polygon->first_vertex_number; v< polygon->first_vertex_number + polygon->vertex_count; v++ )
+		const plb_ImageInfo img= level_data_.textures[ polygon.texture_id ];
+		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
-			v_p[v].tex_maps[0]= img->texture_array_id;
-			v_p[v].tex_maps[1]= img->texture_layer_id;
+			v_p[v].tex_maps[0]= img.texture_array_id;
+			v_p[v].tex_maps[1]= img.texture_layer_id;
 		}
 	}
 
 	if( level_data_.curved_surfaces.size() > 0 )
 	{
-		v_p= &*level_data_.curved_surfaces_vertices.begin();
-		for( std::vector<plb_CurvedSurface>::iterator curve= level_data_.curved_surfaces.begin(); curve< level_data_.curved_surfaces.end(); curve++ )
+		v_p= level_data_.curved_surfaces_vertices.data();
+		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			plb_ImageInfo* img= &level_data_.textures[ curve->texture_id ];
-			for( unsigned int v= curve->first_vertex_number; v< curve->first_vertex_number + curve->grid_size[0] * curve->grid_size[1]; v++ )
+			const plb_ImageInfo& img= level_data_.textures[ curve.texture_id ];
+			for( unsigned int v= curve.first_vertex_number; v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				v_p[v].tex_maps[0]= img->texture_array_id;
-				v_p[v].tex_maps[1]= img->texture_layer_id;
+				v_p[v].tex_maps[0]= img.texture_array_id;
+				v_p[v].tex_maps[1]= img.texture_layer_id;
 			}
 		}
 	}
 }
 
-static bool SurfaceLightmapCmp( const plb_SurfaceLightmapData* l0, const plb_SurfaceLightmapData* l1 )
-{
-	return l0->size[1] < l1->size[1];
-}
-
 void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 {
-
-	plb_Vertex* v_p= &*level_data_.vertices.begin();
-	for( std::vector<plb_Polygon>::iterator polygon= level_data_.polygons.begin(); polygon< level_data_.polygons.end(); polygon++ )
+	plb_Vertex* v_p= level_data_.vertices.data();
+	for( plb_Polygon& polygon : level_data_.polygons )
 	{
 		float max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
-		for( unsigned int v= polygon->first_vertex_number; v< polygon->first_vertex_number + polygon->vertex_count; v++ )
+		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
 			float uv[2]= {
-				m_Vec3( polygon->lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + polygon->lightmap_basis[0][3],
-				m_Vec3( polygon->lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + polygon->lightmap_basis[1][3] };
+				m_Vec3( polygon.lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + polygon.lightmap_basis[0][3],
+				m_Vec3( polygon.lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + polygon.lightmap_basis[1][3] };
 			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
 			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
 		}
-		polygon->lightmap_data.size[0]= ((unsigned int)ceilf( max_uv[0] ) ) + 1;
-		if( polygon->lightmap_data.size[0] < 2 ) polygon->lightmap_data.size[0] = 2;
-		polygon->lightmap_data.size[1]= ((unsigned int)ceilf( max_uv[1] ) ) + 1;
-		if( polygon->lightmap_data.size[1] < 2 ) polygon->lightmap_data.size[1] = 2;
+		polygon.lightmap_data.size[0]= ((unsigned int)ceilf( max_uv[0] ) ) + 1;
+		if( polygon.lightmap_data.size[0] < 2 ) polygon.lightmap_data.size[0] = 2;
+		polygon.lightmap_data.size[1]= ((unsigned int)ceilf( max_uv[1] ) ) + 1;
+		if( polygon.lightmap_data.size[1] < 2 ) polygon.lightmap_data.size[1] = 2;
 
 		// pereveracivajem bazis karty osvescenija, tak nado
-		if( polygon->lightmap_data.size[0] < polygon->lightmap_data.size[1] )
+		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
 			float tmp[4];
-			memcpy( tmp, polygon->lightmap_basis[0], sizeof(float)*4);
-			memcpy( polygon->lightmap_basis[0], polygon->lightmap_basis[1], sizeof(float)*4);
-			memcpy( polygon->lightmap_basis[1], tmp, sizeof(float)*4);
+			memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
+			memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
+			memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
 
 			unsigned short i_tmp;
-			i_tmp= polygon->lightmap_data.size[0];
-			polygon->lightmap_data.size[0]= polygon->lightmap_data.size[1];
-			polygon->lightmap_data.size[1]= i_tmp;
+			i_tmp= polygon.lightmap_data.size[0];
+			polygon.lightmap_data.size[0]= polygon.lightmap_data.size[1];
+			polygon.lightmap_data.size[1]= i_tmp;
 		}
 	}
 
 	if( level_data_.curved_surfaces_vertices.size() > 0 )
 	{
-		v_p= &*level_data_.curved_surfaces_vertices.begin();
-		for( std::vector<plb_CurvedSurface>::iterator curve= level_data_.curved_surfaces.begin();
-			curve< level_data_.curved_surfaces.end(); curve++ )
+		v_p= level_data_.curved_surfaces_vertices.data();
+		for( plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			curve->lightmap_data.size[0]*= 4;
-			curve->lightmap_data.size[1]*= 4;
-			if( curve->lightmap_data.size[0] < curve->lightmap_data.size[1] )
+			curve.lightmap_data.size[0]*= 4;
+			curve.lightmap_data.size[1]*= 4;
+			if( curve.lightmap_data.size[0] < curve.lightmap_data.size[1] )
 			{
-				unsigned short tmp= curve->lightmap_data.size[0];
-				curve->lightmap_data.size[0]= curve->lightmap_data.size[1];
-				curve->lightmap_data.size[1]= tmp;
+				unsigned short tmp= curve.lightmap_data.size[0];
+				curve.lightmap_data.size[0]= curve.lightmap_data.size[1];
+				curve.lightmap_data.size[1]= tmp;
 
-				for( unsigned int v= curve->first_vertex_number;
-					v< curve->first_vertex_number + curve->grid_size[0] * curve->grid_size[1]; v++ )
+				for( unsigned int v= curve.first_vertex_number;
+					v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 				{
 					float tmp_f= v_p[v].lightmap_coord[0];
 					v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[1];
@@ -882,7 +877,13 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	for( unsigned int i= 0, j= level_data_.polygons.size(); i< level_data_.curved_surfaces.size(); i++, j++ )
 		sorted_lightmaps[j]= &level_data_.curved_surfaces[i].lightmap_data;
 
-	std::sort( sorted_lightmaps.begin(), sorted_lightmaps.end(), SurfaceLightmapCmp );
+	std::sort(
+		sorted_lightmaps.begin(),
+		sorted_lightmaps.end(),
+		[]( const plb_SurfaceLightmapData* l0, const plb_SurfaceLightmapData* l1 )
+		{
+			return l0->size[1] < l1->size[1];
+		} );
 
 	/*
 	place lightmaps into atlases
@@ -1014,39 +1015,38 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 		1.0f / float(lightmap_size[1]),
 	};
 
-	plb_Vertex* v_p= &*level_data_.vertices.begin();
-	for( std::vector<plb_Polygon>::iterator poly= level_data_.polygons.begin(); poly< level_data_.polygons.end(); poly++ )
+	plb_Vertex* v_p= level_data_.vertices.data();
+	for( plb_Polygon& poly : level_data_.polygons )
 	{
-		for( unsigned int v= poly->first_vertex_number; v< poly->first_vertex_number + poly->vertex_count; v++ )
+		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
-			v_p[v].lightmap_coord[0]= m_Vec3( poly->lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + poly->lightmap_basis[0][3];
-			v_p[v].lightmap_coord[0]+= float(poly->lightmap_data.coord[0]);
+			v_p[v].lightmap_coord[0]= m_Vec3( poly.lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + poly.lightmap_basis[0][3];
+			v_p[v].lightmap_coord[0]+= float(poly.lightmap_data.coord[0]);
 			v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-			v_p[v].lightmap_coord[1]= m_Vec3( poly->lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + poly->lightmap_basis[1][3];
-			v_p[v].lightmap_coord[1]+= float(poly->lightmap_data.coord[1]);
+			v_p[v].lightmap_coord[1]= m_Vec3( poly.lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + poly.lightmap_basis[1][3];
+			v_p[v].lightmap_coord[1]+= float(poly.lightmap_data.coord[1]);
 			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
-			v_p[v].tex_maps[2]= poly->lightmap_data.atlas_id;
+			v_p[v].tex_maps[2]= poly.lightmap_data.atlas_id;
 		}
 	}// for polygons
 
 	if( level_data_.curved_surfaces_vertices.size() > 0 )
 	{
-		v_p= &*level_data_.curved_surfaces_vertices.begin();
-		for( std::vector<plb_CurvedSurface>::iterator curve= level_data_.curved_surfaces.begin();
-			curve< level_data_.curved_surfaces.end(); curve++ )
+		v_p= level_data_.curved_surfaces_vertices.data();
+		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			for( unsigned int v= curve->first_vertex_number;
-				v< curve->first_vertex_number + curve->grid_size[0] * curve->grid_size[1]; v++ )
+			for( unsigned int v= curve.first_vertex_number;
+				v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[0] * float(curve->lightmap_data.size[0]) + float(curve->lightmap_data.coord[0]);
+				v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[0] * float(curve.lightmap_data.size[0]) + float(curve.lightmap_data.coord[0]);
 				v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(curve->lightmap_data.size[1]) + float(curve->lightmap_data.coord[1]);
+				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(curve.lightmap_data.size[1]) + float(curve.lightmap_data.coord[1]);
 				v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
-				v_p[v].tex_maps[2]= curve->lightmap_data.atlas_id;
+				v_p[v].tex_maps[2]= curve.lightmap_data.atlas_id;
 			}
 		}// for curves
 	}
@@ -1071,22 +1071,21 @@ void plb_LightmapsBuilder::FillBorderLightmapTexels()
 	static const int vec_table[]= { 1,0, -1,0, 0,1, 0,-1 };
 	const float eps= 1e-5f;
 
-	plb_Vertex* vp= &*level_data_.vertices.begin();
-	for( std::vector<plb_Polygon>::iterator p= level_data_.polygons.begin(); p< level_data_.polygons.end(); p++ )
+	for( plb_Polygon& p : level_data_.polygons )
 	{
 		for( unsigned int i= 0; i< 3; i++ )
 		{
 			float* texels= lightmap_data + 4 * lightmap_atlas_texture_.size[0] * lightmap_atlas_texture_.size[1] *
-				p->lightmap_data.atlas_id;
+				p.lightmap_data.atlas_id;
 			float* texels_src= tmp_poly_lightmap_data;
 
-			for( unsigned int y= p->lightmap_data.coord[1], y_end= p->lightmap_data.size[1] + p->lightmap_data.coord[1];
+			for( unsigned int y= p.lightmap_data.coord[1], y_end= p.lightmap_data.size[1] + p.lightmap_data.coord[1];
 				y< y_end; y++ )
 			{
-				unsigned int dy= y - p->lightmap_data.coord[1];
-				unsigned int k_src= (p->lightmap_data.coord[0] + y * lightmap_atlas_texture_.size[0])<<2;
-				unsigned int k_dst= (p->lightmap_data.coord[0] + dy * lightmap_atlas_texture_.size[0])<<2;
-				for( unsigned int x= p->lightmap_data.coord[0], x_end= p->lightmap_data.size[0] + p->lightmap_data.coord[0];
+				unsigned int dy= y - p.lightmap_data.coord[1];
+				unsigned int k_src= (p.lightmap_data.coord[0] + y * lightmap_atlas_texture_.size[0])<<2;
+				unsigned int k_dst= (p.lightmap_data.coord[0] + dy * lightmap_atlas_texture_.size[0])<<2;
+				for( unsigned int x= p.lightmap_data.coord[0], x_end= p.lightmap_data.size[0] + p.lightmap_data.coord[0];
 					x< x_end; x++, k_src+=4, k_dst+=4 )
 				{
 					texels_src[k_dst  ]= texels[k_src  ];
@@ -1096,13 +1095,13 @@ void plb_LightmapsBuilder::FillBorderLightmapTexels()
 				}
 			}// copy old data to tmp buffer
 
-			for( unsigned int y= p->lightmap_data.coord[1], y_end= p->lightmap_data.size[1] + p->lightmap_data.coord[1];
+			for( unsigned int y= p.lightmap_data.coord[1], y_end= p.lightmap_data.size[1] + p.lightmap_data.coord[1];
 				y< y_end; y++ )
 			{
-				unsigned int dy= y - p->lightmap_data.coord[1];
-				unsigned int k_dst= (p->lightmap_data.coord[0] + y * lightmap_atlas_texture_.size[0])<<2;
-				unsigned int k_src= (p->lightmap_data.coord[0] + dy * lightmap_atlas_texture_.size[0])<<2;
-				for( unsigned int x= p->lightmap_data.coord[0], x_end= p->lightmap_data.size[0] + p->lightmap_data.coord[0];
+				unsigned int dy= y - p.lightmap_data.coord[1];
+				unsigned int k_dst= (p.lightmap_data.coord[0] + y * lightmap_atlas_texture_.size[0])<<2;
+				unsigned int k_src= (p.lightmap_data.coord[0] + dy * lightmap_atlas_texture_.size[0])<<2;
+				for( unsigned int x= p.lightmap_data.coord[0], x_end= p.lightmap_data.size[0] + p.lightmap_data.coord[0];
 					x< x_end; x++, k_dst+= 4, k_src+= 4 )
 				{
 					if( texels_src[k_src+3] < eps ) // empty texel, becouse alpha is zero
@@ -1113,10 +1112,10 @@ void plb_LightmapsBuilder::FillBorderLightmapTexels()
 						{
 							int new_x= x + vec_table[v*2];
 							int new_y= y + vec_table[v*2+1];
-							if( new_x >= p->lightmap_data.coord[0] && new_x < ((int)x_end) )
-								if( new_y >= p->lightmap_data.coord[1] && new_y < ((int)y_end) )
+							if( new_x >= p.lightmap_data.coord[0] && new_x < ((int)x_end) )
+								if( new_y >= p.lightmap_data.coord[1] && new_y < ((int)y_end) )
 								{
-									unsigned int new_k= (new_x + (new_y-p->lightmap_data.coord[1]) * lightmap_atlas_texture_.size[0])<<2;
+									unsigned int new_k= (new_x + (new_y-p.lightmap_data.coord[1]) * lightmap_atlas_texture_.size[0])<<2;
 									if( texels_src[new_k+3] > eps ) // if nearest texel alpha is not zero
 									{
 										sum[0]+= texels_src[new_k  ];
@@ -1155,12 +1154,12 @@ void plb_LightmapsBuilder::CalculateLevelBoundingBox()
 	m_Vec3 l_min( inf, inf, inf );
 	m_Vec3 l_max( -inf, -inf, -inf );
 
-	for( std::vector<plb_Vertex>::iterator v= level_data_.vertices.begin(); v< level_data_.vertices.end(); v++ )
+	for( const plb_Vertex& v : level_data_.vertices )
 	{
 		for( unsigned int i= 0; i< 3; i++ )
 		{
-			if( v->pos[i] < l_min.ToArr()[i] ) l_min.ToArr()[i]= v->pos[i];
-			else if( v->pos[i] > l_max.ToArr()[i] ) l_max.ToArr()[i]= v->pos[i];
+			if( v.pos[i] < l_min.ToArr()[i] ) l_min.ToArr()[i]= v.pos[i];
+			else if( v.pos[i] > l_max.ToArr()[i] ) l_max.ToArr()[i]= v.pos[i];
 		}
 	}
 	level_bounding_box_.min= l_min;

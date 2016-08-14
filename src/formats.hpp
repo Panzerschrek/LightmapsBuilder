@@ -16,12 +16,16 @@ struct plb_Vertex
 	unsigned char tex_maps[4];
 };
 
+typedef std::vector<plb_Vertex> plb_Vertices;
+
 //4b GPU low-precision normal
 struct plb_Normal
 {
 	char xyz[3];
 	char reserved;
 };
+
+typedef std::vector<plb_Normal>plb_Normals;
 
 struct plb_SurfaceLightmapData
 {
@@ -43,6 +47,8 @@ struct plb_Polygon
 	plb_SurfaceLightmapData lightmap_data;
 };
 
+typedef std::vector<plb_Polygon> plb_Polygons;
+
 struct plb_CurvedSurface
 {
 	unsigned int grid_size[2]; // must be n*2+1, n > 0
@@ -55,6 +61,8 @@ struct plb_CurvedSurface
 	plb_SurfaceLightmapData lightmap_data;
 };
 
+typedef std::vector<plb_CurvedSurface> plb_CurvedSurfaces;
+
 struct plb_ImageInfo
 {
 	unsigned int texture_array_id;
@@ -65,6 +73,8 @@ struct plb_ImageInfo
 	std::string file_name;
 };
 
+typedef std::vector<plb_ImageInfo> plb_ImageInfos;
+
 struct plb_PointLight
 {
 	float pos[3];
@@ -73,6 +83,8 @@ struct plb_PointLight
 	unsigned char reserved;
 };
 
+typedef std::vector<plb_PointLight> plb_PointLights;
+
 struct plb_DirectionalLight
 {
 	float direction[3];
@@ -80,6 +92,8 @@ struct plb_DirectionalLight
 	unsigned char color[3];
 	unsigned char reserved;
 };
+
+typedef std::vector<plb_DirectionalLight> plb_DirectionalLights;
 
 struct plb_ConeLinght
 {
@@ -90,6 +104,8 @@ struct plb_ConeLinght
 	unsigned char color[3];
 	unsigned char reserved[1];
 };
+
+typedef std::vector<plb_ConeLinght> plb_ConeLinghts;
 
 struct plb_Config
 {
@@ -112,15 +128,15 @@ struct plb_Config
 
 struct plb_LevelData
 {
-	std::vector<plb_Vertex> vertices;
-	std::vector<plb_Polygon> polygons;
+	plb_Vertices vertices;
+	plb_Polygons polygons;
 
-	std::vector<plb_PointLight> point_lights;
-	std::vector<plb_DirectionalLight> directional_lights;
-	std::vector<plb_ConeLinght> cone_lights;
+	plb_PointLights point_lights;
+	plb_DirectionalLights directional_lights;
+	plb_ConeLinghts cone_lights;
 
-	std::vector<plb_ImageInfo> textures;
+	plb_ImageInfos textures;
 
-	std::vector<plb_CurvedSurface> curved_surfaces;
-	std::vector<plb_Vertex> curved_surfaces_vertices;
+	plb_CurvedSurfaces curved_surfaces;
+	plb_Vertices curved_surfaces_vertices;
 };

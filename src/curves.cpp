@@ -109,54 +109,54 @@ static inline m_Vec3 GenCurveNormal( const m_Vec3* base_vertices, float kx, floa
 }
 
 void GenCurvesMeshes(
-	const std::vector<plb_CurvedSurface>* curves, const std::vector<plb_Vertex>* curves_vertices,
-	std::vector<plb_Vertex>* out_vertices, std::vector<unsigned int>* out_indeces, std::vector<plb_Normal>* out_normals )
+	const plb_CurvedSurfaces& curves, const plb_Vertices& curves_vertices,
+	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals )
 {
 	const float max_angle_rad= 8.0f * 3.1415926535f / 180.0f;
 
-	const plb_Vertex* v_p= &*curves_vertices->begin();
-	for( std::vector<plb_CurvedSurface>::const_iterator curve= curves->begin(); curve< curves->end(); curve++ )
+	const plb_Vertex* v_p= curves_vertices.data();
+	for( const plb_CurvedSurface& curve : curves )
 	{
-		for( unsigned int y= 0; y< curve->grid_size[1]-1; y+=2 )
-			for( unsigned int x= 0; x< curve->grid_size[0]-1; x+=2 ) // for curve patches
+		for( unsigned int y= 0; y< curve.grid_size[1]-1; y+=2 )
+			for( unsigned int x= 0; x< curve.grid_size[0]-1; x+=2 ) // for curve patches
 			{
 				m_Vec3 base_vertices[]=
 				{
-					m_Vec3( v_p[ curve->first_vertex_number + x   +  y    * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+1 +  y    * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+2 +  y    * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x   + (y+1) * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+1 + (y+1) * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+2 + (y+1) * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x   + (y+2) * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+1 + (y+2) * curve->grid_size[0] ].pos ),
-					m_Vec3( v_p[ curve->first_vertex_number + x+2 + (y+2) * curve->grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].pos ),
+					m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].pos ),
 				};
 				m_Vec2 base_vertices_lightmap_coords[]=
 				{
-					m_Vec2( v_p[ curve->first_vertex_number + x   +  y    * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 +  y    * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 +  y    * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x   + (y+1) * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 + (y+1) * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 + (y+1) * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x   + (y+2) * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 + (y+2) * curve->grid_size[0] ].lightmap_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 + (y+2) * curve->grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
 				};
 				m_Vec2 base_vertices_texture_coords[]=
 				{
-					m_Vec2( v_p[ curve->first_vertex_number + x   +  y    * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 +  y    * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 +  y    * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x   + (y+1) * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 + (y+1) * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 + (y+1) * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x   + (y+2) * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+1 + (y+2) * curve->grid_size[0] ].tex_coord ),
-					m_Vec2( v_p[ curve->first_vertex_number + x+2 + (y+2) * curve->grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].tex_coord ),
+					m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].tex_coord ),
 				};
-				unsigned int base_vertex_index= curve->first_vertex_number + x +  y * curve->grid_size[0];
+				unsigned int base_vertex_index= curve.first_vertex_number + x +  y * curve.grid_size[0];
 				unsigned char tex_maps[4];
 				std::memcpy(tex_maps, v_p[ base_vertex_index ].tex_maps, 4 );
 
@@ -164,12 +164,12 @@ void GenCurvesMeshes(
 				GetPatchSubdivisions( base_vertices, max_angle_rad, subdivisions );
 
 				unsigned int patch_gird_size[]= { subdivisions[0]+1, subdivisions[1]+1 };
-				unsigned int first_out_vertex_index= out_vertices->size();
-				out_vertices->resize( out_vertices->size() + patch_gird_size[0] * patch_gird_size[1] );
-				plb_Vertex* vert= (&*out_vertices->begin()) + first_out_vertex_index;
+				unsigned int first_out_vertex_index= out_vertices.size();
+				out_vertices.resize( out_vertices.size() + patch_gird_size[0] * patch_gird_size[1] );
+				plb_Vertex* vert= out_vertices.data() + first_out_vertex_index;
 
-				out_normals->resize( out_normals->size() + patch_gird_size[0] * patch_gird_size[1] );
-				plb_Normal* normals= (&*out_normals->begin()) + out_normals->size() - patch_gird_size[0] * patch_gird_size[1];
+				out_normals.resize( out_normals.size() + patch_gird_size[0] * patch_gird_size[1] );
+				plb_Normal* normals= out_normals.data() + out_normals.size() - patch_gird_size[0] * patch_gird_size[1];
 
 				float ky= 0.0f, dky= 1.0f / float(subdivisions[1]);
 				for( unsigned int z= 0; z< patch_gird_size[1]; z++, ky+= dky )
@@ -266,8 +266,8 @@ void GenCurvesMeshes(
 				}// for patch subdivisions y
 
 				unsigned int index_count= subdivisions[0] * subdivisions[1] * 6;
-				out_indeces->resize( out_indeces->size() + index_count );
-				unsigned int* indeces= (&*out_indeces->begin()) + out_indeces->size() - index_count;
+				out_indeces.resize( out_indeces.size() + index_count );
+				unsigned int* indeces= out_indeces.data() + out_indeces.size() - index_count;
 
 				for( unsigned int z= 0; z< subdivisions[1]; z++ )
 					for( unsigned int w= 0; w< subdivisions[0]; w++ )
