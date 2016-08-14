@@ -2,6 +2,8 @@
 
 #include <SDL.h>
 
+#include <panzer_ogl_lib.hpp>
+
 static void FatalError(const char* message)
 {
 	std::cout << message << std::endl;
@@ -58,6 +60,9 @@ extern "C" int main(int argc, char *argv[])
 				break;
 			};
 		}
+
+		glClearColor( 0.3f, 0.0f, 0.3f, 0.0f );
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 		SDL_GL_SwapWindow(window);
 
