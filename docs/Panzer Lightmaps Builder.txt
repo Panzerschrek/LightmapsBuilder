@@ -1,0 +1,8 @@
+﻿Panzer Lightmaps Builder
+
+K pervoj gotovoj versii programa dolžna delatj sledujusceje:
+	1) Gruzitj urovenj v formate .map, ka v Quake II ili Quake III.
+	2) Vozmožnostj posmotretj urovenj v okne programmy s teksturami, a tak-že s postrojennymi kartami osvescenija.
+	3) Nastroitj parametry sozdanija i sohranenija kart osvescenija.
+	
+

@@ -1,0 +1,6 @@
+﻿*) Razmer karty osvescenija pri razscöte ( kolicestvo tekselej tekstury k tekseläm karty ). K primeru 1:4.
+*) Razmer vyhodnoj karty osvescenija( kolicestvo tekselej textury k tekseläm karty ). K primeru 1:8.
+*) Razmer atlasa kart osvescenija pri rascöte ( v pikseläh ). K primeru 512.
+*) Minimaljnyj razmer tekstur pri rascöte. Naprimer 32.
+*) Maksimaljnyj razmer tekstur pri rascöte. Naprimer 512.
+*) Maksimaljnyj razmer konecnoj karty osvescenija na odnom poligone. Naprimer 32.
