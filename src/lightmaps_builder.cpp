@@ -780,9 +780,11 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const plb_ConeLinght& light )
 
 	translate.Translate( -m_Vec3(light.pos) );
 
-		 if( light.direction[1] >  0.999f )
+	const float c_sin_eps= 0.97f;
+
+		 if( light.direction[1] >=  c_sin_eps )
 		rotate.RotateX(  g_pi * 0.5f );
-	else if( light.direction[1] < -0.999f )
+	else if( light.direction[1] <= -c_sin_eps )
 		rotate.RotateX( -g_pi * 0.5f );
 	else
 	{
