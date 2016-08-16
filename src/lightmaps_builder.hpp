@@ -119,7 +119,7 @@ private:
 		float z_min, z_max;
 	} directional_light_shadowmap_;
 
-	r_GLSLProgram directional_shadowmap_shader_;
+	r_GLSLProgram shadowmap_shader_;
 	r_GLSLProgram directional_light_pass_shader_;
 
 	r_GLSLProgram texture_show_shader_;

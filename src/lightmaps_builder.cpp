@@ -360,15 +360,15 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	secondary_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	secondary_light_pass_shader_.Create();
 
-	directional_shadowmap_shader_.ShaderSource(
+	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
-		rLoadShader( "shaders/sun_shadowmap_v.glsl", g_glsl_version));
-	directional_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	directional_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	directional_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	directional_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	directional_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	directional_shadowmap_shader_.Create();
+		rLoadShader( "shaders/shadowmap_v.glsl", g_glsl_version));
+	shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
@@ -683,8 +683,8 @@ void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const plb_DirectionalLi
 	directional_light_shadowmap_.z_min= proj_min.z;
 	directional_light_shadowmap_.z_max= proj_max.z;
 
-	directional_shadowmap_shader_.Bind();
-	directional_shadowmap_shader_.Uniform( "view_matrix", result );
+	shadowmap_shader_.Bind();
+	shadowmap_shader_.Uniform( "view_matrix", result );
 
 	polygons_vbo_.Draw();
 
