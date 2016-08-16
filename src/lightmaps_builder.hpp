@@ -35,6 +35,10 @@ private:
 	void GenDirectionalLightShadowmap( const plb_DirectionalLight& light );
 	void DirectionalLightPass( const plb_DirectionalLight& light );
 
+	void CreateConeLightShadowmap();
+	void GenConeLightShadowmap( const plb_ConeLinght& light );
+	void ConeLightPass( const plb_ConeLinght& light );
+
 	void BuildLightmapBasises();
 	void DevideLongPolygons();
 
@@ -119,8 +123,18 @@ private:
 		float z_min, z_max;
 	} directional_light_shadowmap_;
 
-	r_GLSLProgram shadowmap_shader_;
+	r_GLSLProgram shadowmap_shader_; // common with cone light
 	r_GLSLProgram directional_light_pass_shader_;
+
+	struct
+	{
+		unsigned int size[2];
+		GLuint depth_tex_id;
+		GLuint fbo_id;
+		m_Mat4 view_matrix;
+	} cone_light_shadowmap_;
+
+	r_GLSLProgram cone_light_pass_shader_;
 
 	r_GLSLProgram texture_show_shader_;
 	r_PolygonBuffer cubemap_show_buffer_;
