@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 
 #include <shaders_loading.hpp>
 
@@ -942,23 +943,20 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
 			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
 		}
-		polygon.lightmap_data.size[0]= ((unsigned int)ceilf( max_uv[0] ) ) + 1;
+		polygon.lightmap_data.size[0]= ((unsigned int)std::ceil( max_uv[0] ) ) + 1;
 		if( polygon.lightmap_data.size[0] < 2 ) polygon.lightmap_data.size[0] = 2;
-		polygon.lightmap_data.size[1]= ((unsigned int)ceilf( max_uv[1] ) ) + 1;
+		polygon.lightmap_data.size[1]= ((unsigned int)std::ceil( max_uv[1] ) ) + 1;
 		if( polygon.lightmap_data.size[1] < 2 ) polygon.lightmap_data.size[1] = 2;
 
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
 			float tmp[4];
-			memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
-			memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
-			memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
+			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
+			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
+			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
 
-			unsigned short i_tmp;
-			i_tmp= polygon.lightmap_data.size[0];
-			polygon.lightmap_data.size[0]= polygon.lightmap_data.size[1];
-			polygon.lightmap_data.size[1]= i_tmp;
+			std::swap( polygon.lightmap_data.size[0], polygon.lightmap_data.size[1] );
 		}
 	}
 
@@ -978,29 +976,28 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 				for( unsigned int v= curve.first_vertex_number;
 					v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 				{
-					float tmp_f= v_p[v].lightmap_coord[0];
-					v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[1];
-					v_p[v].lightmap_coord[1]= tmp_f;
+					std::swap( v_p[v].lightmap_coord[0], v_p[v].lightmap_coord[1] );
 				}
 			}
 		}
 	}
 
-	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps;
-	sorted_lightmaps.resize( level_data_.polygons.size() + level_data_.curved_surfaces.size() );
+	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps(
+		level_data_.polygons.size() + level_data_.curved_surfaces.size() );
 
 	for( unsigned int i= 0; i< level_data_.polygons.size(); i++ )
 		sorted_lightmaps[i]= &level_data_.polygons[i].lightmap_data;
 	
-	for( unsigned int i= 0, j= level_data_.polygons.size(); i< level_data_.curved_surfaces.size(); i++, j++ )
-		sorted_lightmaps[j]= &level_data_.curved_surfaces[i].lightmap_data;
+	for( unsigned int i= 0; i< level_data_.curved_surfaces.size(); i++ )
+		sorted_lightmaps[ i + level_data_.polygons.size() ]=
+			&level_data_.curved_surfaces[i].lightmap_data;
 
 	std::sort(
 		sorted_lightmaps.begin(),
 		sorted_lightmaps.end(),
 		[]( const plb_SurfaceLightmapData* l0, const plb_SurfaceLightmapData* l1 )
 		{
-			return l0->size[1] < l1->size[1];
+			return l0->size[1] > l1->size[1];
 		} );
 
 	/*
@@ -1011,13 +1008,10 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	unsigned int current_lightmap_atlas_id= 0;
 	unsigned int current_column_x= lightmaps_offset;
 	unsigned int current_column_y= lightmaps_offset;
-	unsigned int current_column_height= sorted_lightmaps.back()->size[1];
+	unsigned int current_column_height= sorted_lightmaps.front()->size[1];
 
-	for( unsigned int i= 0, j= sorted_lightmaps.size()-1; i< sorted_lightmaps.size(); i++, j-- )
+	for( plb_SurfaceLightmapData* const lightmap : sorted_lightmaps )
 	{
-		plb_SurfaceLightmapData* lightmap= sorted_lightmaps[j];
-		//plb_Polygon* poly= sorted_polygons[j].poly;
-
 		if( current_column_x + lightmap->size[0] + lightmaps_offset >= lightmap_size[0] )
 		{
 			current_column_x= lightmaps_offset;
