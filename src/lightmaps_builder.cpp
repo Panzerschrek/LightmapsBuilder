@@ -146,7 +146,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	config_= *config;
 
 	LoadQ3Bsp( file_name , &level_data_ );
-	textures_manager_ = new plb_TexturesManager( &config_, level_data_.textures );
+	textures_manager_ = new plb_TexturesManager( config_, level_data_.textures );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();

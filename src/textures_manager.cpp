@@ -1,4 +1,7 @@
-﻿#include <IL/il.h>
+﻿#include <cstdio>
+#include <cstring>
+
+#include <IL/il.h>
 #include <IL/ilu.h>
 
 #include "textures_manager.hpp"
@@ -35,7 +38,9 @@ static void GenStubTexture( unsigned char* dst, unsigned int width, unsigned cha
 }
 #endif
 
-plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInfos& images )
+plb_TexturesManager::plb_TexturesManager(
+	const plb_Config& config,
+	plb_ImageInfos& images )
 {
 	static const char* const img_extensions[]=
 	{
@@ -46,12 +51,13 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 
 	ilInit();
 
-	unsigned int square_arrays_count= config->max_textures_size_log2 - config->min_textures_size_log2 + 1;
+	const unsigned int square_arrays_count=
+		config.max_textures_size_log2 - config.min_textures_size_log2 + 1;
 	textures_arrays_.resize( square_arrays_count );
 	for( unsigned int i= 0; i< square_arrays_count; i++ )
 	{
-		textures_arrays_[i].size[0]= 
-		textures_arrays_[i].size[1]= 1<< (config->min_textures_size_log2 + i );
+		textures_arrays_[i].size[0]=
+		textures_arrays_[i].size[1]= 1 << (config.min_textures_size_log2 + i );
 		textures_arrays_[i].size[2]= 0;
 	}
 
@@ -59,37 +65,38 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 
 	for( plb_ImageInfo& img : images )
 	{
-		unsigned int i = &img - images.data();
+		const unsigned int i= &img - images.data();
 
 		ilGenImages( 1, &il_textures_handles[i] );
 		ilBindImage( il_textures_handles[i] );
 		bool img_loaded= false;
 
-		for( unsigned int e= 0; e< sizeof(img_extensions) / sizeof(char*); e++ )
+		for( const char* const extension : img_extensions )
 		{
-			std::string file_name= config->textures_path + img.file_name + img_extensions[e];
+			const std::string file_name= config.textures_path + img.file_name + extension;
 			if( ilLoadImage( file_name.c_str() ) )
 			{
 				img_loaded= true;
-				img.original_size[0]= ilGetInteger( IL_IMAGE_WIDTH );
+				img.original_size[0]= ilGetInteger( IL_IMAGE_WIDTH  );
 				img.original_size[1]= ilGetInteger( IL_IMAGE_HEIGHT );
 
 				for( unsigned int d= 0; d< 2; d++ )
 				{
 					img.size_log2[d]= PowerOfTwoCeil(img.original_size[d]);
-					if( img.size_log2[d] > config->max_textures_size_log2 ) img.size_log2[d]= config->max_textures_size_log2;
-					else if (img.size_log2[d] < config->min_textures_size_log2 ) img.size_log2[d]= config->min_textures_size_log2;
+					if( img.size_log2[d] > config.max_textures_size_log2 )
+						img.size_log2[d]= config.max_textures_size_log2;
+					else if (img.size_log2[d] < config.min_textures_size_log2 )
+						img.size_log2[d]= config.min_textures_size_log2;
 				}
-				img.size_log2[0]= img.size_log2[1]=
-					(img.size_log2[0] > img.size_log2[1]) ? img.size_log2[0] : img.size_log2[1];
+				img.size_log2[0]= img.size_log2[1]= std::max( img.size_log2[0], img.size_log2[1] );
 
 				// kostylj dlä TGA fajlov v Quake III
-				if( strcmp(img_extensions[e], ".tga") == 0 )
+				if( std::strcmp(extension, ".tga") == 0 )
 					iluFlipImage();
 
 				ilConvertImage( IL_RGBA, IL_UNSIGNED_BYTE );
 				//iluBuildMipmaps();
-				unsigned int pix= (
+				const unsigned int pix= (
 					img.original_size[0] / (1<<img.size_log2[0]) +
 					img.original_size[1] / (1<<img.size_log2[1]) ) / 2;
 				if( pix > 1 )
@@ -97,15 +104,17 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 				iluImageParameter( ILU_FILTER, ILU_LINEAR );
 				iluScale( 1<<img.size_log2[0], 1<<img.size_log2[1], 1 );
 
-				unsigned int array_id= img.size_log2[0] - config->min_textures_size_log2;
+				const unsigned int array_id= img.size_log2[0] - config.min_textures_size_log2;
 				img.texture_array_id= array_id;
 				img.texture_layer_id= textures_arrays_[ array_id ].size[2];
 				textures_arrays_[ array_id ].size[2]++;
 
 				textures_data_size+= 1<<( img.size_log2[0] + img.size_log2[1] + 2);
+
 				break;
 			}// if texture loaded
 		}// for formats
+
 		if (!img_loaded)
 		{
 			img.original_size[0]= img.original_size[1]= 0;
@@ -113,39 +122,45 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 			img.texture_layer_id= 0;
 
 			ilDeleteImages( 1, &il_textures_handles[i] );
-			printf( "warning, texture \"%s\" not found\n", img.file_name.c_str() );
+			std::printf( "warning, texture \"%s\" not found\n", img.file_name.c_str() );
 		}
 	}// for images
 
-	printf( "textures data size: %d kb\n", textures_data_size>>10 );
+	std::printf( "textures data size: %d kb\n", textures_data_size>>10 );
 
-	for( unsigned int i= 0; i< textures_arrays_.size(); i++ )
+	for( TextureArray& textures_array : textures_arrays_ )
 	{
-		if( textures_arrays_[i].size[2] == 0 ) continue;
+		if( textures_array.size[2] == 0 )
+			continue;
 
-		glGenTextures( 1, &textures_arrays_[i].tex_id );
-		glBindTexture( GL_TEXTURE_2D_ARRAY, textures_arrays_[i].tex_id );
-		glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
-			textures_arrays_[i].size[0], textures_arrays_[i].size[1], textures_arrays_[i].size[2],
+		glGenTextures( 1, &textures_array.tex_id );
+		glBindTexture( GL_TEXTURE_2D_ARRAY, textures_array.tex_id );
+		glTexImage3D(
+			GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
+			textures_array.size[0], textures_array.size[1], textures_array.size[2],
 			0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 
+		const unsigned int texture_array_number= &textures_array - textures_arrays_.data();
 		for( const plb_ImageInfo& img : images )
 		{
-			if( img.texture_array_id == i && img.original_size[0] > 0 && img.original_size[1] > 0 )
+			if(
+				img.texture_array_id == texture_array_number &&
+				img.original_size[0] > 0 && img.original_size[1] > 0 )
 			{
 				ilBindImage( il_textures_handles[ &img - images.data()] );
-				void* tex_data= ilGetData();
-				unsigned int channels= ilGetInteger( IL_IMAGE_CHANNELS );
+				const void* const tex_data= ilGetData();
+				const unsigned int channels= ilGetInteger( IL_IMAGE_CHANNELS );
 
-				GLenum format;
+				GLenum format= 0;
 				if( channels == 1 ) format = GL_RED;
 				else if( channels == 2 ) format= GL_RG;
 				else if( channels == 3 ) format= GL_RGB;
 				else if( channels == 4 ) format= GL_RGBA;
 
-				glTexSubImage3D( GL_TEXTURE_2D_ARRAY, 0,
+				glTexSubImage3D(
+					GL_TEXTURE_2D_ARRAY, 0,
 					0, 0, img.texture_layer_id,
-					textures_arrays_[i].size[0], textures_arrays_[i].size[1], 1,
+					textures_array.size[0], textures_array.size[1], 1,
 					format,
 					GL_UNSIGNED_BYTE, tex_data );
 
@@ -153,6 +168,7 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 
 			}// if image in this array
 		}// for images
+
 		glGenerateMipmap( GL_TEXTURE_2D_ARRAY );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
@@ -163,13 +179,22 @@ plb_TexturesManager::plb_TexturesManager( const plb_Config* config, plb_ImageInf
 
 plb_TexturesManager::~plb_TexturesManager()
 {
+	for( const TextureArray& textures_array : textures_arrays_ )
+	{
+		if( textures_array.size[2] == 0 )
+			continue;
+
+		glDeleteTextures( 1, &textures_array.tex_id );
+	}
 }
 
-void plb_TexturesManager::BindTextureArrays( unsigned int base_unit )
+void plb_TexturesManager::BindTextureArrays( const unsigned int base_unit ) const
 {
 	for( unsigned int i= 0; i< textures_arrays_.size(); i++ )
 	{
-		if( textures_arrays_[i].size[2] == 0 ) continue;
+		if( textures_arrays_[i].size[2] == 0 )
+			continue;
+
 		glActiveTexture( GL_TEXTURE0 + base_unit + i );
 		glBindTexture( GL_TEXTURE_2D_ARRAY, textures_arrays_[i].tex_id );
 	}
