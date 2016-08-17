@@ -1,4 +1,5 @@
-﻿#include <cstring>
+﻿#include <cmath>
+#include <cstring>
 #include <iostream>
 
 #include "formats.hpp"
@@ -277,31 +278,42 @@ static void ParseColorF( const char* str, unsigned char* out_color )
 	}
 }
 
-void ParseOrigin( const char* str, float* out_origin )
+static const entity_t* FindTarget( const char* key )
 {
-	for( unsigned int i= 0; i< 3; i++ )
+	for( unsigned int i= 0; i < (unsigned int)num_entities; i++ )
 	{
-		while(IsCharLexemSeparator(*str)) str++;
-		sscanf( str, "%f", &out_origin[i] );
-		while(!IsCharLexemSeparator(*str)) str++;
+		const entity_t& ent = entities[i];
+		const char* const name= ValueForKey( &ent, "targetname" );
+		if( std::strcmp( name, key ) == 0 )
+			return &ent;
 	}
+
+	return nullptr;
 }
 
-static void GetBSPLights( std::vector<plb_PointLight>* out_lights )
+static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLinghts& cone_lights )
 {
 	for( unsigned int i= 0; i < (unsigned int)num_entities; i++ )
 	{
 		const entity_t& ent = entities[i];
 		if( ent.epairs == nullptr ) continue;
 
-		if( std::strcmp( ent.epairs->key, "classname" ) == 0 &&
-			std::strcmp( ent.epairs->value, "light" ) == 0 )
+		const char* const classname= ValueForKey( &ent, "classname" );
+		if( std::strcmp( classname, "light" ) == 0 )
 		{
-			plb_PointLight light;
+			bool is_cone_light= false;
+			plb_ConeLinght light;
 			light.intensity = 0.0f;
 			light.color[0]= light.color[1]= light.color[2]= 255;
 
-			const epair_t* epair= ent.epairs->next;
+			float target_pos[3];
+			float target_radius;
+
+			const float c_max_angle_sin= 0.8f;
+			const float c_min_dist_to_target= 64.0f;
+			const float c_min_target_radius= 64.0f;
+
+			const epair_t* epair= ent.epairs;
 			while( epair != nullptr )
 			{
 				if( std::strcmp( epair->key, "light" ) == 0 )
@@ -310,18 +322,57 @@ static void GetBSPLights( std::vector<plb_PointLight>* out_lights )
 					ParseColor( epair->value, light.color );
 				else if( std::strcmp( epair->key, "_color" ) == 0 )
 					ParseColorF( epair->value, light.color );
-				else if( std::strcmp( epair->key, "origin" ) == 0 )
-					ParseOrigin( epair->value, light.pos );
+				else if( std::strcmp( epair->key, "target" ) == 0 )
+				{
+					if( const entity_t* const target= FindTarget( epair->value ) )
+					{
+						is_cone_light= true;
+						GetVectorForKey( target, "origin", target_pos );
+
+						target_radius= FloatForKey( &ent, "radius" );
+						if( target_radius < c_min_target_radius )
+							target_radius= c_min_target_radius;
+					}
+				}
 
 				epair= epair->next;
+			}
+			GetVectorForKey( &ent, "origin", light.pos );
+
+			if( is_cone_light )
+			{
+				const m_Vec3 dir= m_Vec3(target_pos) - m_Vec3(light.pos);
+				const float len= dir.Length();
+				if( len != 0.0f )
+				{
+					light.angle=
+						std::asin(
+							std::min(
+								target_radius / std::max( len, c_min_dist_to_target ),
+								c_max_angle_sin ) );
+
+					for( unsigned int c= 0; c < 3; c++ )
+						light.direction[c]= dir.ToArr()[c] / len;
+				}
+				else // fallback
+					is_cone_light= false;
 			}
 
 			// Change coord system
 			std::swap(light.pos[1], light.pos[2]);
+			std::swap(light.direction[1], light.direction[2]);
 			for( unsigned int j = 0; j < 3; j++)
 				light.pos[j]*= INV_Q_UNITS_IN_METER;
 
-			out_lights->push_back(light);
+			if( m_Vec3(light.pos).SquareLength() < 0.1f )
+			{
+				std::cout << "light at zeto" ;
+			}
+
+			if( is_cone_light )
+				cone_lights.push_back(light);
+			else
+				point_lights.push_back(light);
 		} // if light
 
 	} // for entities
@@ -357,6 +408,8 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 	vertices.resize( header->lumps[ LUMP_DRAWVERTS ].filelen / sizeof(drawVert_t) );
 	memcpy( &*vertices.begin(), file_data + header->lumps[ LUMP_DRAWVERTS ].fileofs, header->lumps[ LUMP_DRAWVERTS ].filelen );
 
+	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
+
 	GetTextures( &textures, &level_data->textures );
 	BuildPolygons( &surfaces, &vertices, &textures,
 		&level_data->polygons, &level_data->vertices,
@@ -369,7 +422,7 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 
 	LoadBSPFile( file_name );
 	ParseEntities();
-	GetBSPLights( &level_data->point_lights );
+	GetBSPLights( level_data->point_lights, level_data->cone_lights );
 
 	delete[] file_data;
 }

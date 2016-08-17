@@ -25,6 +25,7 @@ struct Attrib
 
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
+static const float g_pi= 3.1415926535f;
 
 static void TriangulatePolygons(
 	const plb_Polygons& in_polygons,
@@ -71,21 +72,19 @@ static void GenPolygonsVerticesNormals(
 
 static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices, float y_rotation= 0.0f )
 {
-	const float pi= 3.1415926535f;
-
 	m_Mat4 perspective, shift, y_rot;
-	perspective.PerspectiveProjection( 1.0f, pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
 	y_rot.RotateY( y_rotation );
 	shift.Translate( -pos );
 
-	m_Mat4 tmp; tmp.RotateZ( pi );
-	out_matrices[0].RotateY( pi * 0.5f );
-	out_matrices[1].RotateY( -pi* 0.5f );
-	out_matrices[2].RotateX( -pi * 0.5f );
+	m_Mat4 tmp; tmp.RotateZ( g_pi );
+	out_matrices[0].RotateY( g_pi * 0.5f );
+	out_matrices[1].RotateY( -g_pi* 0.5f );
+	out_matrices[2].RotateX( -g_pi * 0.5f );
 	out_matrices[2]*= tmp;
-	out_matrices[3].RotateX( pi * 0.5f );
+	out_matrices[3].RotateX( g_pi * 0.5f );
 	out_matrices[3]*= tmp;
-	out_matrices[4].RotateY( -pi );
+	out_matrices[4].RotateY( -g_pi );
 	out_matrices[5].Identity();
 
 	for( unsigned int i= 0; i< 6; i++ )
@@ -231,6 +230,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
 	CreateDirectionalLightShadowmap();
+	CreateConeLightShadowmap();
 
 	printf( "point lights: %d\n", level_data_.point_lights.size() );
 
@@ -251,6 +251,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		GenPointlightShadowmap( light_pos );
 		PointLightPass( light_pos, light_color );
 	}
+
 	plb_DirectionalLight dl;
 	dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
 	dl.intensity= 150.0f / 64.0f;
@@ -261,6 +262,13 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		GenDirectionalLightShadowmap( level_data_.directional_lights[i] );
 		DirectionalLightPass( level_data_.directional_lights[i] );
 	}
+
+	for( const plb_ConeLinght& cone_light : level_data_.cone_lights )
+	{
+		GenConeLightShadowmap( cone_light );
+		ConeLightPass( cone_light );
+	}
+
 	FillBorderLightmapTexels();
 
 	GenSecondaryLightPassCubemap();
@@ -360,15 +368,15 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	secondary_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	secondary_light_pass_shader_.Create();
 
-	directional_shadowmap_shader_.ShaderSource(
+	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
-		rLoadShader( "shaders/sun_shadowmap_v.glsl", g_glsl_version));
-	directional_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	directional_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	directional_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	directional_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	directional_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	directional_shadowmap_shader_.Create();
+		rLoadShader( "shaders/shadowmap_v.glsl", g_glsl_version));
+	shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
@@ -380,6 +388,17 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	directional_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
 	directional_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 	directional_light_pass_shader_.Create();
+
+	cone_light_pass_shader_.ShaderSource(
+		rLoadShader( "shaders/cone_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
+	cone_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
+	cone_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	cone_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	cone_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	cone_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	cone_light_pass_shader_.Create();
 }
 
 void plb_LightmapsBuilder::CreateShadowmapCubemap()
@@ -683,8 +702,8 @@ void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const plb_DirectionalLi
 	directional_light_shadowmap_.z_min= proj_min.z;
 	directional_light_shadowmap_.z_max= proj_max.z;
 
-	directional_shadowmap_shader_.Bind();
-	directional_shadowmap_shader_.Uniform( "view_matrix", result );
+	shadowmap_shader_.Bind();
+	shadowmap_shader_.Uniform( "view_matrix", result );
 
 	polygons_vbo_.Draw();
 
@@ -713,6 +732,105 @@ void plb_LightmapsBuilder::DirectionalLightPass( const plb_DirectionalLight& lig
 	directional_light_pass_shader_.Uniform( "light_color", light_color );
 	directional_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	directional_light_pass_shader_.Uniform( "view_matrix", directional_light_shadowmap_.view_matrix );
+
+	polygons_vbo_.Draw();
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	glEnable( GL_CULL_FACE );
+	glDisable( GL_BLEND );
+}
+
+void plb_LightmapsBuilder::CreateConeLightShadowmap()
+{
+	cone_light_shadowmap_.size[0]= 1024;
+	cone_light_shadowmap_.size[1]= 1024;
+
+	glGenTextures( 1, &cone_light_shadowmap_.depth_tex_id );
+	glBindTexture( GL_TEXTURE_2D, cone_light_shadowmap_.depth_tex_id );
+
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL );
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16,
+		cone_light_shadowmap_.size[0], cone_light_shadowmap_.size[1],
+		0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL );
+
+	glGenFramebuffers( 1, &cone_light_shadowmap_.fbo_id );
+	glBindFramebuffer( GL_FRAMEBUFFER, cone_light_shadowmap_.fbo_id );
+	glFramebufferTexture( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT , cone_light_shadowmap_.depth_tex_id, 0 );
+	GLuint da= GL_NONE;
+	glDrawBuffers( 1, &da );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+}
+
+void plb_LightmapsBuilder::GenConeLightShadowmap( const plb_ConeLinght& light )
+{
+	glDisable( GL_CULL_FACE );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, cone_light_shadowmap_.fbo_id );
+	glViewport( 0, 0, cone_light_shadowmap_.size[0], cone_light_shadowmap_.size[1] );
+	glClear( GL_DEPTH_BUFFER_BIT );
+
+	m_Mat4 translate, rotate, perspective;
+
+	translate.Translate( -m_Vec3(light.pos) );
+
+	const float c_sin_eps= 0.99f;
+
+		 if( light.direction[1] >=  c_sin_eps )
+		rotate.RotateX(  g_pi * 0.5f );
+	else if( light.direction[1] <= -c_sin_eps )
+		rotate.RotateX( -g_pi * 0.5f );
+	else
+	{
+		m_Mat4 rotate_x, rotate_y;
+		const float angle_x= std::asin( light.direction[1] );
+		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
+
+		rotate_x.RotateX( angle_x);
+		rotate_y.RotateY(-angle_y);
+
+		rotate= rotate_y * rotate_x;
+	}
+
+	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
+
+	cone_light_shadowmap_.view_matrix= translate * rotate * perspective;
+
+	shadowmap_shader_.Bind();
+	shadowmap_shader_.Uniform( "view_matrix", cone_light_shadowmap_.view_matrix );
+
+	polygons_vbo_.Draw();
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	glEnable( GL_CULL_FACE );
+}
+
+void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLinght& light )
+{
+	glDisable( GL_CULL_FACE );
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE );
+
+	glViewport( 0, 0, lightmap_atlas_texture_.size[0], lightmap_atlas_texture_.size[1] );
+	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
+
+	glActiveTexture( GL_TEXTURE0 + 0 );
+	glBindTexture( GL_TEXTURE_2D, cone_light_shadowmap_.depth_tex_id );
+
+	m_Vec3 light_color( float(light.color[0]), float(light.color[1]), float(light.color[2]) );
+	light_color*= light.intensity / 255.0f;
+
+	cone_light_pass_shader_.Bind();
+	cone_light_pass_shader_.Uniform( "light_pos", m_Vec3(light.pos) );
+	cone_light_pass_shader_.Uniform( "light_color", light_color );
+	cone_light_pass_shader_.Uniform( "shadowmap", int(0) );
+	cone_light_pass_shader_.Uniform( "view_matrix", cone_light_shadowmap_.view_matrix );
 
 	polygons_vbo_.Draw();
 
