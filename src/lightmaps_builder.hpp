@@ -39,7 +39,10 @@ private:
 	void GenConeLightShadowmap( const plb_ConeLinght& light );
 	void ConeLightPass( const plb_ConeLinght& light );
 
+	// Builds lightmap basises from texture basises.
+	// Needs only for input data without lightmap basises.
 	void BuildLightmapBasises();
+
 	void DevideLongPolygons();
 
 	void TransformTexturesCoordinates();
