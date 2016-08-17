@@ -780,7 +780,7 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const plb_ConeLinght& light )
 
 	translate.Translate( -m_Vec3(light.pos) );
 
-	const float c_sin_eps= 0.97f;
+	const float c_sin_eps= 0.99f;
 
 		 if( light.direction[1] >=  c_sin_eps )
 		rotate.RotateX(  g_pi * 0.5f );
@@ -789,13 +789,13 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const plb_ConeLinght& light )
 	else
 	{
 		m_Mat4 rotate_x, rotate_y;
-		const float elevation= std::asin( light.direction[1] );
-		const float l= std::atan2( light.direction[0], light.direction[2] );
+		const float angle_x= std::asin( light.direction[1] );
+		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
 
-		rotate_x.RotateX(-elevation);
-		rotate_y.RotateY(-l);
+		rotate_x.RotateX( angle_x);
+		rotate_y.RotateY(-angle_y);
 
-		rotate= rotate_x * rotate_y;
+		rotate= rotate_y * rotate_x;
 	}
 
 	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
