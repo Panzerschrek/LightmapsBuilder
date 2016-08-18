@@ -139,6 +139,15 @@ static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* 
 	}// for y
 }
 
+static void SetupLevelVertexAttributes( r_GLSLProgram& shader )
+{
+	shader.SetAttribLocation( "pos", Attrib::Pos );
+	shader.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	shader.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	shader.SetAttribLocation( "normal", Attrib::Normal );
+	shader.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+}
+
 plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Config* config)
 {
 	viewport_size_[0]= 1024;
@@ -193,11 +202,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "shaders/preview_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/preview_v.glsl", g_glsl_version) );
-	polygons_preview_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	polygons_preview_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	polygons_preview_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	polygons_preview_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	polygons_preview_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
 
 	/*{
@@ -340,65 +345,41 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		rLoadShader( "shaders/point_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	point_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	point_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	point_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	point_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	point_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
 		rLoadShader( "shaders/point_light_shadowmap_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_shadowmap_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_shadowmap_g.glsl", g_glsl_version));
-	point_light_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	point_light_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	point_light_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	point_light_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	point_light_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
+	SetupLevelVertexAttributes(point_light_shadowmap_shader_);
 	point_light_shadowmap_shader_.Create();
 
 	secondary_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/secondary_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/secondary_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/secondary_light_pass_g.glsl", g_glsl_version));
-	secondary_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	secondary_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	secondary_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	secondary_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	secondary_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shaders/shadowmap_v.glsl", g_glsl_version));
-	shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	SetupLevelVertexAttributes(shadowmap_shader_);
 	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	directional_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	directional_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	directional_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	directional_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	directional_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	SetupLevelVertexAttributes(directional_light_pass_shader_);
 	directional_light_pass_shader_.Create();
 
 	cone_light_pass_shader_.ShaderSource(
 		rLoadShader( "shaders/cone_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	cone_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	cone_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	cone_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	cone_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	cone_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+	SetupLevelVertexAttributes(cone_light_pass_shader_);
 	cone_light_pass_shader_.Create();
 }
 
