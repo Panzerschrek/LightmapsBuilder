@@ -200,8 +200,8 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	}// create world VBO
 
 	polygons_preview_shader_.ShaderSource(
-		rLoadShader( "shaders/preview_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/preview_v.glsl", g_glsl_version) );
+		rLoadShader( "preview_f.glsl", g_glsl_version),
+		rLoadShader( "preview_v.glsl", g_glsl_version) );
 	SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
 
@@ -229,7 +229,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		delete[] normals_lines;
 	}
 
-	normals_shader_.Load( "shaders/normals_f.glsl", "shaders/normals_v.glsl" );
+	normals_shader_.Load( "normals_f.glsl", "normals_v.glsl" );
 	normals_shader_.SetAttribLocation( "pos", 0 );
 	normals_shader_.Create();*/
 
@@ -342,43 +342,43 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3&
 void plb_LightmapsBuilder::LoadLightPassShaders()
 {
 	point_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/point_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
+		rLoadShader( "point_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
-		rLoadShader( "shaders/point_light_shadowmap_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_shadowmap_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_shadowmap_g.glsl", g_glsl_version));
+		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_shadowmap_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_shadowmap_g.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(point_light_shadowmap_shader_);
 	point_light_shadowmap_shader_.Create();
 
 	secondary_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/secondary_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/secondary_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/secondary_light_pass_g.glsl", g_glsl_version));
+		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
-		rLoadShader( "shaders/shadowmap_v.glsl", g_glsl_version));
+		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(shadowmap_shader_);
 	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
+		rLoadShader( "sun_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(directional_light_pass_shader_);
 	directional_light_pass_shader_.Create();
 
 	cone_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/cone_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
+		rLoadShader( "cone_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
 	SetupLevelVertexAttributes(cone_light_pass_shader_);
 	cone_light_pass_shader_.Create();
 }
@@ -411,8 +411,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
 	texture_show_shader_.ShaderSource(
-		rLoadShader("shaders/texture_show_f.glsl", g_glsl_version),
-		rLoadShader("shaders/texture_show_v.glsl", g_glsl_version) );
+		rLoadShader("texture_show_f.glsl", g_glsl_version),
+		rLoadShader("texture_show_v.glsl", g_glsl_version) );
 	texture_show_shader_.SetAttribLocation( "pos", Attrib::Pos );
 	texture_show_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
 	texture_show_shader_.Create();

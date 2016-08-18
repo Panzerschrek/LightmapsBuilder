@@ -2,7 +2,9 @@
 
 #include <SDL.h>
 
+#include <glsl_program.hpp>
 #include <panzer_ogl_lib.hpp>
+#include <shaders_loading.hpp>
 
 #include "camera_controller.hpp"
 #include "lightmaps_builder.hpp"
@@ -48,6 +50,19 @@ extern "C" int main(int argc, char *argv[])
 	SDL_GL_SetSwapInterval(1);
 
 	GetGLFunctions( SDL_GL_GetProcAddress );
+
+	{ // Shaders errors logging
+		const auto shaders_log_callback=
+			[]( const char* log_data )
+			{
+				std::cout << log_data;
+			};
+
+		rSetShaderLoadingLogCallback( shaders_log_callback );
+		r_GLSLProgram::SetProgramBuildLogOutCallback( shaders_log_callback );
+	}
+
+	rSetShadersDir( "shaders" );
 
 	glClearDepth(1.0f);
 	glEnable(GL_DEPTH_TEST);
