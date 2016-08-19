@@ -36,7 +36,7 @@ private:
 	void DirectionalLightPass( const plb_DirectionalLight& light, const m_Mat4& shadow_mat );
 
 	void GenConeLightShadowmap( const m_Mat4& shadow_mat );
-	void ConeLightPass( const plb_ConeLinght& light, const m_Mat4& shadow_mat );
+	void ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat );
 
 	// Builds lightmap basises from texture basises.
 	// Needs only for input data without lightmap basises.

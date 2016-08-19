@@ -211,7 +211,7 @@ static void CreateDirectionalLightMatrix(
 }
 
 static void CreateConeLightMatrix(
-	const plb_ConeLinght& light,
+	const plb_ConeLight& light,
 	m_Mat4& out_mat )
 {
 	m_Mat4 translate, rotate, perspective;
@@ -377,7 +377,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		DirectionalLightPass( light, mat );
 	}
 
-	for( const plb_ConeLinght& cone_light : level_data_.cone_lights )
+	for( const plb_ConeLight& cone_light : level_data_.cone_lights )
 	{
 		m_Mat4 mat;
 		CreateConeLightMatrix( cone_light, mat );
@@ -767,7 +767,7 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const m_Mat4& shadow_mat )
 	glEnable( GL_CULL_FACE );
 }
 
-void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLinght& light, const m_Mat4& shadow_mat )
+void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat )
 {
 	glDisable( GL_CULL_FACE );
 	glEnable( GL_BLEND );

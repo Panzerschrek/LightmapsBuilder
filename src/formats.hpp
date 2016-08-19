@@ -95,13 +95,13 @@ struct plb_DirectionalLight
 
 typedef std::vector<plb_DirectionalLight> plb_DirectionalLights;
 
-struct plb_ConeLinght : public plb_PointLight
+struct plb_ConeLight : public plb_PointLight
 {
 	float direction[3]; // normalized direction from light source
 	float angle;
 };
 
-typedef std::vector<plb_ConeLinght> plb_ConeLinghts;
+typedef std::vector<plb_ConeLight> plb_ConeLights;
 
 struct plb_Config
 {
@@ -129,7 +129,7 @@ struct plb_LevelData
 
 	plb_PointLights point_lights;
 	plb_DirectionalLights directional_lights;
-	plb_ConeLinghts cone_lights;
+	plb_ConeLights cone_lights;
 
 	plb_ImageInfos textures;
 
