@@ -87,7 +87,7 @@ typedef std::vector<plb_PointLight> plb_PointLights;
 
 struct plb_DirectionalLight
 {
-	float direction[3]; // normalized
+	float direction[3]; // normalized direction to light source
 	float intensity;
 	unsigned char color[3];
 	unsigned char reserved;
@@ -97,7 +97,7 @@ typedef std::vector<plb_DirectionalLight> plb_DirectionalLights;
 
 struct plb_ConeLinght : public plb_PointLight
 {
-	float direction[3]; // normalized
+	float direction[3]; // normalized direction from light source
 	float angle;
 };
 

@@ -170,22 +170,18 @@ static void CreateDirectionalLightMatrix(
 	const m_Vec3& bb_max,
 	m_Mat4& out_mat )
 {
-	m_Mat4 projection, rot, magic;
+	m_Mat4 projection, rotation, shift;
 
 	m_Vec3 dir( light.direction );
 	dir.Normalize();
 
-	// ACHTUNG! die Magie die Matricen und die Vektoren hier!
-	rot[ 0]= 0.0f; rot[ 1]= -1.0f; rot[ 2]=  0.0f; rot[ 3]= 0.0f;
-	rot[ 4]= 0.0f; rot[ 5]=  0.0f; rot[ 6]= -1.0f; rot[ 7]= 0.0f;
-	rot[ 8]= 1.0f; rot[ 9]=  0.0f; rot[10]=  0.0f; rot[11]= 0.0f;
-	rot[12]= 0.0f; rot[13]=  0.0f; rot[14]=  0.0f; rot[15]= 1.0f;
+	rotation.RotateX( -g_pi * 0.5f );
 
-	magic.Scale( dir.y );
-	magic[8]= +dir.z;
-	magic[9]= -dir.y;
+	shift.Identity();
+	shift[4]= -dir.x / dir.y;
+	shift[6]= -dir.z / dir.y;
 
-	rot= rot * magic;
+	rotation= shift * rotation;
 
 	const float inf= 1e24f;
 	m_Vec3 proj_min( inf, inf, inf ), proj_max( -inf, -inf, -inf );
@@ -195,7 +191,7 @@ static void CreateDirectionalLightMatrix(
 		v.x= (i&1) ? bb_max.x : bb_min.x;
 		v.y= ((i>>1)&1) ? bb_max.y : bb_min.y;
 		v.z= ((i>>2)&1) ? bb_max.z : bb_min.z;
-		v= v * rot;
+		v= v * rotation;
 		for( unsigned int j= 0; j< 3; j++ )
 		{
 			if( v.ToArr()[j] > proj_max.ToArr()[j] ) proj_max.ToArr()[j]= v.ToArr()[j];
@@ -211,7 +207,7 @@ static void CreateDirectionalLightMatrix(
 	projection[10]= 2.0f / ( proj_max.z - proj_min.z );
 	projection[14]= 1.0f - proj_max.z * projection[10];
 
-	out_mat= rot * projection;
+	out_mat= rotation * projection;
 }
 
 static void CreateConeLightMatrix(
@@ -352,11 +348,22 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		PointLightPass( light_pos, light_color );
 	}
 
-	plb_DirectionalLight dl;
-	dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
-	dl.intensity= 150.0f / 64.0f;
-	dl.direction[0]= 0.3f; dl.direction[1]= 1.0f; dl.direction[2]= 0.2f;
-	level_data_.directional_lights.push_back(dl);
+	{ // Add test light, like in q3dm6
+		level_data_.directional_lights.emplace_back();
+		plb_DirectionalLight& dl= level_data_.directional_lights.back();
+
+		dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
+		dl.intensity= 150.0f / 8.0f;
+
+		const float c_to_rad= g_pi / 180.0f;
+		const float c_elevation= 60.0f * c_to_rad;
+		const float c_degrees= 30.0f * c_to_rad;
+
+		dl.direction[1]= std::sin( c_elevation );
+		dl.direction[0]= std::cos( c_elevation ) * std::cos( c_degrees );
+		dl.direction[2]= std::cos( c_elevation ) * std::sin( c_degrees );
+	}
+
 	for( const plb_DirectionalLight& light : level_data_.directional_lights )
 	{
 		m_Mat4 mat;
