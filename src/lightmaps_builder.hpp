@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <glsl_program.hpp>
+#include <framebuffer.hpp>
 #include <matrix.hpp>
 #include <panzer_ogl_lib.hpp>
 #include <polygon_buffer.hpp>
@@ -31,13 +32,11 @@ private:
 	void GenSecondaryLightPassCubemap();
 	void SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal );
 
-	void CreateDirectionalLightShadowmap();
-	void GenDirectionalLightShadowmap( const plb_DirectionalLight& light );
-	void DirectionalLightPass( const plb_DirectionalLight& light );
+	void GenDirectionalLightShadowmap( const m_Mat4& shadow_mat );
+	void DirectionalLightPass( const plb_DirectionalLight& light, const m_Mat4& shadow_mat );
 
-	void CreateConeLightShadowmap();
-	void GenConeLightShadowmap( const plb_ConeLinght& light );
-	void ConeLightPass( const plb_ConeLinght& light );
+	void GenConeLightShadowmap( const m_Mat4& shadow_mat );
+	void ConeLightPass( const plb_ConeLinght& light, const m_Mat4& shadow_mat );
 
 	// Builds lightmap basises from texture basises.
 	// Needs only for input data without lightmap basises.
@@ -115,34 +114,17 @@ private:
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
 
-
-	struct
-	{
-		unsigned int size[2];
-		GLuint depth_tex_id;
-		GLuint fbo_id;
-		m_Mat4 view_matrix;
-		m_Vec3 light_direction;
-		float z_min, z_max;
-	} directional_light_shadowmap_;
+	r_Framebuffer directional_light_shadowmap_;
 
 	r_GLSLProgram shadowmap_shader_; // common with cone light
 	r_GLSLProgram directional_light_pass_shader_;
 
-	struct
-	{
-		unsigned int size[2];
-		GLuint depth_tex_id;
-		GLuint fbo_id;
-		m_Mat4 view_matrix;
-	} cone_light_shadowmap_;
+	r_Framebuffer cone_light_shadowmap_;
 
 	r_GLSLProgram cone_light_pass_shader_;
 
 	r_GLSLProgram texture_show_shader_;
 	r_PolygonBuffer cubemap_show_buffer_;
-
-	unsigned int viewport_size_[2];
 
 	plb_TexturesManager* textures_manager_;
 };

@@ -87,7 +87,7 @@ typedef std::vector<plb_PointLight> plb_PointLights;
 
 struct plb_DirectionalLight
 {
-	float direction[3];
+	float direction[3]; // normalized
 	float intensity;
 	unsigned char color[3];
 	unsigned char reserved;

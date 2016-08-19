@@ -3,6 +3,7 @@
 #include <SDL.h>
 
 #include <glsl_program.hpp>
+#include <framebuffer.hpp>
 #include <panzer_ogl_lib.hpp>
 #include <shaders_loading.hpp>
 
@@ -63,6 +64,8 @@ extern "C" int main(int argc, char *argv[])
 	}
 
 	rSetShadersDir( "shaders" );
+
+	r_Framebuffer::SetScreenFramebufferSize( screen_width, screen_height );
 
 	glClearDepth(1.0f);
 	glEnable(GL_DEPTH_TEST);
