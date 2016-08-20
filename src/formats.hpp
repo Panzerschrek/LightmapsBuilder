@@ -103,23 +103,38 @@ struct plb_ConeLight : public plb_PointLight
 
 typedef std::vector<plb_ConeLight> plb_ConeLights;
 
+// Konfig postroitelä.
+// Parametry po umolcaniju blizki k prijemlemym.
+// Parametry sledujet podbiratj ishodä iz zadaci,
+// dlä kotoroj ispoljzyjetsä postroitelj svetokart.
 struct plb_Config
 {
+	// Putj k teksturam na fajlovoj sisteme.
 	std::string textures_path;
-	unsigned int min_textures_size_log2;
-	unsigned int max_textures_size_log2;
 
-	unsigned int max_polygon_lightmap_size; // max size of individual lightmap for polygon
+	// Razmery tekstur urovnä.
+	// Vse zagružennyje tekstury privodätsä k kvadratam stepeni dvojki i
+	// preobrazujutsä v bližajšij podhodäscij razmer.
+	unsigned int min_textures_size_log2= 6;
+	unsigned int max_textures_size_log2= 8;
 
-	unsigned int inv_lightmap_scale_log2; // log2( texture_texels / lightmap_texels )
-	unsigned int out_inv_lightmap_scale_log2; // size for output lightmaps
+	// Otnošenije masštaba tekstury k masštaby svetokarty pri rascöte.
+	// log2( texture_texels / lightmap_texels ).
+	// Ispoljzujetsä toljko jesli vo vhodnyh dannyh netu informaçii o naloženii svetokart.
+	unsigned int inv_lightmap_scale_log2= 2;
 
-	unsigned int sun_light_shadowmap_size_log2;
+	// Parametry tocnosti rascöta.
+	unsigned int point_light_shadowmap_cubemap_size_log2= 10;
+	unsigned int directional_light_shadowmap_size_log2= 11;
+	unsigned int cone_light_shadowmap_size_log2= 10;
 
-	unsigned int lightmaps_atlas_size[2]; // size of big texture, where shall plased textures
+	// Razmer boljšoj tekstury, gde razmescajutsä svetokarty otdeljnyh poverhnostej.
+	// Želateljno, ctoby razmer po osi X byl ne ocenj boljšim, ctoby stroki karty osvescenija
+	// nahodilisj blizko v pamäti, no i ne ocenj malenjkim - ctoby vlezli samyje boljšije poverhnosti.
+	unsigned int lightmaps_atlas_size[2]= { 512, 2048 };
 
-	// Otnošenije razmera ishodnoj karty osvescenija k karte osvescenija ot vtoricnyh istocnikov
-	unsigned int secondary_lightmap_scaler;
+	// Otnošenije razmera ishodnoj karty osvescenija k karte osvescenija ot vtoricnyh istocnikov.
+	unsigned int secondary_lightmap_scaler= 4;
 };
 
 struct plb_LevelData

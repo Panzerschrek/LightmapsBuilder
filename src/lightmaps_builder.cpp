@@ -296,8 +296,8 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
-	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.sun_light_shadowmap_size_log2 );
-	Setup2dShadowmap( cone_light_shadowmap_, 1024 );
+	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.directional_light_shadowmap_size_log2 );
+	Setup2dShadowmap( cone_light_shadowmap_, 1 << config_.cone_light_shadowmap_size_log2 );
 
 	for( unsigned int i= 0; i< level_data_.point_lights.size(); i++ )
 	{
@@ -463,7 +463,7 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 
 void plb_LightmapsBuilder::CreateShadowmapCubemap()
 {
-	point_light_shadowmap_cubemap_.size= 1024;
+	point_light_shadowmap_cubemap_.size= 1 << config_.point_light_shadowmap_cubemap_size_log2;
 	point_light_shadowmap_cubemap_.max_light_distance= 128.0f;
 	const unsigned int texture_size= point_light_shadowmap_cubemap_.size;
 

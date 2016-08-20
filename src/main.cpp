@@ -74,16 +74,7 @@ extern "C" int main(int argc, char *argv[])
 	glEnable(GL_CULL_FACE);
 
 	plb_Config cfg;
-	cfg.max_polygon_lightmap_size= 64;
-	cfg.max_textures_size_log2= 6;
-	cfg.min_textures_size_log2= 3;
 	cfg.textures_path= "textures/q3/";
-	cfg.inv_lightmap_scale_log2= 3;
-	cfg.out_inv_lightmap_scale_log2= 3;
-	cfg.sun_light_shadowmap_size_log2 = 11;
-	cfg.lightmaps_atlas_size[0]= 512;
-	cfg.lightmaps_atlas_size[1]= 2048;
-	cfg.secondary_lightmap_scaler= 8;
 
 	std::unique_ptr<plb_LightmapsBuilder> lightmaps_builder(
 		new plb_LightmapsBuilder(
