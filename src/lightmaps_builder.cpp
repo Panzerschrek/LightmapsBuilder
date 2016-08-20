@@ -241,12 +241,11 @@ static void CreateConeLightMatrix(
 	out_mat= translate * rotate * perspective;
 }
 
-plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Config* config)
+plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
+	:config_( config )
 {
-	config_= *config;
-
 	LoadQ3Bsp( file_name , &level_data_ );
-	textures_manager_ = new plb_TexturesManager( config_, level_data_.textures );
+	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
@@ -295,40 +294,10 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
 
-	/*{
-		float* normals_lines= new float[ 2 * 3 * level_data_.polygons.size() ];
-		for( unsigned int i= 0, n= 0; i< level_data_.polygons.size(); i++, n+= 6 )
-		{
-			m_Vec3 center(0.0f,0.0f,0.0f);
-			for( unsigned int v= level_data_.polygons[i].first_vertex_number;
-				v< level_data_.polygons[i].first_vertex_number + level_data_.polygons[i].vertex_count;
-				v++ )
-				center+= m_Vec3(level_data_.vertices[v].pos);
-			center/= float( level_data_.polygons[i].vertex_count );
-			
-			normals_lines[n  ]= center.x;
-			normals_lines[n+1]= center.y;
-			normals_lines[n+2]= center.z;
-			normals_lines[n+3]= center.x + level_data_.polygons[i].normal[0];
-			normals_lines[n+4]= center.y + level_data_.polygons[i].normal[1];
-			normals_lines[n+5]= center.z + level_data_.polygons[i].normal[2];
-		}
-		normals_vbo_.VertexData( normals_lines, 6 * level_data_.polygons.size() * sizeof(float), sizeof(float) * 3 );
-		normals_vbo_.VertexAttribPointer( 0, 3, GL_FLOAT, false, 0 );
-		normals_vbo_.SetPrimitiveType(GL_LINES);
-		delete[] normals_lines;
-	}
-
-	normals_shader_.Load( "normals_f.glsl", "normals_v.glsl" );
-	normals_shader_.SetAttribLocation( "pos", 0 );
-	normals_shader_.Create();*/
-
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
 	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.sun_light_shadowmap_size_log2 );
 	Setup2dShadowmap( cone_light_shadowmap_, 1024 );
-
-	printf( "point lights: %d\n", level_data_.point_lights.size() );
 
 	for( unsigned int i= 0; i< level_data_.point_lights.size(); i++ )
 	{
@@ -395,10 +364,8 @@ plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
 }
 
-void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3& cam_pos )
+void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 {
-	m_Vec3 light_pos( -10.21f, 11.71f, -2.85f );
-
 	r_Framebuffer::BindScreenFramebuffer();
 
 	glClearColor ( 0.1f, 0.05f, 0.1f, 0.0f );
@@ -414,10 +381,9 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3&
 	glActiveTexture( GL_TEXTURE0 + 0 );
 
 	polygons_preview_shader_.Bind();
-	polygons_preview_shader_.Uniform( "view_matrix", *view_matrix );
+	polygons_preview_shader_.Uniform( "view_matrix", view_matrix );
 	polygons_preview_shader_.Uniform( "lightmap", int(0) );
 	polygons_preview_shader_.Uniform( "lightmap_test", int(1) );
-	polygons_preview_shader_.Uniform( "light_pos", light_pos );
 	polygons_preview_shader_.Uniform( "cubemap", int(2) );
 
 	unsigned int arrays_bindings_unit= 3;
@@ -497,7 +463,7 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 
 void plb_LightmapsBuilder::CreateShadowmapCubemap()
 {
-	point_light_shadowmap_cubemap_.size = 1024;
+	point_light_shadowmap_cubemap_.size= 1024;
 	point_light_shadowmap_cubemap_.max_light_distance= 128.0f;
 	const unsigned int texture_size= point_light_shadowmap_cubemap_.size;
 

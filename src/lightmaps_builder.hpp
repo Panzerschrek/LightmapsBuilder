@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <memory>
 
 #include <glsl_program.hpp>
 #include <framebuffer.hpp>
@@ -14,13 +15,13 @@
 
 #define PLB_MAX_LIGHT_PASSES 8
 
-class plb_LightmapsBuilder
+class plb_LightmapsBuilder final
 {
 public:
-	plb_LightmapsBuilder( const char* file_name, const plb_Config* config );
+	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
 
-	void DrawPreview( const m_Mat4* view_matrix, const m_Vec3& cam_pos= m_Vec3(0.0f,0.0f,0.0f) );
+	void DrawPreview( const m_Mat4& view_matrix );
 
 private:
 	void LoadLightPassShaders();
@@ -52,6 +53,7 @@ private:
 	void FillBorderLightmapTexels();
 
 	void CalculateLevelBoundingBox();
+
 private:
 	plb_LevelData level_data_;
 	struct
@@ -60,17 +62,13 @@ private:
 		m_Vec3 max;
 	} level_bounding_box_;
 
-	plb_Config config_;
+	const plb_Config config_;
 
 	r_GLSLProgram polygons_preview_shader_;
 
 	// VBO dlä obycnyh poliginov i poligonov krivyh poverhnostej
 	r_PolygonBuffer polygons_vbo_;
 	GLuint polygon_vbo_vertex_normals_vbo_;
-
-
-	r_GLSLProgram normals_shader_;
-	r_PolygonBuffer normals_vbo_;
 
 	struct
 	{
@@ -126,5 +124,5 @@ private:
 	r_GLSLProgram texture_show_shader_;
 	r_PolygonBuffer cubemap_show_buffer_;
 
-	plb_TexturesManager* textures_manager_;
+	std::unique_ptr<plb_TexturesManager> textures_manager_;
 };

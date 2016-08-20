@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 
 #include <SDL.h>
 
@@ -84,7 +85,9 @@ extern "C" int main(int argc, char *argv[])
 	cfg.lightmaps_atlas_size[1]= 2048;
 	cfg.secondary_lightmap_scaler= 8;
 
-	plb_LightmapsBuilder lightmaps_builder( "maps/q3dm6.bsp", &cfg );
+	std::unique_ptr<plb_LightmapsBuilder> lightmaps_builder(
+		new plb_LightmapsBuilder(
+			"maps/q3dm6.bsp", cfg ) );
 
 	plb_CameraController cam_controller( m_Vec3(0.0f,0.0f,0.0f), m_Vec2(0.0f,0.0f), float(screen_width)/float(screen_height) );
 
@@ -145,13 +148,15 @@ extern "C" int main(int argc, char *argv[])
 
 		m_Mat4 view_matrix;
 		cam_controller.Tick();
-		cam_controller.GetViewMatrix(&view_matrix);
+		cam_controller.GetViewMatrix( view_matrix );
 
-		lightmaps_builder.DrawPreview( &view_matrix, cam_controller.GetCamPos() );
+		lightmaps_builder->DrawPreview( view_matrix );
 
 		SDL_GL_SwapWindow(window);
 
 	}while(!quited);
+
+	lightmaps_builder.reset();
 
 	SDL_Quit();
 	return 0;
