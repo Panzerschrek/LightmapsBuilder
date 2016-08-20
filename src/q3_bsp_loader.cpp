@@ -291,7 +291,7 @@ static const entity_t* FindTarget( const char* key )
 	return nullptr;
 }
 
-static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLinghts& cone_lights )
+static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_lights )
 {
 	for( unsigned int i= 0; i < (unsigned int)num_entities; i++ )
 	{
@@ -302,7 +302,7 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLinghts& cone_l
 		if( std::strcmp( classname, "light" ) == 0 )
 		{
 			bool is_cone_light= false;
-			plb_ConeLinght light;
+			plb_ConeLight light;
 			light.intensity = 0.0f;
 			light.color[0]= light.color[1]= light.color[2]= 255;
 

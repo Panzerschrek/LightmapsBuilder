@@ -7,10 +7,10 @@
 class plb_TexturesManager final
 {
 public:
-	plb_TexturesManager( const plb_Config* config, plb_ImageInfos& images );
+	plb_TexturesManager( const plb_Config& config, plb_ImageInfos& images );
 	~plb_TexturesManager();
 
-	void BindTextureArrays( unsigned int base_unit );
+	void BindTextureArrays( unsigned int base_unit ) const;
 	unsigned int ArraysCount() const;
 
 private:

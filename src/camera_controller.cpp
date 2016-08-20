@@ -57,16 +57,16 @@ void plb_CameraController::Tick()
 	pos_+= dt_s * speed * move_vector;
 }
 
-void plb_CameraController::GetViewMatrix( m_Mat4* out_mat ) const
+void plb_CameraController::GetViewMatrix( m_Mat4& out_mat ) const
 {
 	m_Mat4 rot_x, rot_y, translate, perspective;
 
-	translate.Translate( -pos_);
+	translate.Translate( -pos_ );
 	rot_x.RotateX( -angle_.x );
 	rot_y.RotateY( -angle_.y );
 	perspective.PerspectiveProjection( aspect_, fov_, 0.25f, 256.0f );
 
-	*out_mat= translate * rot_y * rot_x * perspective;
+	out_mat= translate * rot_y * rot_x * perspective;
 }
 
 void plb_CameraController::RotateX( int delta )

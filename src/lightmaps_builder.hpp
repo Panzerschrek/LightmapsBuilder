@@ -1,6 +1,8 @@
 ﻿#pragma once
+#include <memory>
 
 #include <glsl_program.hpp>
+#include <framebuffer.hpp>
 #include <matrix.hpp>
 #include <panzer_ogl_lib.hpp>
 #include <polygon_buffer.hpp>
@@ -13,13 +15,13 @@
 
 #define PLB_MAX_LIGHT_PASSES 8
 
-class plb_LightmapsBuilder
+class plb_LightmapsBuilder final
 {
 public:
-	plb_LightmapsBuilder( const char* file_name, const plb_Config* config );
+	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
 
-	void DrawPreview( const m_Mat4* view_matrix, const m_Vec3& cam_pos= m_Vec3(0.0f,0.0f,0.0f) );
+	void DrawPreview( const m_Mat4& view_matrix );
 
 private:
 	void LoadLightPassShaders();
@@ -31,15 +33,16 @@ private:
 	void GenSecondaryLightPassCubemap();
 	void SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal );
 
-	void CreateDirectionalLightShadowmap();
-	void GenDirectionalLightShadowmap( const plb_DirectionalLight& light );
-	void DirectionalLightPass( const plb_DirectionalLight& light );
+	void GenDirectionalLightShadowmap( const m_Mat4& shadow_mat );
+	void DirectionalLightPass( const plb_DirectionalLight& light, const m_Mat4& shadow_mat );
 
-	void CreateConeLightShadowmap();
-	void GenConeLightShadowmap( const plb_ConeLinght& light );
-	void ConeLightPass( const plb_ConeLinght& light );
+	void GenConeLightShadowmap( const m_Mat4& shadow_mat );
+	void ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat );
 
+	// Builds lightmap basises from texture basises.
+	// Needs only for input data without lightmap basises.
 	void BuildLightmapBasises();
+
 	void DevideLongPolygons();
 
 	void TransformTexturesCoordinates();
@@ -50,6 +53,7 @@ private:
 	void FillBorderLightmapTexels();
 
 	void CalculateLevelBoundingBox();
+
 private:
 	plb_LevelData level_data_;
 	struct
@@ -58,17 +62,13 @@ private:
 		m_Vec3 max;
 	} level_bounding_box_;
 
-	plb_Config config_;
+	const plb_Config config_;
 
 	r_GLSLProgram polygons_preview_shader_;
 
 	// VBO dlä obycnyh poliginov i poligonov krivyh poverhnostej
 	r_PolygonBuffer polygons_vbo_;
 	GLuint polygon_vbo_vertex_normals_vbo_;
-
-
-	r_GLSLProgram normals_shader_;
-	r_PolygonBuffer normals_vbo_;
 
 	struct
 	{
@@ -112,34 +112,17 @@ private:
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
 
-
-	struct
-	{
-		unsigned int size[2];
-		GLuint depth_tex_id;
-		GLuint fbo_id;
-		m_Mat4 view_matrix;
-		m_Vec3 light_direction;
-		float z_min, z_max;
-	} directional_light_shadowmap_;
+	r_Framebuffer directional_light_shadowmap_;
 
 	r_GLSLProgram shadowmap_shader_; // common with cone light
 	r_GLSLProgram directional_light_pass_shader_;
 
-	struct
-	{
-		unsigned int size[2];
-		GLuint depth_tex_id;
-		GLuint fbo_id;
-		m_Mat4 view_matrix;
-	} cone_light_shadowmap_;
+	r_Framebuffer cone_light_shadowmap_;
 
 	r_GLSLProgram cone_light_pass_shader_;
 
 	r_GLSLProgram texture_show_shader_;
 	r_PolygonBuffer cubemap_show_buffer_;
 
-	unsigned int viewport_size_[2];
-
-	plb_TexturesManager* textures_manager_;
+	std::unique_ptr<plb_TexturesManager> textures_manager_;
 };

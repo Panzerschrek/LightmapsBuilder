@@ -17,7 +17,7 @@ public:
 
 	void Tick();
 
-	void GetViewMatrix( m_Mat4* out_mat ) const;
+	void GetViewMatrix( m_Mat4& out_mat ) const;
 
 	m_Vec3 GetCamPos() const { return pos_; }
 

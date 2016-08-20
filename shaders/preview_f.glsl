@@ -4,9 +4,6 @@ uniform samplerCubeShadow cubemap;
 
 uniform sampler2DArray textures[8];
 
-uniform vec3 light_pos;
-uniform float inv_max_light_dst= 1.0 / 128.0;
-
 in vec3 f_pos;
 in vec3 f_tex_coord;
 in vec3 f_lightmap_coord;
@@ -23,7 +20,7 @@ void main()
 	//c= vec3( 0.5, 0.5, 0.5 );
 	vec3 linear_color= c * lightmap_light;
 
-	color= vec4( vec3(1.0, 1.0, 1.0) - exp(-0.5 * linear_color), 1.0);
+	color= vec4( vec3(1.0, 1.0, 1.0) - exp(-0.1 * linear_color), 1.0);
 
 	//color= vec4( f_normal * 0.5 + vec3(0.5,0.5,0.5), 1.0 );
 }

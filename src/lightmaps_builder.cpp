@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstring>
 
 #include <shaders_loading.hpp>
 
@@ -138,15 +139,113 @@ static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* 
 	}// for y
 }
 
-plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Config* config)
+static void SetupLevelVertexAttributes( r_GLSLProgram& shader )
 {
-	viewport_size_[0]= 1024;
-	viewport_size_[1]= 768;
+	shader.SetAttribLocation( "pos", Attrib::Pos );
+	shader.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	shader.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
+	shader.SetAttribLocation( "normal", Attrib::Normal );
+	shader.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+}
 
-	config_= *config;
+static void Setup2dShadowmap( r_Framebuffer& shadowmap_fbo, unsigned int size )
+{
+	shadowmap_fbo=
+		r_Framebuffer(
+			std::vector<r_Texture::PixelFormat>(), // No color textures
+			r_Texture::PixelFormat::Depth16,
+			size,
+			size );
 
+	r_Texture& depth_texture= shadowmap_fbo.GetDepthTexture();
+
+	depth_texture.SetCompareMode( r_Texture::CompareMode::Less );
+	depth_texture.SetWrapMode( r_Texture::WrapMode::Clamp );
+	depth_texture.SetFiltration( r_Texture::Filtration::Linear, r_Texture::Filtration::Linear );
+}
+
+static void CreateDirectionalLightMatrix(
+	const plb_DirectionalLight& light,
+	const m_Vec3& bb_min,
+	const m_Vec3& bb_max,
+	m_Mat4& out_mat )
+{
+	m_Mat4 projection, rotation, shift;
+
+	m_Vec3 dir( light.direction );
+	dir.Normalize();
+
+	rotation.RotateX( -g_pi * 0.5f );
+
+	shift.Identity();
+	shift[4]= -dir.x / dir.y;
+	shift[6]= -dir.z / dir.y;
+
+	rotation= shift * rotation;
+
+	const float inf= 1e24f;
+	m_Vec3 proj_min( inf, inf, inf ), proj_max( -inf, -inf, -inf );
+	for( unsigned int i= 0; i< 8; i++ )
+	{
+		m_Vec3 v;
+		v.x= (i&1) ? bb_max.x : bb_min.x;
+		v.y= ((i>>1)&1) ? bb_max.y : bb_min.y;
+		v.z= ((i>>2)&1) ? bb_max.z : bb_min.z;
+		v= v * rotation;
+		for( unsigned int j= 0; j< 3; j++ )
+		{
+			if( v.ToArr()[j] > proj_max.ToArr()[j] ) proj_max.ToArr()[j]= v.ToArr()[j];
+			else if( v.ToArr()[j] < proj_min.ToArr()[j] ) proj_min.ToArr()[j]= v.ToArr()[j];
+		}
+	}
+
+	projection.Identity();
+	projection[ 0]= 2.0f / ( proj_max.x - proj_min.x );
+	projection[12]= 1.0f - proj_max.x * projection[ 0];
+	projection[ 5]= 2.0f / ( proj_max.y - proj_min.y );
+	projection[13]= 1.0f - proj_max.y * projection[ 5];
+	projection[10]= 2.0f / ( proj_max.z - proj_min.z );
+	projection[14]= 1.0f - proj_max.z * projection[10];
+
+	out_mat= rotation * projection;
+}
+
+static void CreateConeLightMatrix(
+	const plb_ConeLight& light,
+	m_Mat4& out_mat )
+{
+	m_Mat4 translate, rotate, perspective;
+
+	translate.Translate( -m_Vec3(light.pos) );
+
+	const float c_sin_eps= 0.99f;
+
+		 if( light.direction[1] >=  c_sin_eps )
+		rotate.RotateX(  g_pi * 0.5f );
+	else if( light.direction[1] <= -c_sin_eps )
+		rotate.RotateX( -g_pi * 0.5f );
+	else
+	{
+		m_Mat4 rotate_x, rotate_y;
+		const float angle_x= std::asin( light.direction[1] );
+		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
+
+		rotate_x.RotateX( angle_x);
+		rotate_y.RotateY(-angle_y);
+
+		rotate= rotate_y * rotate_x;
+	}
+
+	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
+
+	out_mat= translate * rotate * perspective;
+}
+
+plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
+	:config_( config )
+{
 	LoadQ3Bsp( file_name , &level_data_ );
-	textures_manager_ = new plb_TexturesManager( &config_, level_data_.textures );
+	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
@@ -190,49 +289,15 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 	}// create world VBO
 
 	polygons_preview_shader_.ShaderSource(
-		rLoadShader( "shaders/preview_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/preview_v.glsl", g_glsl_version) );
-	polygons_preview_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	polygons_preview_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	polygons_preview_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	polygons_preview_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	polygons_preview_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+		rLoadShader( "preview_f.glsl", g_glsl_version),
+		rLoadShader( "preview_v.glsl", g_glsl_version) );
+	SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
-
-	/*{
-		float* normals_lines= new float[ 2 * 3 * level_data_.polygons.size() ];
-		for( unsigned int i= 0, n= 0; i< level_data_.polygons.size(); i++, n+= 6 )
-		{
-			m_Vec3 center(0.0f,0.0f,0.0f);
-			for( unsigned int v= level_data_.polygons[i].first_vertex_number;
-				v< level_data_.polygons[i].first_vertex_number + level_data_.polygons[i].vertex_count;
-				v++ )
-				center+= m_Vec3(level_data_.vertices[v].pos);
-			center/= float( level_data_.polygons[i].vertex_count );
-			
-			normals_lines[n  ]= center.x;
-			normals_lines[n+1]= center.y;
-			normals_lines[n+2]= center.z;
-			normals_lines[n+3]= center.x + level_data_.polygons[i].normal[0];
-			normals_lines[n+4]= center.y + level_data_.polygons[i].normal[1];
-			normals_lines[n+5]= center.z + level_data_.polygons[i].normal[2];
-		}
-		normals_vbo_.VertexData( normals_lines, 6 * level_data_.polygons.size() * sizeof(float), sizeof(float) * 3 );
-		normals_vbo_.VertexAttribPointer( 0, 3, GL_FLOAT, false, 0 );
-		normals_vbo_.SetPrimitiveType(GL_LINES);
-		delete[] normals_lines;
-	}
-
-	normals_shader_.Load( "shaders/normals_f.glsl", "shaders/normals_v.glsl" );
-	normals_shader_.SetAttribLocation( "pos", 0 );
-	normals_shader_.Create();*/
 
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
-	CreateDirectionalLightShadowmap();
-	CreateConeLightShadowmap();
-
-	printf( "point lights: %d\n", level_data_.point_lights.size() );
+	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.sun_light_shadowmap_size_log2 );
+	Setup2dShadowmap( cone_light_shadowmap_, 1024 );
 
 	for( unsigned int i= 0; i< level_data_.point_lights.size(); i++ )
 	{
@@ -252,21 +317,42 @@ plb_LightmapsBuilder::plb_LightmapsBuilder(const char* file_name, const plb_Conf
 		PointLightPass( light_pos, light_color );
 	}
 
-	plb_DirectionalLight dl;
-	dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
-	dl.intensity= 150.0f / 64.0f;
-	dl.direction[0]= 0.1f; dl.direction[1]= -1.0f; dl.direction[2]= 0.5f;
-	level_data_.directional_lights.push_back(dl);
-	for( unsigned int i= 0; i< level_data_.directional_lights.size(); i++ )
-	{
-		GenDirectionalLightShadowmap( level_data_.directional_lights[i] );
-		DirectionalLightPass( level_data_.directional_lights[i] );
+	{ // Add test light, like in q3dm6
+		level_data_.directional_lights.emplace_back();
+		plb_DirectionalLight& dl= level_data_.directional_lights.back();
+
+		dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
+		dl.intensity= 150.0f / 8.0f;
+
+		const float c_to_rad= g_pi / 180.0f;
+		const float c_elevation= 60.0f * c_to_rad;
+		const float c_degrees= 30.0f * c_to_rad;
+
+		dl.direction[1]= std::sin( c_elevation );
+		dl.direction[0]= std::cos( c_elevation ) * std::cos( c_degrees );
+		dl.direction[2]= std::cos( c_elevation ) * std::sin( c_degrees );
 	}
 
-	for( const plb_ConeLinght& cone_light : level_data_.cone_lights )
+	for( const plb_DirectionalLight& light : level_data_.directional_lights )
 	{
-		GenConeLightShadowmap( cone_light );
-		ConeLightPass( cone_light );
+		m_Mat4 mat;
+		CreateDirectionalLightMatrix(
+			light,
+			level_bounding_box_.min,
+			level_bounding_box_.max,
+			mat );
+
+		GenDirectionalLightShadowmap( mat );
+		DirectionalLightPass( light, mat );
+	}
+
+	for( const plb_ConeLight& cone_light : level_data_.cone_lights )
+	{
+		m_Mat4 mat;
+		CreateConeLightMatrix( cone_light, mat );
+
+		GenConeLightShadowmap( mat );
+		ConeLightPass( cone_light, mat );
 	}
 
 	FillBorderLightmapTexels();
@@ -278,13 +364,12 @@ plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
 }
 
-void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3& cam_pos )
+void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 {
-	m_Vec3 light_pos( -10.21f, 11.71f, -2.85f );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glClearColor ( 0.1f, 0.05f, 0.1f, 0.0f );
 	glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-	glViewport( 0, 0, viewport_size_[0], viewport_size_[1] );
 
 	glActiveTexture( GL_TEXTURE0 + 0 );
 	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.tex_id );
@@ -296,10 +381,9 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3&
 	glActiveTexture( GL_TEXTURE0 + 0 );
 
 	polygons_preview_shader_.Bind();
-	polygons_preview_shader_.Uniform( "view_matrix", *view_matrix );
+	polygons_preview_shader_.Uniform( "view_matrix", view_matrix );
 	polygons_preview_shader_.Uniform( "lightmap", int(0) );
 	polygons_preview_shader_.Uniform( "lightmap_test", int(1) );
-	polygons_preview_shader_.Uniform( "light_pos", light_pos );
 	polygons_preview_shader_.Uniform( "cubemap", int(2) );
 
 	unsigned int arrays_bindings_unit= 3;
@@ -336,74 +420,50 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4* view_matrix, const m_Vec3&
 void plb_LightmapsBuilder::LoadLightPassShaders()
 {
 	point_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/point_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	point_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	point_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	point_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	point_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	point_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
+		rLoadShader( "point_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
-		rLoadShader( "shaders/point_light_shadowmap_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_shadowmap_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_shadowmap_g.glsl", g_glsl_version));
-	point_light_shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	point_light_shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	point_light_shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	point_light_shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
-	point_light_shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
+		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_shadowmap_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_shadowmap_g.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(point_light_shadowmap_shader_);
 	point_light_shadowmap_shader_.Create();
 
 	secondary_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/secondary_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/secondary_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/secondary_light_pass_g.glsl", g_glsl_version));
-	secondary_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	secondary_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	secondary_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	secondary_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	secondary_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
-		rLoadShader( "shaders/shadowmap_v.glsl", g_glsl_version));
-	shadowmap_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	shadowmap_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	shadowmap_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	shadowmap_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	shadowmap_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(shadowmap_shader_);
 	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/sun_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	directional_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	directional_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	directional_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	directional_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	directional_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+		rLoadShader( "sun_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(directional_light_pass_shader_);
 	directional_light_pass_shader_.Create();
 
 	cone_light_pass_shader_.ShaderSource(
-		rLoadShader( "shaders/cone_light_pass_f.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "shaders/point_light_pass_g.glsl", g_glsl_version));
-	cone_light_pass_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	cone_light_pass_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	cone_light_pass_shader_.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	cone_light_pass_shader_.SetAttribLocation( "normal", Attrib::Normal );
-	cone_light_pass_shader_.SetAttribLocation( "tex_maps", Attrib::TexMaps );
+		rLoadShader( "cone_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
+	SetupLevelVertexAttributes(cone_light_pass_shader_);
 	cone_light_pass_shader_.Create();
 }
 
 void plb_LightmapsBuilder::CreateShadowmapCubemap()
 {
-	point_light_shadowmap_cubemap_.size = 1024;
+	point_light_shadowmap_cubemap_.size= 1024;
 	point_light_shadowmap_cubemap_.max_light_distance= 128.0f;
 	const unsigned int texture_size= point_light_shadowmap_cubemap_.size;
 
@@ -429,8 +489,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
 	texture_show_shader_.ShaderSource(
-		rLoadShader("shaders/texture_show_f.glsl", g_glsl_version),
-		rLoadShader("shaders/texture_show_v.glsl", g_glsl_version) );
+		rLoadShader("texture_show_f.glsl", g_glsl_version),
+		rLoadShader("texture_show_v.glsl", g_glsl_version) );
 	texture_show_shader_.SetAttribLocation( "pos", Attrib::Pos );
 	texture_show_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
 	texture_show_shader_.Create();
@@ -610,109 +670,26 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 }
 
-void plb_LightmapsBuilder::CreateDirectionalLightShadowmap()
-{
-	directional_light_shadowmap_.size[0]= 1 << config_.sun_light_shadowmap_size_log2;
-	directional_light_shadowmap_.size[1]= 1 << config_.sun_light_shadowmap_size_log2;
-
-	glGenTextures( 1, &directional_light_shadowmap_.depth_tex_id );
-	glBindTexture( GL_TEXTURE_2D, directional_light_shadowmap_.depth_tex_id );
-
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL );
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16,
-		directional_light_shadowmap_.size[0], directional_light_shadowmap_.size[1],
-		0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL );
-
-	glGenFramebuffers( 1, &directional_light_shadowmap_.fbo_id );
-	glBindFramebuffer( GL_FRAMEBUFFER, directional_light_shadowmap_.fbo_id );
-	glFramebufferTexture( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT , directional_light_shadowmap_.depth_tex_id, 0 );
-	GLuint da= GL_NONE;
-	glDrawBuffers( 1, &da );
-
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-}
-
-void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const plb_DirectionalLight& light )
+void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_mat )
 {
 	glDisable( GL_CULL_FACE );
 
-	glBindFramebuffer( GL_FRAMEBUFFER, directional_light_shadowmap_.fbo_id );
-	glViewport( 0, 0, directional_light_shadowmap_.size[0], directional_light_shadowmap_.size[1] );
+	directional_light_shadowmap_.Bind();
 	glClear( GL_DEPTH_BUFFER_BIT );
 
-	m_Mat4 projection, rot, result, magic;
-
-	m_Vec3 dir( light.direction );
-	dir.Normalize();
-
-	float degrees= 60.0f;
-	float elevation= 30.0f;
-	float to_rad= 3.1415926535f / 180.0f;
-
-	// ACHTUNG! die Magie die Matricen und die Vektoren hier!
-	directional_light_shadowmap_.light_direction.y= -sin( -degrees * to_rad );
-	directional_light_shadowmap_.light_direction.x=
-	directional_light_shadowmap_.light_direction.z= -cos( -degrees * to_rad );
-	directional_light_shadowmap_.light_direction.x*= -sin( ( 90.0f + elevation ) * to_rad );
-	directional_light_shadowmap_.light_direction.z*= cos( ( 90.0f + elevation ) * to_rad );
-
-	rot[ 0]= 0.0f; rot[ 1]= -1.0f; rot[ 2]=  0.0f; rot[ 3]= 0.0f;
-	rot[ 4]= 0.0f; rot[ 5]=  0.0f; rot[ 6]= -1.0f; rot[ 7]= 0.0f;
-	rot[ 8]= 1.0f; rot[ 9]=  0.0f; rot[10]=  0.0f; rot[11]= 0.0f;
-	rot[12]= 0.0f; rot[13]=  0.0f; rot[14]=  0.0f; rot[15]= 1.0f;
-
-	magic.Scale( directional_light_shadowmap_.light_direction.y );
-	magic[8]= +directional_light_shadowmap_.light_direction.z;
-	magic[9]= -directional_light_shadowmap_.light_direction.x;
-
-	rot= rot * magic;
-
-	const float inf= 1e24f;
-	m_Vec3 proj_min( inf, inf, inf ), proj_max( -inf, -inf, -inf );
-	for( unsigned int i= 0; i< 8; i++ )
-	{
-		m_Vec3 v;
-		v.x= (i&1) ? level_bounding_box_.max.x : level_bounding_box_.min.x;
-		v.y= ((i>>1)&1) ? level_bounding_box_.max.y : level_bounding_box_.min.y;
-		v.z= ((i>>2)&1) ? level_bounding_box_.max.z : level_bounding_box_.min.z;
-		v= v * rot;
-		for( unsigned int j= 0; j< 3; j++ )
-		{
-			if( v.ToArr()[j] > proj_max.ToArr()[j] ) proj_max.ToArr()[j]= v.ToArr()[j];
-			else if( v.ToArr()[j] < proj_min.ToArr()[j] ) proj_min.ToArr()[j]= v.ToArr()[j];
-		}
-	}
-
-	projection.Identity();
-	projection[ 0]= 2.0f / ( proj_max.x - proj_min.x );
-	projection[12]= 1.0f - proj_max.x * projection[ 0];
-	projection[ 5]= 2.0f / ( proj_max.y - proj_min.y );
-	projection[13]= 1.0f - proj_max.y * projection[ 5];
-	projection[10]= 2.0f / ( proj_max.z - proj_min.z );
-	projection[14]= 1.0f - proj_max.z * projection[10];
-
-	result= rot * projection;
-
-	directional_light_shadowmap_.view_matrix= result;
-	directional_light_shadowmap_.z_min= proj_min.z;
-	directional_light_shadowmap_.z_max= proj_max.z;
-
 	shadowmap_shader_.Bind();
-	shadowmap_shader_.Uniform( "view_matrix", result );
+	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
 	polygons_vbo_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glEnable( GL_CULL_FACE );
 }
 
-void plb_LightmapsBuilder::DirectionalLightPass( const plb_DirectionalLight& light )
+void plb_LightmapsBuilder::DirectionalLightPass(
+	const plb_DirectionalLight& light,
+	const m_Mat4& shadow_mat )
 {
 	glDisable( GL_CULL_FACE );
 	glEnable( GL_BLEND );
@@ -721,97 +698,42 @@ void plb_LightmapsBuilder::DirectionalLightPass( const plb_DirectionalLight& lig
 	glViewport( 0, 0, lightmap_atlas_texture_.size[0], lightmap_atlas_texture_.size[1] );
 	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
 
-	glActiveTexture( GL_TEXTURE0 + 0 );
-	glBindTexture( GL_TEXTURE_2D, directional_light_shadowmap_.depth_tex_id );
+	directional_light_shadowmap_.GetDepthTexture().Bind(0);
 
 	m_Vec3 light_color( float(light.color[0]), float(light.color[1]), float(light.color[2]) );
 	light_color*= light.intensity / 255.0f;
 
 	directional_light_pass_shader_.Bind();
-	directional_light_pass_shader_.Uniform( "light_dir", directional_light_shadowmap_.light_direction );
+	directional_light_pass_shader_.Uniform( "light_dir", m_Vec3(light.direction) );
 	directional_light_pass_shader_.Uniform( "light_color", light_color );
 	directional_light_pass_shader_.Uniform( "shadowmap", int(0) );
-	directional_light_pass_shader_.Uniform( "view_matrix", directional_light_shadowmap_.view_matrix );
+	directional_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
 	polygons_vbo_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
 }
 
-void plb_LightmapsBuilder::CreateConeLightShadowmap()
-{
-	cone_light_shadowmap_.size[0]= 1024;
-	cone_light_shadowmap_.size[1]= 1024;
-
-	glGenTextures( 1, &cone_light_shadowmap_.depth_tex_id );
-	glBindTexture( GL_TEXTURE_2D, cone_light_shadowmap_.depth_tex_id );
-
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE );
-	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL );
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT16,
-		cone_light_shadowmap_.size[0], cone_light_shadowmap_.size[1],
-		0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL );
-
-	glGenFramebuffers( 1, &cone_light_shadowmap_.fbo_id );
-	glBindFramebuffer( GL_FRAMEBUFFER, cone_light_shadowmap_.fbo_id );
-	glFramebufferTexture( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT , cone_light_shadowmap_.depth_tex_id, 0 );
-	GLuint da= GL_NONE;
-	glDrawBuffers( 1, &da );
-
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
-}
-
-void plb_LightmapsBuilder::GenConeLightShadowmap( const plb_ConeLinght& light )
+void plb_LightmapsBuilder::GenConeLightShadowmap( const m_Mat4& shadow_mat )
 {
 	glDisable( GL_CULL_FACE );
 
-	glBindFramebuffer( GL_FRAMEBUFFER, cone_light_shadowmap_.fbo_id );
-	glViewport( 0, 0, cone_light_shadowmap_.size[0], cone_light_shadowmap_.size[1] );
+	cone_light_shadowmap_.Bind();
 	glClear( GL_DEPTH_BUFFER_BIT );
 
-	m_Mat4 translate, rotate, perspective;
-
-	translate.Translate( -m_Vec3(light.pos) );
-
-	const float c_sin_eps= 0.99f;
-
-		 if( light.direction[1] >=  c_sin_eps )
-		rotate.RotateX(  g_pi * 0.5f );
-	else if( light.direction[1] <= -c_sin_eps )
-		rotate.RotateX( -g_pi * 0.5f );
-	else
-	{
-		m_Mat4 rotate_x, rotate_y;
-		const float angle_x= std::asin( light.direction[1] );
-		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
-
-		rotate_x.RotateX( angle_x);
-		rotate_y.RotateY(-angle_y);
-
-		rotate= rotate_y * rotate_x;
-	}
-
-	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
-
-	cone_light_shadowmap_.view_matrix= translate * rotate * perspective;
-
 	shadowmap_shader_.Bind();
-	shadowmap_shader_.Uniform( "view_matrix", cone_light_shadowmap_.view_matrix );
+	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
 	polygons_vbo_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 	glEnable( GL_CULL_FACE );
 }
 
-void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLinght& light )
+void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat )
 {
 	glDisable( GL_CULL_FACE );
 	glEnable( GL_BLEND );
@@ -820,8 +742,7 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLinght& light )
 	glViewport( 0, 0, lightmap_atlas_texture_.size[0], lightmap_atlas_texture_.size[1] );
 	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
 
-	glActiveTexture( GL_TEXTURE0 + 0 );
-	glBindTexture( GL_TEXTURE_2D, cone_light_shadowmap_.depth_tex_id );
+	cone_light_shadowmap_.GetDepthTexture().Bind(0);
 
 	m_Vec3 light_color( float(light.color[0]), float(light.color[1]), float(light.color[2]) );
 	light_color*= light.intensity / 255.0f;
@@ -830,11 +751,11 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLinght& light )
 	cone_light_pass_shader_.Uniform( "light_pos", m_Vec3(light.pos) );
 	cone_light_pass_shader_.Uniform( "light_color", light_color );
 	cone_light_pass_shader_.Uniform( "shadowmap", int(0) );
-	cone_light_pass_shader_.Uniform( "view_matrix", cone_light_shadowmap_.view_matrix );
+	cone_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
 	polygons_vbo_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
@@ -942,23 +863,20 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
 			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
 		}
-		polygon.lightmap_data.size[0]= ((unsigned int)ceilf( max_uv[0] ) ) + 1;
+		polygon.lightmap_data.size[0]= ((unsigned int)std::ceil( max_uv[0] ) ) + 1;
 		if( polygon.lightmap_data.size[0] < 2 ) polygon.lightmap_data.size[0] = 2;
-		polygon.lightmap_data.size[1]= ((unsigned int)ceilf( max_uv[1] ) ) + 1;
+		polygon.lightmap_data.size[1]= ((unsigned int)std::ceil( max_uv[1] ) ) + 1;
 		if( polygon.lightmap_data.size[1] < 2 ) polygon.lightmap_data.size[1] = 2;
 
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
 			float tmp[4];
-			memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
-			memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
-			memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
+			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
+			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
+			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
 
-			unsigned short i_tmp;
-			i_tmp= polygon.lightmap_data.size[0];
-			polygon.lightmap_data.size[0]= polygon.lightmap_data.size[1];
-			polygon.lightmap_data.size[1]= i_tmp;
+			std::swap( polygon.lightmap_data.size[0], polygon.lightmap_data.size[1] );
 		}
 	}
 
@@ -978,29 +896,28 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 				for( unsigned int v= curve.first_vertex_number;
 					v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 				{
-					float tmp_f= v_p[v].lightmap_coord[0];
-					v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[1];
-					v_p[v].lightmap_coord[1]= tmp_f;
+					std::swap( v_p[v].lightmap_coord[0], v_p[v].lightmap_coord[1] );
 				}
 			}
 		}
 	}
 
-	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps;
-	sorted_lightmaps.resize( level_data_.polygons.size() + level_data_.curved_surfaces.size() );
+	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps(
+		level_data_.polygons.size() + level_data_.curved_surfaces.size() );
 
 	for( unsigned int i= 0; i< level_data_.polygons.size(); i++ )
 		sorted_lightmaps[i]= &level_data_.polygons[i].lightmap_data;
 	
-	for( unsigned int i= 0, j= level_data_.polygons.size(); i< level_data_.curved_surfaces.size(); i++, j++ )
-		sorted_lightmaps[j]= &level_data_.curved_surfaces[i].lightmap_data;
+	for( unsigned int i= 0; i< level_data_.curved_surfaces.size(); i++ )
+		sorted_lightmaps[ i + level_data_.polygons.size() ]=
+			&level_data_.curved_surfaces[i].lightmap_data;
 
 	std::sort(
 		sorted_lightmaps.begin(),
 		sorted_lightmaps.end(),
 		[]( const plb_SurfaceLightmapData* l0, const plb_SurfaceLightmapData* l1 )
 		{
-			return l0->size[1] < l1->size[1];
+			return l0->size[1] > l1->size[1];
 		} );
 
 	/*
@@ -1011,13 +928,10 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	unsigned int current_lightmap_atlas_id= 0;
 	unsigned int current_column_x= lightmaps_offset;
 	unsigned int current_column_y= lightmaps_offset;
-	unsigned int current_column_height= sorted_lightmaps.back()->size[1];
+	unsigned int current_column_height= sorted_lightmaps.front()->size[1];
 
-	for( unsigned int i= 0, j= sorted_lightmaps.size()-1; i< sorted_lightmaps.size(); i++, j-- )
+	for( plb_SurfaceLightmapData* const lightmap : sorted_lightmaps )
 	{
-		plb_SurfaceLightmapData* lightmap= sorted_lightmaps[j];
-		//plb_Polygon* poly= sorted_polygons[j].poly;
-
 		if( current_column_x + lightmap->size[0] + lightmaps_offset >= lightmap_size[0] )
 		{
 			current_column_x= lightmaps_offset;
