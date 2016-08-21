@@ -109,6 +109,7 @@ private:
 
 		GLuint direction_multipler_tex_id;
 		unsigned int direction_multipler_tex_scaler;
+		float direction_multiplier_normalizer;
 
 		r_GLSLProgram unwrap_shader;
 		r_PolygonBuffer unwrap_geometry;

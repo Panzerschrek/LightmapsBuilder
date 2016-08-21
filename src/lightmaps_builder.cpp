@@ -457,6 +457,8 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 			secondary_light_pass_cubemap_.write_shader.Uniform( "tex", int(0) );
 			secondary_light_pass_cubemap_.write_shader.Uniform( "mip", int(config_.secondary_light_pass_cubemap_size_log2) );
 			secondary_light_pass_cubemap_.write_shader.Uniform(
+				"normalizer", secondary_light_pass_cubemap_.direction_multiplier_normalizer );
+			secondary_light_pass_cubemap_.write_shader.Uniform(
 				"tex_coord",
 				m_Vec3( tc_x, tc_y, float(poly.lightmap_data.atlas_id) + 0.01f ) );
 
@@ -702,17 +704,25 @@ void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 		std::vector<unsigned char> multipler_data(
 			direction_multiplier_cubemap_size * direction_multiplier_cubemap_size );
 
+		unsigned int multiplier_sum= 0;
 		for( unsigned int i= 0; i< 6; i++ )
 		{
 			GenCubemapSideDirectionMultipler(
 				direction_multiplier_cubemap_size,
 				multipler_data.data(), i );
+			multiplier_sum+= std::accumulate( multipler_data.begin(), multipler_data.end(), 0 );
 
 			glTexImage2D(
 				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_R8,
 				direction_multiplier_cubemap_size, direction_multiplier_cubemap_size,
 				0, GL_RED, GL_UNSIGNED_BYTE, multipler_data.data() );
 		}
+
+		// Devide by hemicube square.
+		// 255 - byte color to normalized color.
+		secondary_light_pass_cubemap_.direction_multiplier_normalizer=
+			float(255 * 3 *direction_multiplier_cubemap_size * direction_multiplier_cubemap_size ) /
+			float(multiplier_sum);
 	}
 
 	// depth texture
