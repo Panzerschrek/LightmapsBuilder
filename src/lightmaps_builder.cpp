@@ -12,6 +12,12 @@
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
 #define REALLY_MAX_FLOAT 1e24f
 
+struct CubemapGeometryVertex
+{
+	float vec[3];
+	float tex_coord[2];
+};
+
 struct Attrib
 {
 	enum
@@ -389,6 +395,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	FillBorderLightmapTexels();
 
 	GenSecondaryLightPassCubemap();
+	GenSecondaryLightPassUnwrapBuffer();
 }
 
 plb_LightmapsBuilder::~plb_LightmapsBuilder()
@@ -429,14 +436,10 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix, const m_Vec3&
 	// Debug secondary light pass
 	SecondaryLightPass( cam_pos, cam_dir );
 
-	glActiveTexture( GL_TEXTURE0 + 0 );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.tex_id );
-	glActiveTexture( GL_TEXTURE0 + 1 );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
+	secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
 
 	texture_show_shader_.Bind();
-	texture_show_shader_.Uniform( "cubemap", int(0) );
-	texture_show_shader_.Uniform( "cubemap_multiplier", int(1) );
+	texture_show_shader_.Uniform( "tex", int(0) );
 	cubemap_show_buffer_.Draw();
 }
 
@@ -662,6 +665,95 @@ void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 }
 
+void plb_LightmapsBuilder::GenSecondaryLightPassUnwrapBuffer()
+{
+	secondary_light_pass_cubemap_.unwrap_shader.ShaderSource(
+		rLoadShader( "secondary_light_pass_cubemap_unwrap_f.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_cubemap_unwrap_v.glsl", g_glsl_version ) );
+	secondary_light_pass_cubemap_.unwrap_shader.SetAttribLocation( "coord", 0 );
+	secondary_light_pass_cubemap_.unwrap_shader.SetAttribLocation( "tex_coord", 1 );
+	secondary_light_pass_cubemap_.unwrap_shader.Create();
+
+	/*
+	   + -------+
+	   |   y+   |
+	+--+--------+--+
+	|  |        |  |
+	|x+|   z+   |x-|
+	|  |        |  |
+	+--+--------+--+
+	   |   y-   |
+	   +--------+
+
+	0       1/3  1/2  2/3       1
+	+--------+----+----+--------+ 1
+	|        |    |    |   y+   |
+	|   z+   | x+ | x- |________| 1/2;
+	|        |    |    |        |
+	|        |    |    |   y-   |
+	+--------+----+----+--------+ 0
+	 */
+	static const float o0= 0.0f;
+	static const float o13 = 1.0f / 3.0f;
+	static const float o12= 1.0f / 2.0f;
+	static const float o23 = 2.0f / 3.0f;
+	static const float o1= 1.0f;
+	static const CubemapGeometryVertex unwrap_geometry[]=
+	{
+		// z+ quad
+		{ { 1,  1,  1}, {  o0,  o1 } }, // up left
+		{ {-1,  1,  1}, { o13,  o1 } }, // up right
+		{ {-1, -1,  1}, { o13,  o0 } }, // down right
+		{ {-1, -1,  1}, { o13,  o0 } }, // down right
+		{ { 1, -1,  1}, {  o0,  o0 } }, // down left
+		{ { 1,  1,  1}, {  o0,  o1 } }, // up left
+		// x+ quad
+		{ { 1,  1,  0}, { o13,  o1 } }, // up left
+		{ { 1,  1,  1}, { o12,  o1 } }, // up right
+		{ { 1, -1,  1}, { o12,  o0 } }, // down right
+		{ { 1, -1,  1}, { o12,  o0 } }, // down right
+		{ { 1, -1,  0}, { o13,  o0 } }, // down left
+		{ { 1,  1,  0}, { o13,  o1 } }, // up left
+		// x- quad
+		{ {-1,  1,  1}, { o12,  o1 } },  // up left
+		{ {-1,  1,  0}, { o23,  o1 } },  // up right
+		{ {-1, -1,  0}, { o23,  o0 } },  // down right
+		{ {-1, -1,  0}, { o23,  o0 } },  // down right
+		{ {-1, -1,  1}, { o12,  o0 } },  // down left
+		{ {-1,  1,  1}, { o12,  o1 } },  // up left
+		// y+ quad
+		{ { 1,  1,  0}, { o23,  o1 } },  // up left
+		{ {-1,  1,  0}, {  o1,  o1 } },  // up right
+		{ {-1,  1,  1}, {  o1, o12 } },  // down right
+		{ {-1,  1,  1}, {  o1, o12 } },  // down right
+		{ { 1,  1,  1}, { o23, o12 } },  // down left
+		{ { 1,  1,  0}, { o23,  o1 } },  // up left
+		// y- quad
+		{ { 1, -1,  1}, { o23, o12 } },  // up left
+		{ {-1, -1,  1}, {  o1, o12 } },  // up right
+		{ {-1, -1,  0}, {  o1,  o0 } },  // down right
+		{ {-1, -1,  0}, {  o1,  o0 } },  // down right
+		{ { 1, -1,  0}, { o23,  o0 } },  // down left
+		{ { 1, -1,  1}, { o23, o12 } },  // up left
+	};
+
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexData(
+		unwrap_geometry,
+		sizeof(unwrap_geometry),
+		sizeof(CubemapGeometryVertex) );
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexAttribPointer( 0, 3, GL_FLOAT, false, 0 );
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexAttribPointer( 1, 2, GL_FLOAT, false, sizeof(float) * 3 );
+	secondary_light_pass_cubemap_.unwrap_geometry.SetPrimitiveType( GL_TRIANGLES );
+
+	secondary_light_pass_cubemap_.unwrap_framebuffer=
+		r_Framebuffer(
+			{ r_Texture::PixelFormat::RGBA32F }, // one floating point texture
+			r_Texture::PixelFormat::Unknown, // no depth buffer,
+			secondary_light_pass_cubemap_.size * 3,
+			secondary_light_pass_cubemap_.size );
+
+}
+
 void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal )
 {
 	glViewport( 0, 0, secondary_light_pass_cubemap_.size, secondary_light_pass_cubemap_.size );
@@ -695,6 +787,30 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	polygons_vbo_.Draw();
 
 	glDisable(GL_CLIP_DISTANCE0);
+
+	r_Framebuffer::BindScreenFramebuffer();
+
+	// Unwrap
+	//
+
+	glDisable( GL_CULL_FACE );
+
+	secondary_light_pass_cubemap_.unwrap_framebuffer.Bind();
+	glClearColor( 1, 0, 1, 0 );
+	glClear( GL_COLOR_BUFFER_BIT );
+
+	glActiveTexture( GL_TEXTURE0 + 0 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.tex_id );
+	glActiveTexture( GL_TEXTURE0 + 1 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
+
+	secondary_light_pass_cubemap_.unwrap_shader.Bind();
+	secondary_light_pass_cubemap_.unwrap_shader.Uniform( "cubemap", int(0) );
+	secondary_light_pass_cubemap_.unwrap_shader.Uniform( "cubemap_multiplier", int(1) );
+
+	secondary_light_pass_cubemap_.unwrap_geometry.Draw();
+
+	glEnable( GL_CULL_FACE );
 
 	r_Framebuffer::BindScreenFramebuffer();
 }

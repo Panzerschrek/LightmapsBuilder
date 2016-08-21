@@ -31,6 +31,7 @@ private:
 	void PointLightPass(const m_Vec3& light_pos, const m_Vec3& light_color);
 
 	void GenSecondaryLightPassCubemap();
+	void GenSecondaryLightPassUnwrapBuffer();
 	void SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal );
 
 	void GenDirectionalLightShadowmap( const m_Mat4& shadow_mat );
@@ -99,16 +100,14 @@ private:
 		GLuint tex_id;
 		GLuint depth_tex_id;
 		GLuint fbo_id;
-		/*
-		+------+---+---+
-		|   up |  down |
-		+------+---+---+
-		|      |le |ri |
-		|front |ft |ght|
-		+------+---+---+
-		*/
+
 		GLuint direction_multipler_tex_id;
 		unsigned int direction_multipler_tex_scaler;
+
+		r_GLSLProgram unwrap_shader;
+		r_PolygonBuffer unwrap_geometry;
+		r_Framebuffer unwrap_framebuffer;
+
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
 
