@@ -127,6 +127,11 @@ struct plb_Config
 	// Ispoljzujetsä toljko jesli vo vhodnyh dannyh netu informaçii o naloženii svetokart.
 	unsigned int inv_lightmap_scale_log2= 2;
 
+	// Otnošenije razmera tekselä originaljnoj svetokarty k razmeru tekselä svetokarty,
+	// ispoljzujemoj pri rascöte.
+	// Ispoljzujetsä toljko jesli vo vhodnyh dannyh jestj informaçija o naloženii svetokart.
+	unsigned int lightmap_scale_to_original= 2;
+
 	// Parametry tocnosti rascöta.
 	unsigned int point_light_shadowmap_cubemap_size_log2= 10;
 	unsigned int directional_light_shadowmap_size_log2= 11;

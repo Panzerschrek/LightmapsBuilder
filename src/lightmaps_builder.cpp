@@ -851,6 +851,26 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 
 void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 {
+	if( config_.lightmap_scale_to_original != 1 )
+	{
+		const float inv_scale= 1.0f / float(config_.lightmap_scale_to_original);
+		for( plb_Polygon& polygon : level_data_.polygons )
+		{
+			polygon.lightmap_basis[0][0]*= inv_scale;
+			polygon.lightmap_basis[0][1]*= inv_scale;
+			polygon.lightmap_basis[0][2]*= inv_scale;
+			polygon.lightmap_basis[1][0]*= inv_scale;
+			polygon.lightmap_basis[1][1]*= inv_scale;
+			polygon.lightmap_basis[1][2]*= inv_scale;
+		}
+
+		for( plb_CurvedSurface & curve : level_data_.curved_surfaces )
+		{
+			curve.lightmap_data.size[0]*= config_.lightmap_scale_to_original;
+			curve.lightmap_data.size[1]*= config_.lightmap_scale_to_original;
+		}
+	}
+
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& polygon : level_data_.polygons )
 	{
