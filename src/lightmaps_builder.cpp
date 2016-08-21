@@ -952,7 +952,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	/*
 	place lightmaps into atlases
 	*/
-	unsigned int lightmaps_offset= 1;
+	unsigned int lightmaps_offset= config_.secondary_lightmap_scaler;
 	unsigned int lightmap_size[2]= { config_.lightmaps_atlas_size[0], config_.lightmaps_atlas_size[1] };
 	unsigned int current_lightmap_atlas_id= 0;
 	unsigned int current_column_x= lightmaps_offset;
@@ -961,11 +961,19 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 
 	for( plb_SurfaceLightmapData* const lightmap : sorted_lightmaps )
 	{
-		if( current_column_x + lightmap->size[0] + lightmaps_offset >= lightmap_size[0] )
+		const unsigned int atlas_width=
+			( lightmap->size[0] + config_.secondary_lightmap_scaler - 1 ) /
+			config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
+
+		if( current_column_x + atlas_width + lightmaps_offset >= lightmap_size[0] )
 		{
+			const unsigned int atlas_height=
+				( lightmap->size[1] + config_.secondary_lightmap_scaler - 1 ) /
+				config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
+
 			current_column_x= lightmaps_offset;
 			current_column_y+= current_column_height + lightmaps_offset;
-			current_column_height= lightmap->size[1];
+			current_column_height= atlas_height;
 
 			if( current_column_height + current_column_y + lightmaps_offset >= lightmap_size[1] )
 			{
@@ -978,7 +986,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		lightmap->coord[1]= current_column_y;
 		lightmap->atlas_id= current_lightmap_atlas_id;
 
-		current_column_x+= lightmap->size[0] + lightmaps_offset;
+		current_column_x+= atlas_width + lightmaps_offset;
 	}// for polygons
 
 	lightmap_atlas_texture_.size[0]= config_.lightmaps_atlas_size[0];
