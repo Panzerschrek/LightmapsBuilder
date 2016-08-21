@@ -130,7 +130,7 @@ struct plb_Config
 	// Otnošenije razmera tekselä originaljnoj svetokarty k razmeru tekselä svetokarty,
 	// ispoljzujemoj pri rascöte.
 	// Ispoljzujetsä toljko jesli vo vhodnyh dannyh jestj informaçija o naloženii svetokart.
-	unsigned int lightmap_scale_to_original= 2;
+	unsigned int lightmap_scale_to_original= 4;
 
 	// Parametry tocnosti rascöta.
 	unsigned int point_light_shadowmap_cubemap_size_log2= 10;

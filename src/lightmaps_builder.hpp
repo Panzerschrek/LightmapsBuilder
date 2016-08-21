@@ -24,7 +24,10 @@ public:
 
 	void MakeSecondaryLight( const std::function<void()>& wake_up_callback );
 
-	void DrawPreview( const m_Mat4& view_matrix, const m_Vec3& cam_pos, const m_Vec3& cam_dir );
+	void DrawPreview(
+		const m_Mat4& view_matrix, const m_Vec3& cam_pos,
+		const m_Vec3& cam_dir,
+		bool show_primary_lightmap, bool show_secondary_lightmap );
 
 private:
 	void LoadLightPassShaders();
