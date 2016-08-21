@@ -70,28 +70,6 @@ static void GenPolygonsVerticesNormals(
 	}
 }
 
-
-static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices, float y_rotation= 0.0f )
-{
-	m_Mat4 perspective, shift, y_rot;
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
-	y_rot.RotateY( y_rotation );
-	shift.Translate( -pos );
-
-	m_Mat4 tmp; tmp.RotateZ( g_pi );
-	out_matrices[0].RotateY( g_pi * 0.5f );
-	out_matrices[1].RotateY( -g_pi* 0.5f );
-	out_matrices[2].RotateX( -g_pi * 0.5f );
-	out_matrices[2]*= tmp;
-	out_matrices[3].RotateX( g_pi * 0.5f );
-	out_matrices[3]*= tmp;
-	out_matrices[4].RotateY( -g_pi );
-	out_matrices[5].Identity();
-
-	for( unsigned int i= 0; i< 6; i++ )
-		out_matrices[i]= shift * y_rot * out_matrices[i] * perspective;
-}
-
 static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* out_data, unsigned int side_num )
 {
 	/*
@@ -164,6 +142,29 @@ static void Setup2dShadowmap( r_Framebuffer& shadowmap_fbo, unsigned int size )
 	depth_texture.SetFiltration( r_Texture::Filtration::Linear, r_Texture::Filtration::Linear );
 }
 
+static void CreateRotationMatrixForDirection(
+	const m_Vec3& dir,
+	m_Mat4& out_mat )
+{
+	const float c_sin_eps= 0.995f;
+
+		 if( dir.y >=  c_sin_eps )
+		out_mat.RotateX(  g_pi * 0.5f );
+	else if( dir.y <= -c_sin_eps )
+		out_mat.RotateX( -g_pi * 0.5f );
+	else
+	{
+		m_Mat4 rotate_x, rotate_y;
+		const float angle_x= std::asin( dir.y );
+		const float angle_y= std::atan2( dir.x, dir.z );
+
+		rotate_x.RotateX( angle_x);
+		rotate_y.RotateY(-angle_y);
+
+		out_mat= rotate_y * rotate_x;
+	}
+}
+
 static void CreateDirectionalLightMatrix(
 	const plb_DirectionalLight& light,
 	const m_Vec3& bb_min,
@@ -218,27 +219,57 @@ static void CreateConeLightMatrix(
 
 	translate.Translate( -m_Vec3(light.pos) );
 
-	const float c_sin_eps= 0.99f;
-
-		 if( light.direction[1] >=  c_sin_eps )
-		rotate.RotateX(  g_pi * 0.5f );
-	else if( light.direction[1] <= -c_sin_eps )
-		rotate.RotateX( -g_pi * 0.5f );
-	else
-	{
-		m_Mat4 rotate_x, rotate_y;
-		const float angle_x= std::asin( light.direction[1] );
-		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
-
-		rotate_x.RotateX( angle_x);
-		rotate_y.RotateY(-angle_y);
-
-		rotate= rotate_y * rotate_x;
-	}
+	CreateRotationMatrixForDirection( m_Vec3(light.direction), rotate );
 
 	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
 
 	out_mat= translate * rotate * perspective;
+}
+
+// Axis-aligned cubemap
+static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices )
+{
+	m_Mat4 perspective, shift;
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	shift.Translate( -pos );
+
+	m_Mat4 tmp; tmp.RotateZ( g_pi );
+	out_matrices[0].RotateY( g_pi * 0.5f );
+	out_matrices[1].RotateY( -g_pi* 0.5f );
+	out_matrices[2].RotateX( -g_pi * 0.5f );
+	out_matrices[2]*= tmp;
+	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3]*= tmp;
+	out_matrices[4].RotateY( -g_pi );
+	out_matrices[5].Identity();
+
+	for( unsigned int i= 0; i< 6; i++ )
+		out_matrices[i]= shift * out_matrices[i] * perspective;
+}
+
+// Align cubemap, using direction
+static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* out_matrices )
+{
+	m_Mat4 perspective, shift, rotate, rotate_and_shift;
+
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	shift.Translate( -pos );
+	CreateRotationMatrixForDirection( dir, rotate );
+
+	m_Mat4 tmp; tmp.RotateZ( g_pi );
+	out_matrices[0].RotateY( g_pi * 0.5f );
+	out_matrices[1].RotateY( -g_pi* 0.5f );
+	out_matrices[2].RotateX( -g_pi * 0.5f );
+	out_matrices[2]*= tmp;
+	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3]*= tmp;
+	out_matrices[4].RotateY( -g_pi );
+	out_matrices[5].Identity();
+
+	rotate_and_shift= shift * rotate;
+
+	for( unsigned int i= 0; i< 6; i++ )
+		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
 }
 
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
@@ -395,7 +426,6 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix, const m_Vec3&
 
 	polygons_vbo_.Draw();
 
-
 	// Debug secondary light pass
 	SecondaryLightPass( cam_pos, cam_dir );
 
@@ -406,7 +436,7 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix, const m_Vec3&
 
 	texture_show_shader_.Bind();
 	texture_show_shader_.Uniform( "cubemap", int(0) );
-	texture_show_shader_.Uniform( "cubemap_multipler", int(1) );
+	texture_show_shader_.Uniform( "cubemap_multiplier", int(1) );
 	cubemap_show_buffer_.Draw();
 }
 
@@ -643,7 +673,7 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 
 	// matrices generation
 	m_Mat4 final_matrices[6];
-	GenCubemapMatrices( pos, final_matrices, 3.1415926535f * 0.5f );
+	GenCubemapMatrices( pos, normal, final_matrices );
 
 	// bind lightmap texture
 	glActiveTexture( GL_TEXTURE0 + 0 );
