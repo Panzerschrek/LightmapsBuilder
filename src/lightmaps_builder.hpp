@@ -108,6 +108,8 @@ private:
 		r_PolygonBuffer unwrap_geometry;
 		r_Framebuffer unwrap_framebuffer;
 
+		r_GLSLProgram write_shader;
+
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
 

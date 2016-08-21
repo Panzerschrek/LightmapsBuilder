@@ -752,6 +752,11 @@ void plb_LightmapsBuilder::GenSecondaryLightPassUnwrapBuffer()
 			secondary_light_pass_cubemap_.size * 3,
 			secondary_light_pass_cubemap_.size );
 
+	secondary_light_pass_cubemap_.write_shader.ShaderSource(
+		rLoadShader( "secondary_light_pass_write_f.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_write_v.glsl", g_glsl_version ) );
+	secondary_light_pass_cubemap_.write_shader.SetAttribLocation( "tex_coord", 0 );
+	secondary_light_pass_cubemap_.write_shader.Create();
 }
 
 void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal )
