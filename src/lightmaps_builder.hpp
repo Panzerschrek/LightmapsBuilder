@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <functional>
 #include <memory>
 
 #include <glsl_program.hpp>
@@ -20,6 +21,8 @@ class plb_LightmapsBuilder final
 public:
 	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
+
+	void MakeSecondaryLight( const std::function<void()>& wake_up_callback );
 
 	void DrawPreview( const m_Mat4& view_matrix, const m_Vec3& cam_pos, const m_Vec3& cam_dir );
 

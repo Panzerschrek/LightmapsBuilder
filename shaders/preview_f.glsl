@@ -1,4 +1,5 @@
 uniform sampler2DArray lightmap;
+uniform sampler2DArray secondary_lightmap;
 uniform sampler2DArray lightmap_test;
 uniform samplerCubeShadow cubemap;
 
@@ -15,7 +16,9 @@ out vec4 color;
 void main()
 {
 	vec3 c= texture( textures[int(f_texture_array)], f_tex_coord ).xyz;
-	vec3 lightmap_light= texture(lightmap, f_lightmap_coord ).xyz;
+	vec3 lightmap_light=
+		texture(lightmap, f_lightmap_coord ).xyz +
+		texture(secondary_lightmap, f_lightmap_coord ).xyz;
 
 	//c= vec3( 0.5, 0.5, 0.5 );
 	vec3 linear_color= c * lightmap_light;

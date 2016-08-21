@@ -1,6 +1,8 @@
-uniform vec2 tex_coord;
+uniform vec3 tex_coord;
+
+out vec3 g_coord;
 
 void main()
 {
-	gl_Position= vec4( tex_coord, 1.0, 1.0 );
+	g_coord= vec3( tex_coord.xy * 2.0 - vec2( 1.0, 1.0 ), tex_coord.z );
 }

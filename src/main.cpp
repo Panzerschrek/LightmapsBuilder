@@ -78,12 +78,13 @@ extern "C" int main(int argc, char *argv[])
 
 	std::unique_ptr<plb_LightmapsBuilder> lightmaps_builder(
 		new plb_LightmapsBuilder(
-			"maps/q3dm6.bsp", cfg ) );
+			"maps/q3dm1.bsp", cfg ) );
 
 	plb_CameraController cam_controller( m_Vec3(0.0f,0.0f,0.0f), m_Vec2(0.0f,0.0f), float(screen_width)/float(screen_height) );
 
 	bool quited= false;
-	do
+	const auto main_loop_iteration=
+	[&]()
 	{
 		SDL_Event event;
 		while( SDL_PollEvent(&event) )
@@ -144,7 +145,13 @@ extern "C" int main(int argc, char *argv[])
 		lightmaps_builder->DrawPreview( view_matrix, cam_controller.GetCamPos(), cam_controller.GetCamDir() );
 
 		SDL_GL_SwapWindow(window);
+	};
 
+	lightmaps_builder->MakeSecondaryLight( main_loop_iteration );
+
+	do
+	{
+		main_loop_iteration();
 	}while(!quited);
 
 	lightmaps_builder.reset();
