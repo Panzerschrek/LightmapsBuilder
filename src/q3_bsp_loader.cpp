@@ -82,11 +82,12 @@ static void BuildPolygons(
 			polygon.lightmap_basis[0][0]= p->lightmapVecs[0][0];
 			polygon.lightmap_basis[0][1]= p->lightmapVecs[0][1];
 			polygon.lightmap_basis[0][2]= p->lightmapVecs[0][2];
-			polygon.lightmap_basis[0][3]= -m_Vec3(p->lightmapOrigin) * m_Vec3( p->lightmapVecs[0] );
 			polygon.lightmap_basis[1][0]= p->lightmapVecs[1][0];
 			polygon.lightmap_basis[1][1]= p->lightmapVecs[1][1];
 			polygon.lightmap_basis[1][2]= p->lightmapVecs[1][2];
-			polygon.lightmap_basis[1][3]= -m_Vec3(p->lightmapOrigin) * m_Vec3( p->lightmapVecs[1] );
+			polygon.lightmap_pos[0]= p->lightmapOrigin[0];
+			polygon.lightmap_pos[1]= p->lightmapOrigin[1];
+			polygon.lightmap_pos[2]= p->lightmapOrigin[2];
 
 			out_polygons->push_back(polygon);
 		}// if normal polygon
@@ -157,15 +158,17 @@ static void TransformPolygons(
 		for( unsigned int i= 0 ;i < 2; i++ )
 			std::swap( p.lightmap_basis[i][1], p.lightmap_basis[i][2] );
 
-		float k= 1.0f / 1.0f;
-		p.lightmap_basis[0][0]*= k;
-		p.lightmap_basis[0][1]*= k;
-		p.lightmap_basis[0][2]*= k;
-		p.lightmap_basis[0][3]*= INV_Q_UNITS_IN_METER * k;
-		p.lightmap_basis[1][0]*= k;
-		p.lightmap_basis[1][1]*= k;
-		p.lightmap_basis[1][2]*= k;
-		p.lightmap_basis[1][3]*= INV_Q_UNITS_IN_METER * k;
+		std::swap( p.lightmap_pos[1], p.lightmap_pos[2] );
+
+		p.lightmap_basis[0][0]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_basis[0][1]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_basis[0][2]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_basis[1][0]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_basis[1][1]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_basis[1][2]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_pos[0]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_pos[1]*= INV_Q_UNITS_IN_METER;
+		p.lightmap_pos[2]*= INV_Q_UNITS_IN_METER;
 
 		for( unsigned int v= p.first_vertex_number, v2= p.first_vertex_number + p.vertex_count - 1;
 			 v< p.first_vertex_number + p.vertex_count/2;

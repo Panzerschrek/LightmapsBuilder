@@ -855,26 +855,37 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	for( plb_Polygon& polygon : level_data_.polygons )
 	{
 		float max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
+
+		m_Vec3 world_to_lightmap_basis_u= m_Vec3(polygon.lightmap_basis[0]);
+		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
+
+		m_Vec3 world_to_lightmap_basis_v= m_Vec3(polygon.lightmap_basis[1]);
+		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+
 		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
+			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( polygon.lightmap_pos );
 			float uv[2]= {
-				m_Vec3( polygon.lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + polygon.lightmap_basis[0][3],
-				m_Vec3( polygon.lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + polygon.lightmap_basis[1][3] };
+				world_to_lightmap_basis_u * rel_pos,
+				world_to_lightmap_basis_v * rel_pos };
 			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
 			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
 		}
+		if( max_uv[0] < 1.0f )
+			max_uv[0]= 1.0f;
+		if( max_uv[1] < 1.0f )
+			max_uv[1]= 1.0f;
+
 		polygon.lightmap_data.size[0]= ((unsigned int)std::ceil( max_uv[0] ) ) + 1;
-		if( polygon.lightmap_data.size[0] < 2 ) polygon.lightmap_data.size[0] = 2;
 		polygon.lightmap_data.size[1]= ((unsigned int)std::ceil( max_uv[1] ) ) + 1;
-		if( polygon.lightmap_data.size[1] < 2 ) polygon.lightmap_data.size[1] = 2;
 
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
 			float tmp[4];
-			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float)*4);
-			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float)*4);
-			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float)*4);
+			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float) * 3 );
+			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float) * 3 );
+			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float) * 3 );
 
 			std::swap( polygon.lightmap_data.size[0], polygon.lightmap_data.size[1] );
 		}
@@ -885,8 +896,6 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			curve.lightmap_data.size[0]*= 4;
-			curve.lightmap_data.size[1]*= 4;
 			if( curve.lightmap_data.size[0] < curve.lightmap_data.size[1] )
 			{
 				unsigned short tmp= curve.lightmap_data.size[0];
@@ -1050,13 +1059,21 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& poly : level_data_.polygons )
 	{
+		m_Vec3 world_to_lightmap_basis_u= m_Vec3(poly.lightmap_basis[0]);
+		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
+
+		m_Vec3 world_to_lightmap_basis_v= m_Vec3(poly.lightmap_basis[1]);
+		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+
 		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
-			v_p[v].lightmap_coord[0]= m_Vec3( poly.lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + poly.lightmap_basis[0][3];
+			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
+
+			v_p[v].lightmap_coord[0]= world_to_lightmap_basis_u * rel_pos;
 			v_p[v].lightmap_coord[0]+= float(poly.lightmap_data.coord[0]);
 			v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-			v_p[v].lightmap_coord[1]= m_Vec3( poly.lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + poly.lightmap_basis[1][3];
+			v_p[v].lightmap_coord[1]= world_to_lightmap_basis_v * rel_pos;
 			v_p[v].lightmap_coord[1]+= float(poly.lightmap_data.coord[1]);
 			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 

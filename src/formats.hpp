@@ -37,7 +37,11 @@ struct plb_SurfaceLightmapData
 struct plb_Polygon
 {
 	float texture_basis[2][4];
-	float lightmap_basis[2][4];
+
+	// Basis for conversion of lightmap coord to world coord
+	float lightmap_basis[2][3];
+	float lightmap_pos[3];
+
 	float normal[3];
 	unsigned int flags;
 	unsigned int first_vertex_number;
