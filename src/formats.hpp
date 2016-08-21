@@ -136,6 +136,7 @@ struct plb_Config
 	unsigned int point_light_shadowmap_cubemap_size_log2= 10;
 	unsigned int directional_light_shadowmap_size_log2= 11;
 	unsigned int cone_light_shadowmap_size_log2= 10;
+	unsigned int secondary_light_pass_cubemap_size_log2= 7;
 
 	// Razmer boljšoj tekstury, gde razmescajutsä svetokarty otdeljnyh poverhnostej.
 	// Želateljno, ctoby razmer po osi X byl ne ocenj boljšim, ctoby stroki karty osvescenija

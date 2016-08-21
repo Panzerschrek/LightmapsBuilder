@@ -21,7 +21,7 @@ public:
 	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
 
-	void DrawPreview( const m_Mat4& view_matrix );
+	void DrawPreview( const m_Mat4& view_matrix, const m_Vec3& cam_pos, const m_Vec3& cam_dir );
 
 private:
 	void LoadLightPassShaders();

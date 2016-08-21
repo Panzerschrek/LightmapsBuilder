@@ -141,7 +141,7 @@ extern "C" int main(int argc, char *argv[])
 		cam_controller.Tick();
 		cam_controller.GetViewMatrix( view_matrix );
 
-		lightmaps_builder->DrawPreview( view_matrix );
+		lightmaps_builder->DrawPreview( view_matrix, cam_controller.GetCamPos(), cam_controller.GetCamDir() );
 
 		SDL_GL_SwapWindow(window);
 

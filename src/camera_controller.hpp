@@ -19,7 +19,8 @@ public:
 
 	void GetViewMatrix( m_Mat4& out_mat ) const;
 
-	m_Vec3 GetCamPos() const { return pos_; }
+	const m_Vec3& GetCamPos() const { return pos_; }
+	m_Vec3 GetCamDir() const;
 
 	void RotateX( int delta );
 	void RotateY( int delta );

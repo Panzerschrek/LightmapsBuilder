@@ -364,7 +364,7 @@ plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
 }
 
-void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
+void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix, const m_Vec3& cam_pos, const m_Vec3& cam_dir )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -395,16 +395,9 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 
 	polygons_vbo_.Draw();
 
-	/*static unsigned int pass_count= 0;
-	const unsigned int pass_per_frame= 1;
-	for( unsigned int i= 0; i< pass_per_frame; i++ )
-	{
-		SecondaryLightPass( cam_pos, m_Vec3(1.0, 0.0, 0.0) );
-	}
-	pass_count+= pass_per_frame;
-	//printf( "pass count: %d\n", pass_count );
 
-	glViewport( 0, 0, viewport_size_[0], viewport_size_[1] );
+	// Debug secondary light pass
+	SecondaryLightPass( cam_pos, cam_dir );
 
 	glActiveTexture( GL_TEXTURE0 + 0 );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.tex_id );
@@ -414,7 +407,7 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 	texture_show_shader_.Bind();
 	texture_show_shader_.Uniform( "cubemap", int(0) );
 	texture_show_shader_.Uniform( "cubemap_multipler", int(1) );
-	cubemap_show_buffer_.Show();*/
+	cubemap_show_buffer_.Draw();
 }
 
 void plb_LightmapsBuilder::LoadLightPassShaders()
@@ -571,31 +564,37 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 
 void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 {
-	secondary_light_pass_cubemap_.size= 128;
+	secondary_light_pass_cubemap_.size= 1 << config_.secondary_light_pass_cubemap_size_log2;
 	secondary_light_pass_cubemap_.direction_multipler_tex_scaler= 2;
 
 	// texture with direction multipler
 	glGenTextures( 1, &secondary_light_pass_cubemap_.direction_multipler_tex_id );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
-	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-	unsigned char* multipler_data = new unsigned char[
-		(secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler) *
-		(secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler) ];
-	for( unsigned int i= 0; i< 6; i++ )
+
 	{
-		GenCubemapSideDirectionMultipler( 
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			multipler_data, i );
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_R8,
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			0, GL_RED, GL_UNSIGNED_BYTE, multipler_data );
+		const unsigned int direction_multiplier_cubemap_size=
+			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler;
+
+		std::vector<unsigned char> multipler_data(
+			direction_multiplier_cubemap_size * direction_multiplier_cubemap_size );
+
+		for( unsigned int i= 0; i< 6; i++ )
+		{
+			GenCubemapSideDirectionMultipler(
+				direction_multiplier_cubemap_size,
+				multipler_data.data(), i );
+
+			glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_R8,
+				direction_multiplier_cubemap_size, direction_multiplier_cubemap_size,
+				0, GL_RED, GL_UNSIGNED_BYTE, multipler_data.data() );
+		}
 	}
-	delete[] multipler_data;
 
 	// depth texture
 	glGenTextures( 1, &secondary_light_pass_cubemap_.depth_tex_id );
@@ -637,7 +636,7 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 {
 	glViewport( 0, 0, secondary_light_pass_cubemap_.size, secondary_light_pass_cubemap_.size );
 	glBindFramebuffer( GL_FRAMEBUFFER, secondary_light_pass_cubemap_.fbo_id );
-	glClearColor ( 0.0f, 0.00f, 0.0f, 0.0f );
+	glClearColor ( 0.0f, 0.0f, 0.0f, 0.0f );
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 
 	glEnable(GL_CLIP_DISTANCE0);
@@ -667,7 +666,7 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 
 	glDisable(GL_CLIP_DISTANCE0);
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 }
 
 void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_mat )

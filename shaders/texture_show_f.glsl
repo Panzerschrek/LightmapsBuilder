@@ -36,6 +36,6 @@ void main()
 	coord.z*= cos(a);
 
 	vec3 tex_data= texture( cubemap, coord ).xyz;
-	float mult= 2.0 * texture( cubemap_multipler, coord ).x;
+	float mult= 0.1;//2.0 * texture( cubemap_multipler, coord ).x;
 	color= vec4( tex_data * mult, 1.0 );
 }
