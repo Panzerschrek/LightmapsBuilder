@@ -813,6 +813,13 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	glEnable( GL_CULL_FACE );
 
 	r_Framebuffer::BindScreenFramebuffer();
+
+	// Build Mips.
+	// TODO - maybe, manually downsample?
+	r_Texture& tex= secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front();
+	tex.Bind(0);
+	tex.SetFiltration( r_Texture::Filtration::NearestMipmapNearest, r_Texture::Filtration::Nearest );
+	tex.BuildMips();
 }
 
 void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_mat )
