@@ -441,15 +441,15 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
 			glViewport(
 				0, 0,
-				lightmap_atlas_texture_.size[0] / config_.secondary_lightmap_scaler,
-				lightmap_atlas_texture_.size[1] / config_.secondary_lightmap_scaler );
+				lightmap_atlas_texture_.secondary_lightmap_size[0],
+				lightmap_atlas_texture_.secondary_lightmap_size[1] );
 
 			const float tc_x=
-				( float( x * config_.secondary_lightmap_scaler + poly.lightmap_data.coord[0] ) + 0.5f ) /
-				float(lightmap_atlas_texture_.size[0]);
+				( float( x + poly.lightmap_data.coord[0] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[0]);
 			const float tc_y=
-				( float( y * config_.secondary_lightmap_scaler + poly.lightmap_data.coord[1] ) + 0.5f ) /
-				float(lightmap_atlas_texture_.size[1]);
+				( float( y + poly.lightmap_data.coord[1] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[1]);
 
 			secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
 
@@ -509,6 +509,19 @@ void plb_LightmapsBuilder::DrawPreview(
 
 	polygons_preview_shader_.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
 	polygons_preview_shader_.Uniform( "secondary_lightmap_scaler", show_secondary_lightmap ? 1.0f : 0.0f );
+
+	// Correct lightmap coordinates for secondary lightmaps,
+	// because size % scaler != 0, sometimes.
+	const float tex_scale_x=
+		float(lightmap_atlas_texture_.size[0]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[0] * config_.secondary_lightmap_scaler );
+	const float tex_scale_y=
+		float(lightmap_atlas_texture_.size[1]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[1] * config_.secondary_lightmap_scaler );
+
+	polygons_preview_shader_.Uniform(
+		"secondaty_lightmap_tex_coord_scaler",
+		m_Vec2(tex_scale_x, tex_scale_y ) );
 
 	unsigned int arrays_bindings_unit= 3;
 	textures_manager_->BindTextureArrays(arrays_bindings_unit);
@@ -1206,8 +1219,12 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	/*
 	place lightmaps into atlases
 	*/
-	unsigned int lightmaps_offset= config_.secondary_lightmap_scaler;
-	unsigned int lightmap_size[2]= { config_.lightmaps_atlas_size[0], config_.lightmaps_atlas_size[1] };
+	const unsigned int lightmaps_offset= config_.secondary_lightmap_scaler;
+	const unsigned int lightmap_size[2]=
+	{ // Cut pixels, which not exist in secondary lightmap
+		config_.lightmaps_atlas_size[0] / config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler,
+		config_.lightmaps_atlas_size[1] / config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler,
+	};
 	unsigned int current_lightmap_atlas_id= 0;
 	unsigned int current_column_x= lightmaps_offset;
 	unsigned int current_column_y= lightmaps_offset;
@@ -1215,19 +1232,19 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 
 	for( plb_SurfaceLightmapData* const lightmap : sorted_lightmaps )
 	{
-		const unsigned int atlas_width=
+		const unsigned int width_in_atlas=
 			( lightmap->size[0] + config_.secondary_lightmap_scaler - 1 ) /
 			config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
 
-		if( current_column_x + atlas_width + lightmaps_offset >= lightmap_size[0] )
+		if( current_column_x + width_in_atlas + lightmaps_offset >= lightmap_size[0] )
 		{
-			const unsigned int atlas_height=
+			const unsigned int height_in_atlas=
 				( lightmap->size[1] + config_.secondary_lightmap_scaler - 1 ) /
 				config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
 
 			current_column_x= lightmaps_offset;
 			current_column_y+= current_column_height + lightmaps_offset;
-			current_column_height= atlas_height;
+			current_column_height= height_in_atlas;
 
 			if( current_column_height + current_column_y + lightmaps_offset >= lightmap_size[1] )
 			{
@@ -1240,7 +1257,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		lightmap->coord[1]= current_column_y;
 		lightmap->atlas_id= current_lightmap_atlas_id;
 
-		current_column_x+= atlas_width + lightmaps_offset;
+		current_column_x+= width_in_atlas + lightmaps_offset;
 	}// for polygons
 
 	lightmap_atlas_texture_.size[0]= config_.lightmaps_atlas_size[0];
@@ -1255,13 +1272,18 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 
 	unsigned char* lightmap_data= new unsigned char[ lightmap_size[0] * lightmap_size[1] * 4 ];
 
+	lightmap_atlas_texture_.secondary_lightmap_size[0]=
+		lightmap_size[0] / config_.secondary_lightmap_scaler;
+	lightmap_atlas_texture_.secondary_lightmap_size[1]=
+		lightmap_size[1] / config_.secondary_lightmap_scaler;
+
 	//secondary ambient lightmap textures
 	for( unsigned int i= 0; i< 1; i++ )
 	{
 		glGenTextures( 1, &lightmap_atlas_texture_.secondary_tex_id[i] );
 		glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[i] );
 		glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_RGBA32F,
-			lightmap_size[0] / config_.secondary_lightmap_scaler, lightmap_size[1] / config_.secondary_lightmap_scaler,
+			lightmap_atlas_texture_.secondary_lightmap_size[0],lightmap_atlas_texture_.secondary_lightmap_size[1],
 			lightmap_atlas_texture_.size[2],
 			0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );

@@ -86,6 +86,7 @@ private:
 		GLuint tex_id;
 		GLuint fbo_id;
 
+		unsigned int secondary_lightmap_size[2];
 		GLuint secondary_tex_id[ PLB_MAX_LIGHT_PASSES ];
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
