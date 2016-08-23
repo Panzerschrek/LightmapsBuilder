@@ -3,6 +3,8 @@
 
 #include <vec.hpp>
 
+#include "rasterizer.hpp"
+
 #include "curves.hpp"
 
 void GetPatchSubdivisions( const m_Vec3* control_vertices, float max_angle_rad, unsigned int* out_subdivisions )
