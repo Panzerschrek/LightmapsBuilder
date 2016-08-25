@@ -1,9 +1,28 @@
 #include <cmath>
 #include <cstring>
+#include <iostream>
 
 #include <vec.hpp>
 
+#include "rasterizer.hpp"
+
 #include "curves.hpp"
+
+static const float g_max_angle_rad= 8.0f * 3.1415926535f / 180.0f;
+static const unsigned int g_max_subdivisions= 63;
+
+static void GetControlPointsWeights( float kx, float ky, float kx1, float ky1, float* out_weights )
+{
+	out_weights[0]= ky1 * ky1 * kx1 * kx1;
+	out_weights[1]= ky1 * ky1 * kx  * kx1 * 2.0f;
+	out_weights[2]= ky1 * ky1 * kx  * kx;
+	out_weights[3]= ky  * ky1 * kx1 * kx1 * 2.0f;
+	out_weights[4]= ky  * ky1 * kx  * kx1 * 4.0f;
+	out_weights[5]= ky  * ky1 * kx  * kx  * 2.0f;
+	out_weights[6]= ky  * ky  * kx1 * kx1;
+	out_weights[7]= ky  * ky  * kx  * kx1 * 2.0f;
+	out_weights[8]= ky  * ky  * kx  * kx;
+}
 
 void GetPatchSubdivisions( const m_Vec3* control_vertices, float max_angle_rad, unsigned int* out_subdivisions )
 {
@@ -39,8 +58,10 @@ void GetPatchSubdivisions( const m_Vec3* control_vertices, float max_angle_rad, 
 
 	out_subdivisions[0]= (unsigned int) std::ceil( max_angle_x / max_angle_rad );
 	if( out_subdivisions[0] < 1 ) out_subdivisions[0]= 1;
+	if( out_subdivisions[0] > g_max_subdivisions ) out_subdivisions[0]= g_max_subdivisions;
 	out_subdivisions[1]= (unsigned int) std::ceil( max_angle_y / max_angle_rad );
 	if( out_subdivisions[1] < 1 ) out_subdivisions[1]= 1;
+	if( out_subdivisions[1] > g_max_subdivisions ) out_subdivisions[1]= g_max_subdivisions;
 }
 
 static inline m_Vec3 GenCurveNormal( const m_Vec3* base_vertices, float kx, float ky, float kx1, float ky1 )
@@ -115,8 +136,6 @@ void GenCurvesMeshes(
 	const plb_CurvedSurfaces& curves, const plb_Vertices& curves_vertices,
 	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals )
 {
-	const float max_angle_rad= 8.0f * 3.1415926535f / 180.0f;
-
 	const plb_Vertex* v_p= curves_vertices.data();
 	for( const plb_CurvedSurface& curve : curves )
 	{
@@ -165,7 +184,7 @@ void GenCurvesMeshes(
 			std::memcpy( tex_maps, v_p[ base_vertex_index ].tex_maps, 4 );
 
 			unsigned int subdivisions[2];
-			GetPatchSubdivisions( base_vertices, max_angle_rad, subdivisions );
+			GetPatchSubdivisions( base_vertices, g_max_angle_rad, subdivisions );
 
 			const unsigned int patch_gird_size[2]= { subdivisions[0]+1, subdivisions[1]+1 };
 			const unsigned int vertex_count= patch_gird_size[0] * patch_gird_size[1];
@@ -186,15 +205,7 @@ void GenCurvesMeshes(
 				{
 					const float kx1= 1.0f - kx;
 					float vert_k[9];
-					vert_k[0]= ky1 * ky1 * kx1 * kx1;
-					vert_k[1]= ky1 * ky1 * kx  * kx1 * 2.0f;
-					vert_k[2]= ky1 * ky1 * kx  * kx;
-					vert_k[3]= ky  * ky1 * kx1 * kx1 * 2.0f;
-					vert_k[4]= ky  * ky1 * kx  * kx1 * 4.0f;
-					vert_k[5]= ky  * ky1 * kx  * kx  * 2.0f;
-					vert_k[6]= ky  * ky  * kx1 * kx1;
-					vert_k[7]= ky  * ky  * kx  * kx1 * 2.0f;
-					vert_k[8]= ky  * ky  * kx  * kx;
+					GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
 
 					const unsigned int ind= w + z * patch_gird_size[0];
 
@@ -265,4 +276,127 @@ void GenCurvesMeshes(
 			}
 		} // for control vertices (x, y)
 	}// for curves
+}
+
+void CalculateCurveCoordinatesForLightTexels(
+	const plb_CurvedSurface& curve,
+	const m_Vec2& lightmap_coord_scaler, const m_Vec2& lightmap_coord_shift,
+	const unsigned int* lightmap_size,
+	const plb_Vertices& vertices,
+	PositionAndNormal* out_coordinates )
+{
+	typedef plb_Rasterizer<m_Vec2> Rasterizer;
+
+	std::vector<m_Vec2> buffer_data( lightmap_size[0] * lightmap_size[1] );
+	Rasterizer::Buffer buffer;
+	buffer.data= buffer_data.data();
+	buffer.size[0]= lightmap_size[0];
+	buffer.size[1]= lightmap_size[1];
+
+	Rasterizer rasterizer( buffer );
+
+	for( unsigned int y= 0; y< curve.grid_size[1]-1; y+=2 )
+	for( unsigned int x= 0; x< curve.grid_size[0]-1; x+=2 ) // for curve patches
+	{
+		const m_Vec3 base_vertices[9]=
+		{
+			m_Vec3( vertices[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].pos ),
+			m_Vec3( vertices[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].pos ),
+		};
+		m_Vec2 base_vertices_lightmap_coords[9]=
+		{
+			m_Vec2( vertices[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( vertices[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+		};
+		for( unsigned int i= 0; i < 9; i++ )
+			base_vertices_lightmap_coords[i]=
+				m_Vec2(
+					base_vertices_lightmap_coords[i].x * lightmap_coord_scaler.x,
+					base_vertices_lightmap_coords[i].y * lightmap_coord_scaler.y )
+					+ lightmap_coord_shift;
+
+		const auto get_lightmap_coord=
+			[&]( const float kx, const float ky ) -> m_Vec2
+			{
+				const float kx1= 1.0f - kx;
+				const float ky1= 1.0f - ky;
+				float vert_k[9];
+				GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
+
+				m_Vec2 result( 0.0f, 0.0f );
+				for( unsigned int i= 0; i < 9; i++ )
+					result+= base_vertices_lightmap_coords[i] * vert_k[i];
+				return result;
+			};
+
+		unsigned int subdivisions[2];
+		//subdivisions[0]= 4;
+		//subdivisions[1]= 4;
+		GetPatchSubdivisions( base_vertices, g_max_angle_rad, subdivisions );
+
+		// Set unrendered
+		for( m_Vec2& pix : buffer_data )
+			pix.x= -1.0f;
+
+		const float step_x = 1.0f / float(subdivisions[0]);
+		const float step_y = 1.0f / float(subdivisions[1]);
+		// Draw result triangles
+		for( unsigned int w= 0; w< subdivisions[1]; w++ )
+		for( unsigned int z= 0; z< subdivisions[0]; z++ )
+		{
+			const float kx= float(z) * step_x;
+			const float ky= float(w) * step_y;
+			m_Vec2 vert[4];
+			m_Vec2 attrib[4];
+
+			attrib[0]= m_Vec2( kx, ky );
+			vert[0]= get_lightmap_coord( kx, ky );
+			attrib[1]= m_Vec2( kx + step_x, ky );
+			vert[1]= get_lightmap_coord( kx + step_x, ky );
+			attrib[2]= m_Vec2( kx, ky + step_y );
+			vert[2]= get_lightmap_coord( kx, ky + step_y );
+			attrib[3]= m_Vec2( kx + step_x, ky + step_y );
+			vert[3]= get_lightmap_coord( kx + step_x, ky + step_y );
+
+			rasterizer.DrawTriangle( vert, attrib );
+			rasterizer.DrawTriangle( vert + 1, attrib + 1 );
+		}
+
+		for( const m_Vec2& pix : buffer_data )
+		{
+			if( pix.x < 0.0f )
+				continue;
+
+			PositionAndNormal& out_coord= out_coordinates[ &pix - buffer_data.data() ];
+
+			const float kx= pix.x;
+			const float ky= pix.y;
+			const float kx1= 1.0f - kx;
+			const float ky1= 1.0f - ky;
+			float vert_k[9];
+			GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
+
+			out_coord.normal=
+				GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+
+			out_coord.pos= m_Vec3( 0.0f, 0.0f, 0.0f );
+			for( unsigned int i= 0; i < 9; i++ )
+				out_coord.pos+= vert_k[i] * base_vertices[i];
+		}
+
+	} // for curve patches
 }

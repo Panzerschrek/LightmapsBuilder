@@ -78,12 +78,17 @@ extern "C" int main(int argc, char *argv[])
 
 	std::unique_ptr<plb_LightmapsBuilder> lightmaps_builder(
 		new plb_LightmapsBuilder(
-			"maps/q3dm6.bsp", cfg ) );
+			"maps/q3dm1.bsp", cfg ) );
 
 	plb_CameraController cam_controller( m_Vec3(0.0f,0.0f,0.0f), m_Vec2(0.0f,0.0f), float(screen_width)/float(screen_height) );
 
+	bool show_primary_lightmap= true;
+	bool show_secondary_lightmap= true;
+
 	bool quited= false;
-	do
+
+	const auto main_loop_iteration=
+	[&]()
 	{
 		SDL_Event event;
 		while( SDL_PollEvent(&event) )
@@ -126,6 +131,9 @@ extern "C" int main(int argc, char *argv[])
 				case SDLK_d: cam_controller.RightReleased(); break;
 				case SDLK_SPACE: cam_controller.UpReleased(); break;
 				case SDLK_c: cam_controller.DownReleased(); break;
+
+				case SDLK_l: show_primary_lightmap= !show_primary_lightmap; break;
+				case SDLK_u: show_secondary_lightmap= !show_secondary_lightmap; break;
 				}
 				break;
 
@@ -141,10 +149,21 @@ extern "C" int main(int argc, char *argv[])
 		cam_controller.Tick();
 		cam_controller.GetViewMatrix( view_matrix );
 
-		lightmaps_builder->DrawPreview( view_matrix );
+		lightmaps_builder->DrawPreview(
+			view_matrix,
+			cam_controller.GetCamPos(),
+			cam_controller.GetCamDir(),
+			show_primary_lightmap,
+			show_secondary_lightmap );
 
 		SDL_GL_SwapWindow(window);
+	};
 
+	lightmaps_builder->MakeSecondaryLight( main_loop_iteration );
+
+	do
+	{
+		main_loop_iteration();
 	}while(!quited);
 
 	lightmaps_builder.reset();

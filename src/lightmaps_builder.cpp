@@ -12,6 +12,12 @@
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
 #define REALLY_MAX_FLOAT 1e24f
 
+struct CubemapGeometryVertex
+{
+	float vec[3];
+	float tex_coord[2];
+};
+
 struct Attrib
 {
 	enum
@@ -70,28 +76,6 @@ static void GenPolygonsVerticesNormals(
 	}
 }
 
-
-static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices, float y_rotation= 0.0f )
-{
-	m_Mat4 perspective, shift, y_rot;
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
-	y_rot.RotateY( y_rotation );
-	shift.Translate( -pos );
-
-	m_Mat4 tmp; tmp.RotateZ( g_pi );
-	out_matrices[0].RotateY( g_pi * 0.5f );
-	out_matrices[1].RotateY( -g_pi* 0.5f );
-	out_matrices[2].RotateX( -g_pi * 0.5f );
-	out_matrices[2]*= tmp;
-	out_matrices[3].RotateX( g_pi * 0.5f );
-	out_matrices[3]*= tmp;
-	out_matrices[4].RotateY( -g_pi );
-	out_matrices[5].Identity();
-
-	for( unsigned int i= 0; i< 6; i++ )
-		out_matrices[i]= shift * y_rot * out_matrices[i] * perspective;
-}
-
 static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* out_data, unsigned int side_num )
 {
 	/*
@@ -107,7 +91,7 @@ static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* 
 		-1.0f, -1.0f,  1.0f,   1.0f, -1.0f,  1.0f,  -1.0f,  1.0f,  1.0f,   1.0f,  1.0f,  1.0f, // Z+
 		 1.0f, -1.0f, -1.0f,  -1.0f, -1.0f, -1.0f,   1.0f,  1.0f, -1.0f,  -1.0f,  1.0f, -1.0f, // Z-
 	};
-	const float* control_vectors[]=
+	const float* const control_vectors[4]=
 	{
 		side_vectors + side_num * 12,
 		side_vectors + side_num * 12 + 3,
@@ -164,6 +148,29 @@ static void Setup2dShadowmap( r_Framebuffer& shadowmap_fbo, unsigned int size )
 	depth_texture.SetFiltration( r_Texture::Filtration::Linear, r_Texture::Filtration::Linear );
 }
 
+static void CreateRotationMatrixForDirection(
+	const m_Vec3& dir,
+	m_Mat4& out_mat )
+{
+	const float c_sin_eps= 0.995f;
+
+		 if( dir.y >=  c_sin_eps )
+		out_mat.RotateX(  g_pi * 0.5f );
+	else if( dir.y <= -c_sin_eps )
+		out_mat.RotateX( -g_pi * 0.5f );
+	else
+	{
+		m_Mat4 rotate_x, rotate_y;
+		const float angle_x= std::asin( dir.y );
+		const float angle_y= std::atan2( dir.x, dir.z );
+
+		rotate_x.RotateX( angle_x);
+		rotate_y.RotateY(-angle_y);
+
+		out_mat= rotate_y * rotate_x;
+	}
+}
+
 static void CreateDirectionalLightMatrix(
 	const plb_DirectionalLight& light,
 	const m_Vec3& bb_min,
@@ -218,27 +225,57 @@ static void CreateConeLightMatrix(
 
 	translate.Translate( -m_Vec3(light.pos) );
 
-	const float c_sin_eps= 0.99f;
-
-		 if( light.direction[1] >=  c_sin_eps )
-		rotate.RotateX(  g_pi * 0.5f );
-	else if( light.direction[1] <= -c_sin_eps )
-		rotate.RotateX( -g_pi * 0.5f );
-	else
-	{
-		m_Mat4 rotate_x, rotate_y;
-		const float angle_x= std::asin( light.direction[1] );
-		const float angle_y= std::atan2( light.direction[0], light.direction[2] );
-
-		rotate_x.RotateX( angle_x);
-		rotate_y.RotateY(-angle_y);
-
-		rotate= rotate_y * rotate_x;
-	}
+	CreateRotationMatrixForDirection( m_Vec3(light.direction), rotate );
 
 	perspective.PerspectiveProjection( 1.0f, 2.0f * light.angle, 0.1f, 256.0f );
 
 	out_mat= translate * rotate * perspective;
+}
+
+// Axis-aligned cubemap
+static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices )
+{
+	m_Mat4 perspective, shift;
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	shift.Translate( -pos );
+
+	m_Mat4 tmp; tmp.RotateZ( g_pi );
+	out_matrices[0].RotateY( g_pi * 0.5f );
+	out_matrices[1].RotateY( -g_pi* 0.5f );
+	out_matrices[2].RotateX( -g_pi * 0.5f );
+	out_matrices[2]*= tmp;
+	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3]*= tmp;
+	out_matrices[4].RotateY( -g_pi );
+	out_matrices[5].Identity();
+
+	for( unsigned int i= 0; i< 6; i++ )
+		out_matrices[i]= shift * out_matrices[i] * perspective;
+}
+
+// Align cubemap, using direction
+static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* out_matrices )
+{
+	m_Mat4 perspective, shift, rotate, rotate_and_shift;
+
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	shift.Translate( -pos );
+	CreateRotationMatrixForDirection( dir, rotate );
+
+	m_Mat4 tmp; tmp.RotateZ( g_pi );
+	out_matrices[0].RotateY( g_pi * 0.5f );
+	out_matrices[1].RotateY( -g_pi* 0.5f );
+	out_matrices[2].RotateX( -g_pi * 0.5f );
+	out_matrices[2]*= tmp;
+	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3]*= tmp;
+	out_matrices[4].RotateY( -g_pi );
+	out_matrices[5].Identity();
+
+	rotate_and_shift= shift * rotate;
+
+	for( unsigned int i= 0; i< 6; i++ )
+		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
 }
 
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
@@ -322,7 +359,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		plb_DirectionalLight& dl= level_data_.directional_lights.back();
 
 		dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
-		dl.intensity= 150.0f / 8.0f;
+		dl.intensity= 150.0f / 2.0f;
 
 		const float c_to_rad= g_pi / 180.0f;
 		const float c_elevation= 60.0f * c_to_rad;
@@ -358,13 +395,166 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	FillBorderLightmapTexels();
 
 	GenSecondaryLightPassCubemap();
+	GenSecondaryLightPassUnwrapBuffer();
 }
 
 plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
 }
 
-void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
+void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake_up_callback )
+{
+	unsigned int counter= 0;
+
+	glGenFramebuffers( 1, &lightmap_atlas_texture_.secondary_tex_fbo );
+	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
+	glFramebufferTexture( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 , lightmap_atlas_texture_.secondary_tex_id[0], 0 );
+	const GLuint color_attachment= GL_COLOR_ATTACHMENT0;
+	glDrawBuffers( 1, &color_attachment );
+
+	glClearColor( 0.0f, 0.0f, 0.0f, 0.0f );
+	glClear( GL_COLOR_BUFFER_BIT );
+
+	secondary_light_pass_cubemap_.write_shader.Bind();
+	secondary_light_pass_cubemap_.write_shader.Uniform( "tex", int(0) );
+	secondary_light_pass_cubemap_.write_shader.Uniform( "mip", int(config_.secondary_light_pass_cubemap_size_log2) );
+	secondary_light_pass_cubemap_.write_shader.Uniform(
+		"normalizer", secondary_light_pass_cubemap_.direction_multiplier_normalizer );
+
+	for( const plb_Polygon& poly : level_data_.polygons )
+	{
+		const m_Vec3 normal(poly.normal);
+
+		const unsigned int sx=
+			( poly.lightmap_data.size[0] + config_.secondary_lightmap_scaler - 1 ) /
+			config_.secondary_lightmap_scaler;
+		const unsigned int sy=
+			( poly.lightmap_data.size[1] + config_.secondary_lightmap_scaler - 1 ) /
+			config_.secondary_lightmap_scaler;
+
+		const float basis_scale= float(config_.secondary_lightmap_scaler);
+
+		for( unsigned int y= 0; y < sy; y++ )
+		for( unsigned int x= 0; x < sx; x++ )
+		{
+			const m_Vec3 pos=
+				( float(x) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[0]) +
+				( float(y) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[1]) +
+				m_Vec3( poly.lightmap_pos );
+
+			SecondaryLightPass( pos, normal );
+
+			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
+			glViewport(
+				0, 0,
+				lightmap_atlas_texture_.secondary_lightmap_size[0],
+				lightmap_atlas_texture_.secondary_lightmap_size[1] );
+
+			const float tc_x=
+				( float( x + poly.lightmap_data.coord[0] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[0]);
+			const float tc_y=
+				( float( y + poly.lightmap_data.coord[1] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[1]);
+
+			secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
+
+			secondary_light_pass_cubemap_.write_shader.Bind();
+			secondary_light_pass_cubemap_.write_shader.Uniform(
+				"tex_coord",
+				m_Vec3( tc_x, tc_y, float(poly.lightmap_data.atlas_id) + 0.01f ) );
+
+			glDrawArrays( GL_POINTS, 0, 1 );
+
+			counter++;
+			if( counter >= 100 )
+			{
+				counter= 0;
+				r_Framebuffer::BindScreenFramebuffer();
+				wake_up_callback();
+				printf( "Polygon : %d/%d\n", &poly - level_data_.polygons.data(), level_data_.polygons.size() );
+			}
+		}
+	}
+
+	std::vector<PositionAndNormal> curve_coords;
+	for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
+	{
+		const unsigned int lightmap_size[2]=
+		{
+			( curve.lightmap_data.size[0] + config_.secondary_lightmap_scaler - 1 ) /
+				config_.secondary_lightmap_scaler,
+			( curve.lightmap_data.size[1] + config_.secondary_lightmap_scaler - 1 ) /
+				config_.secondary_lightmap_scaler,
+		};
+
+		curve_coords.resize( lightmap_size[0] * lightmap_size[1] );
+		std::memset( curve_coords.data(), 0, curve_coords.size() * sizeof(PositionAndNormal) );
+
+		const m_Vec2 lightmap_coord_scaler(
+			float(lightmap_atlas_texture_.size[0]) / float(config_.secondary_lightmap_scaler),
+			float(lightmap_atlas_texture_.size[1]) / float(config_.secondary_lightmap_scaler) );
+		const m_Vec2 lightmap_coord_shift(
+				-float(curve.lightmap_data.coord[0] / config_.secondary_lightmap_scaler),
+				-float(curve.lightmap_data.coord[1] / config_.secondary_lightmap_scaler));
+
+		CalculateCurveCoordinatesForLightTexels(
+			curve,
+			lightmap_coord_scaler, lightmap_coord_shift,
+			lightmap_size,
+			level_data_.curved_surfaces_vertices,
+			curve_coords.data() );
+
+		for( unsigned int y= 0; y < lightmap_size[1]; y++ )
+		for( unsigned int x= 0; x < lightmap_size[0]; x++ )
+		{
+			const PositionAndNormal& texel_pos= curve_coords[ x + y * lightmap_size[0] ];
+
+			// Degenerate texel
+			if( texel_pos.normal.SquareLength() <= 0.01f )
+				continue;
+
+			SecondaryLightPass( texel_pos.pos, texel_pos.normal );
+
+			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
+			glViewport(
+				0, 0,
+				lightmap_atlas_texture_.secondary_lightmap_size[0],
+				lightmap_atlas_texture_.secondary_lightmap_size[1] );
+
+			const float tc_x=
+				( float( x + curve.lightmap_data.coord[0] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[0]);
+			const float tc_y=
+				( float( y + curve.lightmap_data.coord[1] / config_.secondary_lightmap_scaler ) + 0.5f ) /
+				float(lightmap_atlas_texture_.secondary_lightmap_size[1]);
+
+			secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
+
+			secondary_light_pass_cubemap_.write_shader.Bind();
+			secondary_light_pass_cubemap_.write_shader.Uniform(
+				"tex_coord",
+				m_Vec3( tc_x, tc_y, float(curve.lightmap_data.atlas_id) + 0.01f ) );
+
+			glDrawArrays( GL_POINTS, 0, 1 );
+
+			counter++;
+			if( counter >= 100 )
+			{
+				counter= 0;
+				r_Framebuffer::BindScreenFramebuffer();
+				wake_up_callback();
+			}
+		}
+	}
+
+	r_Framebuffer::BindScreenFramebuffer();
+}
+
+void plb_LightmapsBuilder::DrawPreview(
+	const m_Mat4& view_matrix, const m_Vec3& cam_pos,
+	const m_Vec3& cam_dir,
+	bool show_primary_lightmap, bool show_secondary_lightmap )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -374,8 +564,10 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 	glActiveTexture( GL_TEXTURE0 + 0 );
 	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.tex_id );
 	glActiveTexture( GL_TEXTURE0 + 1 );
-	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.colored_test_tex_id );
+	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[0] );
 	glActiveTexture( GL_TEXTURE0 + 2 );
+	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.colored_test_tex_id );
+	glActiveTexture( GL_TEXTURE0 + 3 );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, point_light_shadowmap_cubemap_.depth_tex_id );
 
 	glActiveTexture( GL_TEXTURE0 + 0 );
@@ -383,8 +575,25 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 	polygons_preview_shader_.Bind();
 	polygons_preview_shader_.Uniform( "view_matrix", view_matrix );
 	polygons_preview_shader_.Uniform( "lightmap", int(0) );
-	polygons_preview_shader_.Uniform( "lightmap_test", int(1) );
-	polygons_preview_shader_.Uniform( "cubemap", int(2) );
+	polygons_preview_shader_.Uniform( "secondary_lightmap", int(1) );
+	polygons_preview_shader_.Uniform( "lightmap_test", int(2) );
+	polygons_preview_shader_.Uniform( "cubemap", int(3) );
+
+	polygons_preview_shader_.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
+	polygons_preview_shader_.Uniform( "secondary_lightmap_scaler", show_secondary_lightmap ? 1.0f : 0.0f );
+
+	// Correct lightmap coordinates for secondary lightmaps,
+	// because size % scaler != 0, sometimes.
+	const float tex_scale_x=
+		float(lightmap_atlas_texture_.size[0]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[0] * config_.secondary_lightmap_scaler );
+	const float tex_scale_y=
+		float(lightmap_atlas_texture_.size[1]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[1] * config_.secondary_lightmap_scaler );
+
+	polygons_preview_shader_.Uniform(
+		"secondaty_lightmap_tex_coord_scaler",
+		m_Vec2(tex_scale_x, tex_scale_y ) );
 
 	unsigned int arrays_bindings_unit= 3;
 	textures_manager_->BindTextureArrays(arrays_bindings_unit);
@@ -395,26 +604,16 @@ void plb_LightmapsBuilder::DrawPreview( const m_Mat4& view_matrix )
 
 	polygons_vbo_.Draw();
 
-	/*static unsigned int pass_count= 0;
-	const unsigned int pass_per_frame= 1;
-	for( unsigned int i= 0; i< pass_per_frame; i++ )
-	{
-		SecondaryLightPass( cam_pos, m_Vec3(1.0, 0.0, 0.0) );
-	}
-	pass_count+= pass_per_frame;
-	//printf( "pass count: %d\n", pass_count );
+	// Debug secondary light pass
+	/*
+	SecondaryLightPass( cam_pos, cam_dir );
 
-	glViewport( 0, 0, viewport_size_[0], viewport_size_[1] );
-
-	glActiveTexture( GL_TEXTURE0 + 0 );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.tex_id );
-	glActiveTexture( GL_TEXTURE0 + 1 );
-	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
+	secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
 
 	texture_show_shader_.Bind();
-	texture_show_shader_.Uniform( "cubemap", int(0) );
-	texture_show_shader_.Uniform( "cubemap_multipler", int(1) );
-	cubemap_show_buffer_.Show();*/
+	texture_show_shader_.Uniform( "tex", int(0) );
+	cubemap_show_buffer_.Draw();
+	*/
 }
 
 void plb_LightmapsBuilder::LoadLightPassShaders()
@@ -571,31 +770,45 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 
 void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 {
-	secondary_light_pass_cubemap_.size= 128;
+	secondary_light_pass_cubemap_.size= 1 << config_.secondary_light_pass_cubemap_size_log2;
 	secondary_light_pass_cubemap_.direction_multipler_tex_scaler= 2;
 
 	// texture with direction multipler
 	glGenTextures( 1, &secondary_light_pass_cubemap_.direction_multipler_tex_id );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
-	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-	unsigned char* multipler_data = new unsigned char[
-		(secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler) *
-		(secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler) ];
-	for( unsigned int i= 0; i< 6; i++ )
+
 	{
-		GenCubemapSideDirectionMultipler( 
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			multipler_data, i );
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_R8,
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler,
-			0, GL_RED, GL_UNSIGNED_BYTE, multipler_data );
+		const unsigned int direction_multiplier_cubemap_size=
+			secondary_light_pass_cubemap_.size / secondary_light_pass_cubemap_.direction_multipler_tex_scaler;
+
+		std::vector<unsigned char> multipler_data(
+			direction_multiplier_cubemap_size * direction_multiplier_cubemap_size );
+
+		unsigned int multiplier_sum= 0;
+		for( unsigned int i= 0; i< 6; i++ )
+		{
+			GenCubemapSideDirectionMultipler(
+				direction_multiplier_cubemap_size,
+				multipler_data.data(), i );
+			multiplier_sum+= std::accumulate( multipler_data.begin(), multipler_data.end(), 0 );
+
+			glTexImage2D(
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_R8,
+				direction_multiplier_cubemap_size, direction_multiplier_cubemap_size,
+				0, GL_RED, GL_UNSIGNED_BYTE, multipler_data.data() );
+		}
+
+		// Devide by hemicube square.
+		// 255 - byte color to normalized color.
+		secondary_light_pass_cubemap_.direction_multiplier_normalizer=
+			float(255 * 3 *direction_multiplier_cubemap_size * direction_multiplier_cubemap_size ) /
+			float(multiplier_sum);
 	}
-	delete[] multipler_data;
 
 	// depth texture
 	glGenTextures( 1, &secondary_light_pass_cubemap_.depth_tex_id );
@@ -633,18 +846,113 @@ void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 }
 
+void plb_LightmapsBuilder::GenSecondaryLightPassUnwrapBuffer()
+{
+	secondary_light_pass_cubemap_.unwrap_shader.ShaderSource(
+		rLoadShader( "secondary_light_pass_cubemap_unwrap_f.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_cubemap_unwrap_v.glsl", g_glsl_version ) );
+	secondary_light_pass_cubemap_.unwrap_shader.SetAttribLocation( "coord", 0 );
+	secondary_light_pass_cubemap_.unwrap_shader.SetAttribLocation( "tex_coord", 1 );
+	secondary_light_pass_cubemap_.unwrap_shader.Create();
+
+	/*
+	   + -------+
+	   |   y+   |
+	+--+--------+--+
+	|  |        |  |
+	|x+|   z+   |x-|
+	|  |        |  |
+	+--+--------+--+
+	   |   y-   |
+	   +--------+
+
+	0       1/3  1/2  2/3       1
+	+--------+----+----+--------+ 1
+	|        |    |    |   y+   |
+	|   z+   | x+ | x- |________| 1/2;
+	|        |    |    |        |
+	|        |    |    |   y-   |
+	+--------+----+----+--------+ 0
+	 */
+	static const float o0= 0.0f;
+	static const float o13 = 1.0f / 3.0f;
+	static const float o12= 1.0f / 2.0f;
+	static const float o23 = 2.0f / 3.0f;
+	static const float o1= 1.0f;
+	static const CubemapGeometryVertex unwrap_geometry[]=
+	{
+		// z+ quad
+		{ { 1,  1,  1}, {  o0,  o1 } }, // up left
+		{ {-1,  1,  1}, { o13,  o1 } }, // up right
+		{ {-1, -1,  1}, { o13,  o0 } }, // down right
+		{ {-1, -1,  1}, { o13,  o0 } }, // down right
+		{ { 1, -1,  1}, {  o0,  o0 } }, // down left
+		{ { 1,  1,  1}, {  o0,  o1 } }, // up left
+		// x+ quad
+		{ { 1,  1,  0}, { o13,  o1 } }, // up left
+		{ { 1,  1,  1}, { o12,  o1 } }, // up right
+		{ { 1, -1,  1}, { o12,  o0 } }, // down right
+		{ { 1, -1,  1}, { o12,  o0 } }, // down right
+		{ { 1, -1,  0}, { o13,  o0 } }, // down left
+		{ { 1,  1,  0}, { o13,  o1 } }, // up left
+		// x- quad
+		{ {-1,  1,  1}, { o12,  o1 } },  // up left
+		{ {-1,  1,  0}, { o23,  o1 } },  // up right
+		{ {-1, -1,  0}, { o23,  o0 } },  // down right
+		{ {-1, -1,  0}, { o23,  o0 } },  // down right
+		{ {-1, -1,  1}, { o12,  o0 } },  // down left
+		{ {-1,  1,  1}, { o12,  o1 } },  // up left
+		// y+ quad
+		{ { 1,  1,  0}, { o23,  o1 } },  // up left
+		{ {-1,  1,  0}, {  o1,  o1 } },  // up right
+		{ {-1,  1,  1}, {  o1, o12 } },  // down right
+		{ {-1,  1,  1}, {  o1, o12 } },  // down right
+		{ { 1,  1,  1}, { o23, o12 } },  // down left
+		{ { 1,  1,  0}, { o23,  o1 } },  // up left
+		// y- quad
+		{ { 1, -1,  1}, { o23, o12 } },  // up left
+		{ {-1, -1,  1}, {  o1, o12 } },  // up right
+		{ {-1, -1,  0}, {  o1,  o0 } },  // down right
+		{ {-1, -1,  0}, {  o1,  o0 } },  // down right
+		{ { 1, -1,  0}, { o23,  o0 } },  // down left
+		{ { 1, -1,  1}, { o23, o12 } },  // up left
+	};
+
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexData(
+		unwrap_geometry,
+		sizeof(unwrap_geometry),
+		sizeof(CubemapGeometryVertex) );
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexAttribPointer( 0, 3, GL_FLOAT, false, 0 );
+	secondary_light_pass_cubemap_.unwrap_geometry.VertexAttribPointer( 1, 2, GL_FLOAT, false, sizeof(float) * 3 );
+	secondary_light_pass_cubemap_.unwrap_geometry.SetPrimitiveType( GL_TRIANGLES );
+
+	secondary_light_pass_cubemap_.unwrap_framebuffer=
+		r_Framebuffer(
+			{ r_Texture::PixelFormat::RGBA32F }, // one floating point texture
+			r_Texture::PixelFormat::Unknown, // no depth buffer,
+			secondary_light_pass_cubemap_.size * 3,
+			secondary_light_pass_cubemap_.size );
+
+	secondary_light_pass_cubemap_.write_shader.ShaderSource(
+		rLoadShader( "secondary_light_pass_write_f.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_write_v.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_write_g.glsl", g_glsl_version ));
+	secondary_light_pass_cubemap_.write_shader.SetAttribLocation( "tex_coord", 0 );
+	secondary_light_pass_cubemap_.write_shader.Create();
+}
+
 void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal )
 {
 	glViewport( 0, 0, secondary_light_pass_cubemap_.size, secondary_light_pass_cubemap_.size );
 	glBindFramebuffer( GL_FRAMEBUFFER, secondary_light_pass_cubemap_.fbo_id );
-	glClearColor ( 0.0f, 0.00f, 0.0f, 0.0f );
+	glClearColor ( 0.0f, 0.0f, 0.0f, 0.0f );
 	glClear( GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT );
 
 	glEnable(GL_CLIP_DISTANCE0);
 
 	// matrices generation
 	m_Mat4 final_matrices[6];
-	GenCubemapMatrices( pos, final_matrices, 3.1415926535f * 0.5f );
+	GenCubemapMatrices( pos, normal, final_matrices );
 
 	// bind lightmap texture
 	glActiveTexture( GL_TEXTURE0 + 0 );
@@ -667,7 +975,38 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 
 	glDisable(GL_CLIP_DISTANCE0);
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
+
+	// Unwrap
+	//
+
+	glDisable( GL_CULL_FACE );
+
+	secondary_light_pass_cubemap_.unwrap_framebuffer.Bind();
+	glClearColor( 1, 0, 1, 0 );
+	glClear( GL_COLOR_BUFFER_BIT );
+
+	glActiveTexture( GL_TEXTURE0 + 0 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.tex_id );
+	glActiveTexture( GL_TEXTURE0 + 1 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, secondary_light_pass_cubemap_.direction_multipler_tex_id );
+
+	secondary_light_pass_cubemap_.unwrap_shader.Bind();
+	secondary_light_pass_cubemap_.unwrap_shader.Uniform( "cubemap", int(0) );
+	secondary_light_pass_cubemap_.unwrap_shader.Uniform( "cubemap_multiplier", int(1) );
+
+	secondary_light_pass_cubemap_.unwrap_geometry.Draw();
+
+	glEnable( GL_CULL_FACE );
+
+	r_Framebuffer::BindScreenFramebuffer();
+
+	// Build Mips.
+	// TODO - maybe, manually downsample?
+	r_Texture& tex= secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front();
+	tex.Bind(0);
+	tex.SetFiltration( r_Texture::Filtration::NearestMipmapNearest, r_Texture::Filtration::Nearest );
+	tex.BuildMips();
 }
 
 void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_mat )
@@ -952,8 +1291,12 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	/*
 	place lightmaps into atlases
 	*/
-	unsigned int lightmaps_offset= 1;
-	unsigned int lightmap_size[2]= { config_.lightmaps_atlas_size[0], config_.lightmaps_atlas_size[1] };
+	const unsigned int lightmaps_offset= config_.secondary_lightmap_scaler;
+	const unsigned int lightmap_size[2]=
+	{ // Cut pixels, which not exist in secondary lightmap
+		config_.lightmaps_atlas_size[0] / config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler,
+		config_.lightmaps_atlas_size[1] / config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler,
+	};
 	unsigned int current_lightmap_atlas_id= 0;
 	unsigned int current_column_x= lightmaps_offset;
 	unsigned int current_column_y= lightmaps_offset;
@@ -961,11 +1304,19 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 
 	for( plb_SurfaceLightmapData* const lightmap : sorted_lightmaps )
 	{
-		if( current_column_x + lightmap->size[0] + lightmaps_offset >= lightmap_size[0] )
+		const unsigned int width_in_atlas=
+			( lightmap->size[0] + config_.secondary_lightmap_scaler - 1 ) /
+			config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
+
+		if( current_column_x + width_in_atlas + lightmaps_offset >= lightmap_size[0] )
 		{
+			const unsigned int height_in_atlas=
+				( lightmap->size[1] + config_.secondary_lightmap_scaler - 1 ) /
+				config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
+
 			current_column_x= lightmaps_offset;
 			current_column_y+= current_column_height + lightmaps_offset;
-			current_column_height= lightmap->size[1];
+			current_column_height= height_in_atlas;
 
 			if( current_column_height + current_column_y + lightmaps_offset >= lightmap_size[1] )
 			{
@@ -978,7 +1329,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		lightmap->coord[1]= current_column_y;
 		lightmap->atlas_id= current_lightmap_atlas_id;
 
-		current_column_x+= lightmap->size[0] + lightmaps_offset;
+		current_column_x+= width_in_atlas + lightmaps_offset;
 	}// for polygons
 
 	lightmap_atlas_texture_.size[0]= config_.lightmaps_atlas_size[0];
@@ -993,13 +1344,18 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 
 	unsigned char* lightmap_data= new unsigned char[ lightmap_size[0] * lightmap_size[1] * 4 ];
 
+	lightmap_atlas_texture_.secondary_lightmap_size[0]=
+		lightmap_size[0] / config_.secondary_lightmap_scaler;
+	lightmap_atlas_texture_.secondary_lightmap_size[1]=
+		lightmap_size[1] / config_.secondary_lightmap_scaler;
+
 	//secondary ambient lightmap textures
 	for( unsigned int i= 0; i< 1; i++ )
 	{
 		glGenTextures( 1, &lightmap_atlas_texture_.secondary_tex_id[i] );
 		glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[i] );
 		glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_RGBA32F,
-			lightmap_size[0] / config_.secondary_lightmap_scaler, lightmap_size[1] / config_.secondary_lightmap_scaler,
+			lightmap_atlas_texture_.secondary_lightmap_size[0],lightmap_atlas_texture_.secondary_lightmap_size[1],
 			lightmap_atlas_texture_.size[2],
 			0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );

@@ -69,6 +69,15 @@ void plb_CameraController::GetViewMatrix( m_Mat4& out_mat ) const
 	out_mat= translate * rot_y * rot_x * perspective;
 }
 
+m_Vec3 plb_CameraController::GetCamDir() const
+{
+	m_Mat4 rot_x, rot_y;
+	rot_x.RotateX( angle_.x );
+	rot_y.RotateY( angle_.y );
+
+	return m_Vec3( 0.0f, 0.0f, 1.0f ) * rot_x * rot_y;
+}
+
 void plb_CameraController::RotateX( int delta )
 {
 	angle_.x+= float(delta) * 0.01f;

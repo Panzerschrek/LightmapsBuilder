@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include <functional>
 #include <memory>
 
 #include <glsl_program.hpp>
@@ -21,7 +22,12 @@ public:
 	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
 
-	void DrawPreview( const m_Mat4& view_matrix );
+	void MakeSecondaryLight( const std::function<void()>& wake_up_callback );
+
+	void DrawPreview(
+		const m_Mat4& view_matrix, const m_Vec3& cam_pos,
+		const m_Vec3& cam_dir,
+		bool show_primary_lightmap, bool show_secondary_lightmap );
 
 private:
 	void LoadLightPassShaders();
@@ -31,6 +37,7 @@ private:
 	void PointLightPass(const m_Vec3& light_pos, const m_Vec3& light_color);
 
 	void GenSecondaryLightPassCubemap();
+	void GenSecondaryLightPassUnwrapBuffer();
 	void SecondaryLightPass( const m_Vec3& pos, const m_Vec3& normal );
 
 	void GenDirectionalLightShadowmap( const m_Mat4& shadow_mat );
@@ -79,6 +86,7 @@ private:
 		GLuint tex_id;
 		GLuint fbo_id;
 
+		unsigned int secondary_lightmap_size[2];
 		GLuint secondary_tex_id[ PLB_MAX_LIGHT_PASSES ];
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
@@ -99,16 +107,17 @@ private:
 		GLuint tex_id;
 		GLuint depth_tex_id;
 		GLuint fbo_id;
-		/*
-		+------+---+---+
-		|   up |  down |
-		+------+---+---+
-		|      |le |ri |
-		|front |ft |ght|
-		+------+---+---+
-		*/
+
 		GLuint direction_multipler_tex_id;
 		unsigned int direction_multipler_tex_scaler;
+		float direction_multiplier_normalizer;
+
+		r_GLSLProgram unwrap_shader;
+		r_PolygonBuffer unwrap_geometry;
+		r_Framebuffer unwrap_framebuffer;
+
+		r_GLSLProgram write_shader;
+
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
 
