@@ -34,29 +34,6 @@ static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
 static const float g_pi= 3.1415926535f;
 
-static void TriangulatePolygons(
-	const plb_Polygons& in_polygons,
-	unsigned int base_vertex,
-	std::vector<unsigned int>& out_indeces )
-{
-	unsigned int triangle_count= 0;
-	for( unsigned int i= 0; i< in_polygons.size(); i++ )
-		triangle_count+= in_polygons[i].vertex_count - 2;
-
-	out_indeces.resize( out_indeces.size() + triangle_count * 3 );
-
-	unsigned int* i_p= out_indeces.data() + out_indeces.size() - triangle_count * 3;
-
-	for( const plb_Polygon& poly : in_polygons )
-		for( unsigned int j= 0; j< poly.vertex_count - 2; j++ )
-		{
-			i_p[0]= base_vertex + poly.first_vertex_number;
-			i_p[1]= base_vertex + poly.first_vertex_number + j + 1;
-			i_p[2]= base_vertex + poly.first_vertex_number + j + 2;
-			i_p+= 3;
-		}
-}
-
 static void GenPolygonsVerticesNormals(
 	const plb_Polygons& in_polygons,
 	const plb_Vertices& in_vertices,
@@ -292,9 +269,8 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	{ // create wold vbo
 		plb_Vertices combined_vertices( level_data_.vertices );
 		plb_Normals normals;
-		std::vector<unsigned int> index_buffer;
+		std::vector<unsigned int> index_buffer( level_data_.polygons_indeces );
 
-		TriangulatePolygons( level_data_.polygons, 0, index_buffer );
 		GenPolygonsVerticesNormals( level_data_.polygons, level_data_.vertices, normals );
 
 		if( level_data_.curved_surfaces.size() > 0 )

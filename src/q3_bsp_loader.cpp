@@ -32,14 +32,35 @@ static void GetTextures( const std::vector<dshader_t>* in_textues, std::vector<p
 	}
 }
 
+static void LoadVertices(
+	const std::vector<drawVert_t>& in_vertices,
+	std::vector<plb_Vertex>& out_vertices )
+{
+	out_vertices.reserve( in_vertices.size() );
+	for( const drawVert_t& in_vertex : in_vertices )
+	{
+		out_vertices.emplace_back();
+		plb_Vertex& out_vertex= out_vertices.back();
+
+		out_vertex.pos[0]= in_vertex.xyz[0];
+		out_vertex.pos[1]= in_vertex.xyz[1];
+		out_vertex.pos[2]= in_vertex.xyz[2];
+		out_vertex.tex_coord[0]= in_vertex.st[0];
+		out_vertex.tex_coord[1]= in_vertex.st[1];
+
+		out_vertex.lightmap_coord[0]= in_vertex.lightmap[0];
+		out_vertex.lightmap_coord[1]= in_vertex.lightmap[1];
+	}
+}
+
 static void BuildPolygons(
-	const std::vector<dsurface_t>* in_surfaces, const std::vector<drawVert_t>* in_vertices, const std::vector<dshader_t>* in_textures,
-	std::vector<plb_Polygon>* out_polygons, std::vector<plb_Vertex>* out_vertices,
+	const std::vector<dsurface_t>* in_surfaces, const std::vector<drawVert_t>* in_vertices,
+	const std::vector<dshader_t>* in_textures, const std::vector<unsigned int>* in_indeces,
+	std::vector<plb_Polygon>* out_polygons, std::vector<unsigned int>* out_indeces,
 	std::vector<plb_CurvedSurface>* out_curves, std::vector<plb_Vertex>* out_curves_vertices )
 {
 	const dshader_t* shader_p= &*in_textures->begin();
 
-	out_vertices->reserve( in_vertices->size() * 3 / 2 );
 	out_polygons->reserve( in_surfaces->size() );
 
 	const drawVert_t* v_p= &*in_vertices->begin();
@@ -51,27 +72,18 @@ static void BuildPolygons(
 			&& (shader_p[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_LAVA|CONTENTS_FOG) ) == 0
 			)
 		{
+			const int index_offset= out_indeces->size();
+			out_indeces->resize( index_offset + p->numIndexes );
+			for( int i= 0; i < p->numIndexes; i++ )
+				(*out_indeces)[i + index_offset]= (*in_indeces)[i + p->firstIndex] + p->firstVert;
+
 			plb_Polygon polygon;
 
-			unsigned int vert_delta= (p->numIndexes)/3 + 2 - p->numVerts;
-			// make individual vertices for polygon. in some cases, in vertex list for polyon is center point for polygon
-			for( unsigned int v= p->firstVert; v< ((unsigned int)p->firstVert + p->numVerts - vert_delta); v++ )
-			{
-				plb_Vertex vertex;
-				vertex.pos[0]= v_p[v].xyz[0];
-				vertex.pos[1]= v_p[v].xyz[1];
-				vertex.pos[2]= v_p[v].xyz[2];
-				vertex.tex_coord[0]= v_p[v].st[0];
-				vertex.tex_coord[1]= v_p[v].st[1];
+			polygon.first_vertex_number= p->firstVert;
+			polygon.vertex_count= p->numVerts;
 
-				vertex.lightmap_coord[0]= v_p[v].lightmap[0];
-				vertex.lightmap_coord[1]= v_p[v].lightmap[1];
-
-				out_vertices->push_back(vertex);
-			}// make vertices
-
-			polygon.first_vertex_number= out_vertices->size() - (p->numVerts - vert_delta);
-			polygon.vertex_count= p->numVerts - vert_delta;
+			polygon.first_index= p->firstIndex;
+			polygon.index_count= p->numIndexes;
 
 			polygon.texture_id= p->shaderNum;
 
@@ -401,6 +413,7 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 	std::vector<dshader_t> textures;
 	std::vector<dsurface_t> surfaces;
 	std::vector<drawVert_t> vertices;
+	std::vector<unsigned int> indeces;
 
 	textures.resize( header->lumps[ LUMP_SHADERS ].filelen / sizeof(dshader_t) );
 	memcpy( &*textures.begin(), file_data + header->lumps[ LUMP_SHADERS ].fileofs, header->lumps[ LUMP_SHADERS ].filelen );
@@ -411,11 +424,16 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 	vertices.resize( header->lumps[ LUMP_DRAWVERTS ].filelen / sizeof(drawVert_t) );
 	memcpy( &*vertices.begin(), file_data + header->lumps[ LUMP_DRAWVERTS ].fileofs, header->lumps[ LUMP_DRAWVERTS ].filelen );
 
+	indeces.resize( header->lumps[ LUMP_DRAWINDEXES ].filelen / sizeof(unsigned int) );
+	memcpy( indeces.data(), file_data + header->lumps[ LUMP_DRAWINDEXES ].fileofs, header->lumps[ LUMP_DRAWINDEXES ].filelen );
+
 	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
 
+	LoadVertices( vertices, level_data->vertices );
+
 	GetTextures( &textures, &level_data->textures );
-	BuildPolygons( &surfaces, &vertices, &textures,
-		&level_data->polygons, &level_data->vertices,
+	BuildPolygons( &surfaces, &vertices, &textures, &indeces,
+		&level_data->polygons, &level_data->polygons_indeces,
 		&level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
 	TransformPolygons(level_data->polygons, level_data->vertices );
 	TransformCurves( level_data->curved_surfaces , level_data->curved_surfaces_vertices );

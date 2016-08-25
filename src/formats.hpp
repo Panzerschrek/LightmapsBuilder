@@ -44,8 +44,13 @@ struct plb_Polygon
 
 	float normal[3];
 	unsigned int flags;
+
 	unsigned int first_vertex_number;
 	unsigned int vertex_count;
+
+	unsigned int first_index;
+	unsigned int index_count;
+
 	unsigned int texture_id;// number of texture in input textures vector
 
 	plb_SurfaceLightmapData lightmap_data;
@@ -151,6 +156,7 @@ struct plb_LevelData
 {
 	plb_Vertices vertices;
 	plb_Polygons polygons;
+	std::vector<unsigned int> polygons_indeces;
 
 	plb_PointLights point_lights;
 	plb_DirectionalLights directional_lights;
