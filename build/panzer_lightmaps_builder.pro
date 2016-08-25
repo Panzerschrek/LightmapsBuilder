@@ -58,6 +58,7 @@ HEADERS += \
 	../src/formats.hpp \
 	../src/lightmaps_builder.hpp \
 	../src/q3_bsp_loader.hpp \
+	../src/rasterizer.hpp \
 	../src/textures_manager.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
 	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
