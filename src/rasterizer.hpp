@@ -29,7 +29,7 @@ private:
 	// 1 - upper left
 	// 2 - lower right
 	// 3 - upper right
-	const m_Vec3* triangle_part_vertices_[4];
+	const m_Vec2* triangle_part_vertices_[4];
 	const RasterElement* triangle_part_attributes_[4];
 };
 

@@ -16,7 +16,6 @@ void plb_Rasterizer<RasterElement>::DrawTriangle(
 	unsigned int middle_index;
 	unsigned int lower_index;
 
-
 	if( vertices[0].y > vertices[1].y && vertices[0].y > vertices[2].y )
 	{
 		upper_index= 0;
@@ -36,7 +35,7 @@ void plb_Rasterizer<RasterElement>::DrawTriangle(
 
 	const float long_edge_y_length=  vertices[ upper_index ].y - vertices[ lower_index ].y;
 
-	if( long_edge_y_length <= 0.001f )
+	if( long_edge_y_length <= 0.00001f )
 		return; // triangle is too small
 
 	const float middle_k=
@@ -45,13 +44,13 @@ void plb_Rasterizer<RasterElement>::DrawTriangle(
 
 	const float middle_x=
 		vertices[ upper_index ].x * middle_k +
-		vertices[ lower_index ].y * (1.0f - middle_k);
+		vertices[ lower_index ].x * (1.0f - middle_k);
 
 	const m_Vec2 middle_vertex( middle_x, vertices[ middle_index ].y );
 
-	const m_Vec2 middle_attribute=
-		vertex_attributes[ upper_index ].x * middle_k +
-		vertex_attributes[ lower_index ].y * (1.0f - middle_k);
+	const RasterElement middle_attribute=
+		vertex_attributes[ upper_index ] * middle_k +
+		vertex_attributes[ lower_index ] * (1.0f - middle_k);
 
 	if( middle_x >= vertices[ middle_index ].x )
 	{
@@ -114,7 +113,7 @@ void plb_Rasterizer<RasterElement>::DrawTriangle(
 		triangle_part_vertices_[1]= &vertices[ upper_index ];
 		triangle_part_vertices_[2]= &vertices[ middle_index ];
 		triangle_part_vertices_[3]= &vertices[ upper_index ];
-		triangle_part_vertices_[0]= &middle_attribute;
+		triangle_part_attributes_[0]= &middle_attribute;
 		triangle_part_attributes_[1]= &vertex_attributes[ upper_index ];
 		triangle_part_attributes_[2]= &vertex_attributes[ middle_index ];
 		triangle_part_attributes_[3]= &vertex_attributes[ upper_index ];
@@ -163,15 +162,15 @@ void plb_Rasterizer<RasterElement>::DrawTrianglePart()
 		const int x_end= std::min( int(buffer_.size[0]),
 			static_cast<int>( std::round( x_right ) ) );
 
-		const float x_cut= float(x_start) + 0.5f - x_right;
+		const float x_cut= float(x_start) + 0.5f - x_left;
 		float attrib_x= x_cut * attrib_x_step;
 
-		RasterElement* dst= x_start + buffer_.data + y * buffer_.size[0];
+		RasterElement* dst= buffer_.data + x_start + y * int(buffer_.size[0]);
 		for( int x= x_start; x < x_end; x++, attrib_x+= attrib_x_step, dst++ )
 		{
-			const RasterElement attrib =
-				attrib_left * attrib_x +
-				attrib_right * (1.0f - attrib_x);
+			const RasterElement attrib=
+				attrib_right * attrib_x +
+				attrib_left * (1.0f - attrib_x);
 			*dst= attrib;
 		}
 	} // for y
