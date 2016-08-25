@@ -21,61 +21,53 @@ typedef int qboolean;
 #define INV_Q_UNITS_IN_METER 0.015625f
 #define Q3_LIGHTMAP_SIZE 128
 
-static void GetTextures( const std::vector<dshader_t>* in_textues, std::vector<plb_ImageInfo>* out_textures )
+static void GetTextures( std::vector<plb_ImageInfo>& out_textures )
 {
-	out_textures->reserve( in_textues->size() );
-	for( std::vector<dshader_t>::const_iterator t= in_textues->begin(); t< in_textues->end(); t++ )
+	out_textures.reserve( numShaders );
+	for( const dshader_t* shader= dshaders; shader < dshaders + numShaders; shader++ )
 	{
 		plb_ImageInfo img;
-		img.file_name= std::string( t->shader );
-		out_textures->push_back(img);
+		img.file_name= std::string( shader->shader );
+		out_textures.push_back(img);
 	}
 }
 
-static void LoadVertices(
-	const std::vector<drawVert_t>& in_vertices,
-	std::vector<plb_Vertex>& out_vertices )
+static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
 {
-	out_vertices.reserve( in_vertices.size() );
-	for( const drawVert_t& in_vertex : in_vertices )
+	out_vertices.reserve( numDrawVerts );
+	for( const drawVert_t* in_vertex= drawVerts; in_vertex < drawVerts + numDrawVerts; in_vertex++ )
 	{
 		out_vertices.emplace_back();
 		plb_Vertex& out_vertex= out_vertices.back();
 
-		out_vertex.pos[0]= in_vertex.xyz[0];
-		out_vertex.pos[1]= in_vertex.xyz[1];
-		out_vertex.pos[2]= in_vertex.xyz[2];
-		out_vertex.tex_coord[0]= in_vertex.st[0];
-		out_vertex.tex_coord[1]= in_vertex.st[1];
+		out_vertex.pos[0]= in_vertex->xyz[0];
+		out_vertex.pos[1]= in_vertex->xyz[1];
+		out_vertex.pos[2]= in_vertex->xyz[2];
+		out_vertex.tex_coord[0]= in_vertex->st[0];
+		out_vertex.tex_coord[1]= in_vertex->st[1];
 
-		out_vertex.lightmap_coord[0]= in_vertex.lightmap[0];
-		out_vertex.lightmap_coord[1]= in_vertex.lightmap[1];
+		out_vertex.lightmap_coord[0]= in_vertex->lightmap[0];
+		out_vertex.lightmap_coord[1]= in_vertex->lightmap[1];
 	}
 }
 
 static void BuildPolygons(
-	const std::vector<dsurface_t>* in_surfaces, const std::vector<drawVert_t>* in_vertices,
-	const std::vector<dshader_t>* in_textures, const std::vector<unsigned int>* in_indeces,
-	std::vector<plb_Polygon>* out_polygons, std::vector<unsigned int>* out_indeces,
-	std::vector<plb_CurvedSurface>* out_curves, std::vector<plb_Vertex>* out_curves_vertices )
+	std::vector<plb_Polygon>& out_polygons, std::vector<unsigned int>& out_indeces,
+	std::vector<plb_CurvedSurface>& out_curves, std::vector<plb_Vertex>& out_curves_vertices )
 {
-	const dshader_t* shader_p= &*in_textures->begin();
+	out_polygons.reserve( numDrawSurfaces );
 
-	out_polygons->reserve( in_surfaces->size() );
-
-	const drawVert_t* v_p= &*in_vertices->begin();
-
-	for( std::vector<dsurface_t>::const_iterator p= in_surfaces->begin(); p< in_surfaces->end(); p++ )
+	for( const dsurface_t* p= drawSurfaces; p < drawSurfaces + numDrawSurfaces; p++ )
 	{
 		if( p->surfaceType == 1 // polygon, no model or patch
-			&& (shader_p[p->shaderNum].surfaceFlags & (SURF_SKY|SURF_NOLIGHTMAP|SURF_NODRAW) ) == 0
-			&& (shader_p[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_LAVA|CONTENTS_FOG) ) == 0
+			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_SKY|SURF_NOLIGHTMAP|SURF_NODRAW) ) == 0
+			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_LAVA|CONTENTS_FOG) ) == 0
 			)
 		{
-			const int index_offset= out_indeces->size();
-			out_indeces->resize( index_offset + p->numIndexes );
+			const int index_offset= out_indeces.size();
+			out_indeces.resize( index_offset + p->numIndexes );
 			for( int i= 0; i < p->numIndexes; i++ )
-				(*out_indeces)[i + index_offset]= (*in_indeces)[i + p->firstIndex] + p->firstVert;
+				out_indeces[i + index_offset]= drawIndexes[i + p->firstIndex] + p->firstVert;
 
 			plb_Polygon polygon;
 
@@ -101,14 +93,14 @@ static void BuildPolygons(
 			polygon.lightmap_pos[1]= p->lightmapOrigin[1];
 			polygon.lightmap_pos[2]= p->lightmapOrigin[2];
 
-			out_polygons->push_back(polygon);
+			out_polygons.push_back(polygon);
 		}// if normal polygon
 		else if( p->surfaceType == 2 )// curve 
 		{
 			plb_CurvedSurface surf;
 			surf.grid_size[0]= p->patchWidth;
 			surf.grid_size[1]= p->patchHeight;
-			surf.first_vertex_number= out_curves_vertices->size();
+			surf.first_vertex_number= out_curves_vertices.size();
 
 			surf.texture_id= p->shaderNum;
 
@@ -131,18 +123,18 @@ static void BuildPolygons(
 				unsigned int v_ind= v+p->firstVert;
 				plb_Vertex vert;
 
-				vert.pos[0]= v_p[v_ind].xyz[0];
-				vert.pos[1]= v_p[v_ind].xyz[1];
-				vert.pos[2]= v_p[v_ind].xyz[2];
-				vert.tex_coord[0]= v_p[v_ind].st[0];
-				vert.tex_coord[1]= v_p[v_ind].st[1];
-				vert.lightmap_coord[0]= v_p[v_ind].lightmap[0];
-				vert.lightmap_coord[1]= v_p[v_ind].lightmap[1];
+				vert.pos[0]= drawVerts[v_ind].xyz[0];
+				vert.pos[1]= drawVerts[v_ind].xyz[1];
+				vert.pos[2]= drawVerts[v_ind].xyz[2];
+				vert.tex_coord[0]= drawVerts[v_ind].st[0];
+				vert.tex_coord[1]= drawVerts[v_ind].st[1];
+				vert.lightmap_coord[0]= drawVerts[v_ind].lightmap[0];
+				vert.lightmap_coord[1]= drawVerts[v_ind].lightmap[1];
 
-				out_curves_vertices->push_back(vert);
+				out_curves_vertices.push_back(vert);
 			}// for patch control vertices
 
-			out_curves->push_back(surf);
+			out_curves.push_back(surf);
 		}// of curve
 	}// for polygons
 }
@@ -215,35 +207,33 @@ static void TransformCurves(
 }
 
 static void GenCurvesNormalizedLightmapCoords(
-	std::vector<plb_CurvedSurface>* curves,
-	std::vector<plb_Vertex>* curves_vertices )
+	plb_CurvedSurfaces& curves,
+	plb_Vertices& curves_vertices )
 {
 	const float infinity= 1e16f;
 	const float eps= 1e-3f;
 
-	plb_Vertex* v_p= &*curves_vertices->begin();
-
-	for( std::vector<plb_CurvedSurface>::iterator curve= curves->begin(); curve< curves->end(); curve++ )
+	for( plb_CurvedSurface& curve : curves )
 	{
 		float uv_min[]= {  infinity,  infinity };
 		float uv_max[]= { -infinity, -infinity };
-		for( unsigned int v= 0; v< curve->grid_size[0] * curve->grid_size[1]; v++ )
+		for( unsigned int v= 0; v< curve.grid_size[0] * curve.grid_size[1]; v++ )
 		{
-			plb_Vertex* vert= v_p + curve->first_vertex_number + v;
-			if( vert->lightmap_coord[0] > uv_max[0] ) uv_max[0]= vert->lightmap_coord[0];
-			else if( vert->lightmap_coord[0] < uv_min[0] ) uv_min[0]= vert->lightmap_coord[0];
-			if( vert->lightmap_coord[1] > uv_max[1] ) uv_max[1]= vert->lightmap_coord[1];
-			else if( vert->lightmap_coord[1] < uv_min[1] ) uv_min[1]= vert->lightmap_coord[1];
+			const plb_Vertex& vert= curves_vertices[ curve.first_vertex_number + v ];
+			if( vert.lightmap_coord[0] > uv_max[0] ) uv_max[0]= vert.lightmap_coord[0];
+			else if( vert.lightmap_coord[0] < uv_min[0] ) uv_min[0]= vert.lightmap_coord[0];
+			if( vert.lightmap_coord[1] > uv_max[1] ) uv_max[1]= vert.lightmap_coord[1];
+			else if( vert.lightmap_coord[1] < uv_min[1] ) uv_min[1]= vert.lightmap_coord[1];
 		}
 		float inv_size[]= { uv_max[0] - uv_min[0], uv_max[1] - uv_min[1] };
 
 		if( inv_size[0] < eps || inv_size[1] < eps )
 		{
-			for( unsigned int v= 0; v< curve->grid_size[0] * curve->grid_size[1]; v++ )
+			for( unsigned int v= 0; v< curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				plb_Vertex* vert= v_p + curve->first_vertex_number + v;
-				vert->lightmap_coord[0]= 0.0f;
-				vert->lightmap_coord[1]= 0.0f;
+				plb_Vertex& vert= curves_vertices[ curve.first_vertex_number + v ];
+				vert.lightmap_coord[0]= 0.0f;
+				vert.lightmap_coord[1]= 0.0f;
 			}
 		}
 		else
@@ -251,11 +241,11 @@ static void GenCurvesNormalizedLightmapCoords(
 			inv_size[0]= 1.0f / inv_size[0];
 			inv_size[1]= 1.0f / inv_size[1];
 
-			for( unsigned int v= 0; v< curve->grid_size[0] * curve->grid_size[1]; v++ )
+			for( unsigned int v= 0; v< curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				plb_Vertex* vert= v_p + curve->first_vertex_number + v;
-				vert->lightmap_coord[0]= (vert->lightmap_coord[0]- uv_min[0]) * inv_size[0];
-				vert->lightmap_coord[1]= (vert->lightmap_coord[1]- uv_min[1]) * inv_size[1];
+				plb_Vertex& vert= curves_vertices[ curve.first_vertex_number + v ];
+				vert.lightmap_coord[0]= (vert.lightmap_coord[0]- uv_min[0]) * inv_size[0];
+				vert.lightmap_coord[1]= (vert.lightmap_coord[1]- uv_min[1]) * inv_size[1];
 			}
 		}
 	}// for curves
@@ -395,55 +385,21 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 
 void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 {
-	FILE* f= fopen( file_name, "rb" );
-	if( f == NULL )
-	{
-	}
-
-	fseek(f, 0, SEEK_END);
-	int file_size= ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	char* file_data= new char[ file_size ];
-	fread( file_data, file_size, 1, f );
-	fclose(f);
-
-	dheader_t* header= (dheader_t*)file_data;
-
-	std::vector<dshader_t> textures;
-	std::vector<dsurface_t> surfaces;
-	std::vector<drawVert_t> vertices;
-	std::vector<unsigned int> indeces;
-
-	textures.resize( header->lumps[ LUMP_SHADERS ].filelen / sizeof(dshader_t) );
-	memcpy( &*textures.begin(), file_data + header->lumps[ LUMP_SHADERS ].fileofs, header->lumps[ LUMP_SHADERS ].filelen );
-
-	surfaces.resize( header->lumps[ LUMP_SURFACES ].filelen / sizeof(dsurface_t) );
-	memcpy( &*surfaces.begin(), file_data + header->lumps[ LUMP_SURFACES ].fileofs, header->lumps[ LUMP_SURFACES ].filelen );
-
-	vertices.resize( header->lumps[ LUMP_DRAWVERTS ].filelen / sizeof(drawVert_t) );
-	memcpy( &*vertices.begin(), file_data + header->lumps[ LUMP_DRAWVERTS ].fileofs, header->lumps[ LUMP_DRAWVERTS ].filelen );
-
-	indeces.resize( header->lumps[ LUMP_DRAWINDEXES ].filelen / sizeof(unsigned int) );
-	memcpy( indeces.data(), file_data + header->lumps[ LUMP_DRAWINDEXES ].fileofs, header->lumps[ LUMP_DRAWINDEXES ].filelen );
+	LoadBSPFile( file_name );
 
 	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
 
-	LoadVertices( vertices, level_data->vertices );
+	LoadVertices( level_data->vertices );
 
-	GetTextures( &textures, &level_data->textures );
-	BuildPolygons( &surfaces, &vertices, &textures, &indeces,
-		&level_data->polygons, &level_data->polygons_indeces,
-		&level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
+	GetTextures( level_data->textures );
+	BuildPolygons(
+		level_data->polygons, level_data->polygons_indeces,
+		level_data->curved_surfaces , level_data->curved_surfaces_vertices );
 	TransformPolygons(level_data->polygons, level_data->vertices );
 	TransformCurves( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
 
-	if( level_data->curved_surfaces .size() > 0 )
-		GenCurvesNormalizedLightmapCoords( &level_data->curved_surfaces , &level_data->curved_surfaces_vertices );
+	GenCurvesNormalizedLightmapCoords( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
 
-	LoadBSPFile( file_name );
 	ParseEntities();
 	GetBSPLights( level_data->point_lights, level_data->cone_lights );
-
-	delete[] file_data;
 }
