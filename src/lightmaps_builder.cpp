@@ -18,40 +18,9 @@ struct CubemapGeometryVertex
 	float tex_coord[2];
 };
 
-struct Attrib
-{
-	enum
-	{
-		Pos= 0,
-		TexCoord,
-		LightmapCoord,
-		Normal,
-		TexMaps,
-	};
-};
-
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
 static const float g_pi= 3.1415926535f;
-
-static void GenPolygonsVerticesNormals(
-	const plb_Polygons& in_polygons,
-	const plb_Vertices& in_vertices,
-	plb_Normals& out_normals )
-{
-	out_normals.resize( out_normals.size() + in_vertices.size() );
-
-	plb_Normal* n_p= out_normals.data() + out_normals.size() - in_vertices.size();
-
-	for( const plb_Polygon& poly : in_polygons )
-	{
-		plb_Normal normal;
-		for( unsigned int c= 0; c< 3; c++ )
-			normal.xyz[c]= (char)(poly.normal[c] * 127.0f);
-		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
-			n_p[v]= normal;
-	}
-}
 
 static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* out_data, unsigned int side_num )
 {
@@ -98,15 +67,6 @@ static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* 
 			out_data[ x + y * size ]= fi;
 		}// for x
 	}// for y
-}
-
-static void SetupLevelVertexAttributes( r_GLSLProgram& shader )
-{
-	shader.SetAttribLocation( "pos", Attrib::Pos );
-	shader.SetAttribLocation( "tex_coord", Attrib::TexCoord );
-	shader.SetAttribLocation( "lightmap_coord", Attrib::LightmapCoord );
-	shader.SetAttribLocation( "normal", Attrib::Normal );
-	shader.SetAttribLocation( "tex_maps", Attrib::TexMaps );
 }
 
 static void Setup2dShadowmap( r_Framebuffer& shadowmap_fbo, unsigned int size )
@@ -266,45 +226,12 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	TransformTexturesCoordinates();
 	CalculateLevelBoundingBox();
 
-	{ // create wold vbo
-		plb_Vertices combined_vertices( level_data_.vertices );
-		plb_Normals normals;
-		std::vector<unsigned int> index_buffer( level_data_.polygons_indeces );
-
-		GenPolygonsVerticesNormals( level_data_.polygons, level_data_.vertices, normals );
-
-		if( level_data_.curved_surfaces.size() > 0 )
-			GenCurvesMeshes( level_data_.curved_surfaces, level_data_.curved_surfaces_vertices,
-				combined_vertices, index_buffer, normals );
-
-		polygons_vbo_.VertexData(
-			combined_vertices.data(),
-			combined_vertices.size() * sizeof(plb_Vertex), sizeof(plb_Vertex) );
-
-		polygons_vbo_.IndexData( index_buffer.data(), index_buffer.size() * sizeof(unsigned int), GL_UNSIGNED_INT, GL_TRIANGLES );
-		
-		plb_Vertex v; unsigned int offset;
-		offset= ((char*)v.pos) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( Attrib::Pos, 3, GL_FLOAT, false, offset );
-		offset= ((char*)v.tex_coord) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( Attrib::TexCoord, 2, GL_FLOAT, false, offset );
-		offset= ((char*)v.lightmap_coord) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointer( Attrib::LightmapCoord, 2, GL_FLOAT, false, offset );
-		offset= ((char*)&v.tex_maps[0]) - ((char*)&v);
-		polygons_vbo_.VertexAttribPointerInt( Attrib::TexMaps, 3, GL_UNSIGNED_BYTE, offset );
-
-		glGenBuffers( 1, &polygon_vbo_vertex_normals_vbo_ );
-		glBindBuffer( GL_ARRAY_BUFFER, polygon_vbo_vertex_normals_vbo_ );
-		glBufferData( GL_ARRAY_BUFFER, normals.size() * sizeof(plb_Normal), normals.data(), GL_STATIC_DRAW );
-
-		glEnableVertexAttribArray( Attrib::Normal );
-		glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
-	}// create world VBO
+	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
 
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "preview_f.glsl", g_glsl_version),
 		rLoadShader( "preview_v.glsl", g_glsl_version) );
-	SetupLevelVertexAttributes(polygons_preview_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
 
 	LoadLightPassShaders();
@@ -578,7 +505,7 @@ void plb_LightmapsBuilder::DrawPreview(
 		textures_uniform[i]= arrays_bindings_unit + i;
 	polygons_preview_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	// Debug secondary light pass
 	/*
@@ -598,41 +525,41 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		rLoadShader( "point_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(point_light_pass_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
 		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_shadowmap_v.glsl", g_glsl_version),
 		rLoadShader( "point_light_shadowmap_g.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(point_light_shadowmap_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_shadowmap_shader_);
 	point_light_shadowmap_shader_.Create();
 
 	secondary_light_pass_shader_.ShaderSource(
 		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(secondary_light_pass_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(shadowmap_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(shadowmap_shader_);
 	shadowmap_shader_.Create();
 
 	directional_light_pass_shader_.ShaderSource(
 		rLoadShader( "sun_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(directional_light_pass_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(directional_light_pass_shader_);
 	directional_light_pass_shader_.Create();
 
 	cone_light_pass_shader_.ShaderSource(
 		rLoadShader( "cone_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
-	SetupLevelVertexAttributes(cone_light_pass_shader_);
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(cone_light_pass_shader_);
 	cone_light_pass_shader_.Create();
 }
 
@@ -666,8 +593,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	texture_show_shader_.ShaderSource(
 		rLoadShader("texture_show_f.glsl", g_glsl_version),
 		rLoadShader("texture_show_v.glsl", g_glsl_version) );
-	texture_show_shader_.SetAttribLocation( "pos", Attrib::Pos );
-	texture_show_shader_.SetAttribLocation( "tex_coord", Attrib::TexCoord );
+	texture_show_shader_.SetAttribLocation( "pos", 0 );
+	texture_show_shader_.SetAttribLocation( "tex_coord", 1 );
 	texture_show_shader_.Create();
 
 	// cubemap show buffer
@@ -693,8 +620,8 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	memcpy( cubemap_show_data + 20, cubemap_show_data + 8, sizeof(float) * 4 ); // v6
 
 	cubemap_show_buffer_.VertexData( cubemap_show_data, sizeof(float) * 6 * 4, sizeof(float)*4 );
-	cubemap_show_buffer_.VertexAttribPointer( Attrib::Pos, 2, GL_FLOAT, false, 0);
-	cubemap_show_buffer_.VertexAttribPointer( Attrib::TexCoord, 2, GL_FLOAT, false, sizeof(float)*2 );
+	cubemap_show_buffer_.VertexAttribPointer( 0, 2, GL_FLOAT, false, 0);
+	cubemap_show_buffer_.VertexAttribPointer( 1, 2, GL_FLOAT, false, sizeof(float)*2 );
 	cubemap_show_buffer_.SetPrimitiveType(GL_TRIANGLES);
 }
 
@@ -713,7 +640,7 @@ void plb_LightmapsBuilder::GenPointlightShadowmap( const m_Vec3& light_pos )
 
 	point_light_shadowmap_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 }
@@ -736,7 +663,7 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 	point_light_pass_shader_.Uniform( "cubemap", int(0) );
 	point_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
@@ -947,7 +874,7 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	secondary_light_pass_shader_.Uniform( "view_matrices", final_matrices, 6 );
 	secondary_light_pass_shader_.Uniform( "clip_plane", normal.x, normal.y, normal.z, -(normal * pos) );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	glDisable(GL_CLIP_DISTANCE0);
 
@@ -995,7 +922,7 @@ void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_ma
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -1024,7 +951,7 @@ void plb_LightmapsBuilder::DirectionalLightPass(
 	directional_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	directional_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -1042,7 +969,7 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const m_Mat4& shadow_mat )
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 	glEnable( GL_CULL_FACE );
@@ -1068,7 +995,7 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Ma
 	cone_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	cone_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	polygons_vbo_.Draw();
+	world_vertex_buffer_->Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 

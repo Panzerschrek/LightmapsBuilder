@@ -11,6 +11,7 @@
 #include <vec.hpp>
 
 #include "textures_manager.hpp"
+#include "world_vertex_buffer.hpp"
 
 #include "formats.hpp"
 
@@ -73,10 +74,6 @@ private:
 
 	r_GLSLProgram polygons_preview_shader_;
 
-	// VBO dlä obycnyh poliginov i poligonov krivyh poverhnostej
-	r_PolygonBuffer polygons_vbo_;
-	GLuint polygon_vbo_vertex_normals_vbo_;
-
 	struct
 	{
 		unsigned int size[3];
@@ -134,4 +131,5 @@ private:
 	r_PolygonBuffer cubemap_show_buffer_;
 
 	std::unique_ptr<plb_TexturesManager> textures_manager_;
+	std::unique_ptr<plb_WorldVertexBuffer> world_vertex_buffer_;
 };

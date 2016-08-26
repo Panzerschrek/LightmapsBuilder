@@ -40,6 +40,7 @@ SOURCES += \
 	../src/main.cpp \
 	../src/q3_bsp_loader.cpp \
 	../src/textures_manager.cpp \
+	../src/world_vertex_buffer.cpp \
 	../../Quake-III-Arena/common/bspfile.c \
 	../../Quake-III-Arena/common/cmdlib.c \
 	../../Quake-III-Arena/common/scriplib.c \
@@ -60,6 +61,7 @@ HEADERS += \
 	../src/q3_bsp_loader.hpp \
 	../src/rasterizer.hpp \
 	../src/textures_manager.hpp \
+	../src/world_vertex_buffer.hpp \
 	../../panzer_ogl_lib/ogl_state_manager.hpp \
 	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
 	../../panzer_ogl_lib/polygon_buffer.hpp \
