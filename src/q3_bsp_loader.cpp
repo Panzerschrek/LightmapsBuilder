@@ -52,7 +52,8 @@ static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
 }
 
 static void BuildPolygons(
-	std::vector<plb_Polygon>& out_polygons, std::vector<unsigned int>& out_indeces,
+	std::vector<plb_Polygon>& out_polygons, std::vector<plb_Polygon>& out_sky_polygons,
+	std::vector<unsigned int>& out_indeces, std::vector<unsigned int>& out_sky_indeces,
 	std::vector<plb_CurvedSurface>& out_curves, std::vector<plb_Vertex>& out_curves_vertices )
 {
 	out_polygons.reserve( numDrawSurfaces );
@@ -60,14 +61,17 @@ static void BuildPolygons(
 	for( const dsurface_t* p= drawSurfaces; p < drawSurfaces + numDrawSurfaces; p++ )
 	{
 		if( p->surfaceType == 1 // polygon, no model or patch
-			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_SKY|SURF_NOLIGHTMAP|SURF_NODRAW) ) == 0
-			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_LAVA|CONTENTS_FOG) ) == 0
+			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_NODRAW) ) == 0
+			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_FOG) ) == 0
 			)
 		{
-			const int index_offset= out_indeces.size();
-			out_indeces.resize( index_offset + p->numIndexes );
+			bool is_sky= (dshaders[p->shaderNum].surfaceFlags & SURF_SKY) != 0;
+			std::vector<unsigned int>& indeces_dst= is_sky ? out_sky_indeces : out_indeces;
+
+			const int index_offset= indeces_dst.size();
+			indeces_dst.resize( index_offset + p->numIndexes );
 			for( int i= 0; i < p->numIndexes; i++ )
-				out_indeces[i + index_offset]= drawIndexes[i + p->firstIndex] + p->firstVert;
+				indeces_dst[i + index_offset]= drawIndexes[i + p->firstIndex] + p->firstVert;
 
 			plb_Polygon polygon;
 
@@ -93,7 +97,7 @@ static void BuildPolygons(
 			polygon.lightmap_pos[1]= p->lightmapOrigin[1];
 			polygon.lightmap_pos[2]= p->lightmapOrigin[2];
 
-			out_polygons.push_back(polygon);
+			(is_sky ? out_sky_polygons : out_polygons).push_back(polygon);
 		}// if normal polygon
 		else if( p->surfaceType == 2 )// curve 
 		{
@@ -142,7 +146,8 @@ static void BuildPolygons(
 static void TransformPolygons(
 	plb_Polygons& polygons,
 	plb_Vertices& vertices,
-	std::vector<unsigned int>& indeces )
+	std::vector<unsigned int>& indeces,
+	std::vector<unsigned int>& sky_indeces )
 {
 	// transform vertices
 	for( plb_Vertex& v : vertices )
@@ -178,6 +183,9 @@ static void TransformPolygons(
 
 	for( unsigned int i= 0; i < indeces.size(); i+= 3 )
 		std::swap( indeces[i], indeces[i+1] );
+
+	for( unsigned int i= 0; i < sky_indeces.size(); i+= 3 )
+		std::swap( sky_indeces[i], sky_indeces[i+1] );
 }
 
 static void TransformCurves(
@@ -392,9 +400,10 @@ void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
 
 	GetTextures( level_data->textures );
 	BuildPolygons(
-		level_data->polygons, level_data->polygons_indeces,
+		level_data->polygons, level_data->sky_polygons,
+		level_data->polygons_indeces, level_data->sky_polygons_indeces,
 		level_data->curved_surfaces , level_data->curved_surfaces_vertices );
-	TransformPolygons(level_data->polygons, level_data->vertices, level_data->polygons_indeces );
+	TransformPolygons(level_data->polygons, level_data->vertices, level_data->polygons_indeces, level_data->sky_polygons_indeces );
 	TransformCurves( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
 
 	GenCurvesNormalizedLightmapCoords( level_data->curved_surfaces , level_data->curved_surfaces_vertices );

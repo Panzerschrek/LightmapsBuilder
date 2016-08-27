@@ -20,14 +20,42 @@ public:
 		};
 	};
 
+	enum class PolygonType : unsigned int
+	{
+		WorldCommon= 0,
+		Sky,
+		NumTypes
+	};
+/*
+private:
+	// Transform enum values to bitmask
+	template<class Arg0, class... Args>
+	static unsigned int GetFlags( PolygonType arg0, Args... args )
+	{
+		return ( 1 << static_cast<unsigned int>(arg0) ) | GetFlags( args... );
+	}
+*/
+public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
 
 	explicit plb_WorldVertexBuffer( const plb_LevelData& level_data );
 	~plb_WorldVertexBuffer();
 
-	void Draw() const;
+	void Draw( PolygonType type ) const;
+	void Draw( const std::initializer_list<PolygonType>& types ) const;
+	void Draw( unsigned int polygon_types_flags ) const;
+
+private:
+	struct PolygonGroup
+	{
+		unsigned int offset;
+		unsigned int size;
+	};
 
 private:
 	r_PolygonBuffer polygon_buffer_;
 	GLuint normals_buffer_id_;
+
+	PolygonGroup polygon_groups_[ static_cast<size_t>(PolygonType::NumTypes) ];
+
 };

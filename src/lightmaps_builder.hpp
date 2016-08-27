@@ -121,6 +121,7 @@ private:
 	r_Framebuffer directional_light_shadowmap_;
 
 	r_GLSLProgram shadowmap_shader_; // common with cone light
+	r_GLSLProgram directional_light_sky_mark_shader_;
 	r_GLSLProgram directional_light_pass_shader_;
 
 	r_Framebuffer cone_light_shadowmap_;

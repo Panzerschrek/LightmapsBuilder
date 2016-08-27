@@ -34,7 +34,12 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 {
 	plb_Vertices combined_vertices( level_data.vertices );
 	plb_Normals normals;
-	std::vector<unsigned int> index_buffer( level_data.polygons_indeces );
+	std::vector<unsigned int> index_buffer;
+
+	// World Common
+	polygon_groups_[ int(PolygonType::WorldCommon) ].offset= index_buffer.size();
+
+	index_buffer.insert( index_buffer.end(), level_data.polygons_indeces.begin(), level_data.polygons_indeces.end() );
 
 	GenPolygonsVerticesNormals( level_data.polygons, level_data.vertices, normals );
 
@@ -42,6 +47,15 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 		GenCurvesMeshes( level_data.curved_surfaces, level_data.curved_surfaces_vertices,
 			combined_vertices, index_buffer, normals );
 
+	polygon_groups_[ int(PolygonType::WorldCommon) ].size= index_buffer.size();
+
+	// Sky
+	polygon_groups_[ int(PolygonType::Sky) ].offset= index_buffer.size();
+	polygon_groups_[ int(PolygonType::Sky) ].size= level_data.sky_polygons_indeces.size();
+
+	index_buffer.insert( index_buffer.end(), level_data.sky_polygons_indeces.begin(), level_data.sky_polygons_indeces.end() );
+
+	// Load to GPU
 	polygon_buffer_.VertexData(
 		combined_vertices.data(),
 		combined_vertices.size() * sizeof(plb_Vertex), sizeof(plb_Vertex) );
@@ -71,8 +85,33 @@ plb_WorldVertexBuffer::~plb_WorldVertexBuffer()
 	glDeleteBuffers( 1, &normals_buffer_id_ );
 }
 
-void plb_WorldVertexBuffer::Draw() const
+void plb_WorldVertexBuffer::Draw( PolygonType type ) const
+{
+	Draw( 1u << static_cast<unsigned int>(type) );
+}
+
+void plb_WorldVertexBuffer::Draw( const std::initializer_list<PolygonType>& types ) const
+{
+	unsigned int mask= 0;
+	for( PolygonType type : types )
+		mask|= 1u << static_cast<unsigned int>( type );
+
+	Draw( mask );
+}
+
+void plb_WorldVertexBuffer::Draw( const unsigned int polygon_types_flags ) const
 {
 	polygon_buffer_.Bind();
-	polygon_buffer_.Draw();
+
+	for( unsigned int i= 0; i < static_cast<unsigned int>(PolygonType::NumTypes); i++ )
+	{
+		if( polygon_types_flags & ( 1 << i ) )
+		{
+			glDrawElements(
+				GL_TRIANGLES,
+				polygon_groups_[i].size,
+				GL_UNSIGNED_INT,
+				reinterpret_cast<GLvoid*>( polygon_groups_[i].offset * sizeof(unsigned int) ) );
+		}
+	}
 }

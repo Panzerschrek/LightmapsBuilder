@@ -155,8 +155,12 @@ struct plb_Config
 struct plb_LevelData
 {
 	plb_Vertices vertices;
+
 	plb_Polygons polygons;
 	std::vector<unsigned int> polygons_indeces;
+
+	plb_Polygons sky_polygons;
+	std::vector<unsigned int> sky_polygons_indeces;
 
 	plb_PointLights point_lights;
 	plb_DirectionalLights directional_lights;
