@@ -265,28 +265,30 @@ inline static bool IsCharLexemSeparator(char c)
 
 static void ParseColor( const char* str, unsigned char* out_color )
 {
-	for( unsigned int i= 0; i< 3; i++ )
+	double rgb[3];
+
+	sscanf( str, "%lf %lf %lf", &rgb[0], &rgb[1], &rgb[2] );
+	for( unsigned int i= 0; i < 3; i++ )
 	{
-		while(IsCharLexemSeparator(*str)) str++;
-		int c;
-		sscanf( str, "%d", &c );
-		if( c > 255 ) c= 255; if( c < 0 ) c= 0;
-		out_color[i]= c;
-		while(!IsCharLexemSeparator(*str)) str++;
+		if( rgb[i] > 255.0 ) rgb[i]= 255.0;
+		if( rgb[i] < 0.0 ) rgb[i]= 0.0;
+
+		out_color[i]= static_cast<unsigned char>( rgb[i] );
 	}
 }
 
 static void ParseColorF( const char* str, unsigned char* out_color )
 {
-	for( unsigned int i= 0; i< 3; i++ )
+	double rgb[3];
+
+	sscanf( str, "%lf %lf %lf", &rgb[0], &rgb[1], &rgb[2] );
+	for( unsigned int i= 0; i < 3; i++ )
 	{
-		while(IsCharLexemSeparator(*str)) str++;
-		float c;
-		sscanf( str, "%f", &c );
-		c*= 255.0f;
-		if( c > 255.0f ) c= 255.0f; if( c < 0.0f ) c= 0.0f;
-		out_color[i]= (unsigned char)(c);
-		while(!IsCharLexemSeparator(*str)) str++;
+		rgb[i]*= 255.0;
+		if( rgb[i] > 255.0 ) rgb[i]= 255.0;
+		if( rgb[i] < 0.0 ) rgb[i]= 0.0;
+
+		out_color[i]= static_cast<unsigned char>( rgb[i] );
 	}
 }
 
