@@ -1,5 +1,5 @@
-﻿#include <cstdio>
-#include <cstring>
+﻿#include <cstring>
+#include <iostream>
 
 #include <IL/il.h>
 #include <IL/ilu.h>
@@ -38,13 +38,35 @@ static void GenStubTexture( unsigned char* dst, unsigned int width, unsigned cha
 }
 #endif
 
+static std::string ReplaceExtension( const std::string& path, const char* extension )
+{
+	std::string::const_reverse_iterator dot_pos= path.rend();
+
+	for( auto it= path.rbegin(); it != path.rend(); ++it )
+	{
+		if( *it == '.' )
+		{
+			dot_pos= it;
+			break;
+		}
+	}
+
+	if( dot_pos == path.rend() )
+		return path + "." + extension;
+
+	std::string result( path.begin(), path.end() - (dot_pos - path.rbegin()) );
+	result+= extension;
+
+	return result;
+}
+
 plb_TexturesManager::plb_TexturesManager(
 	const plb_Config& config,
 	plb_ImageInfos& images )
 {
 	static const char* const img_extensions[]=
 	{
-		".bmp", ".pcx", ".tga", ".jpg", ".jpeg"
+		"bmp", "pcx", "tga", "jpg", "jpeg"
 	};
 
 	unsigned int textures_data_size= 0;
@@ -61,6 +83,9 @@ plb_TexturesManager::plb_TexturesManager(
 		textures_arrays_[i].size[2]= 0;
 	}
 
+	// Dummy texture
+	textures_arrays_[0].size[2]= 1;
+
 	std::vector<ILuint> il_textures_handles( images.size() );
 
 	for( plb_ImageInfo& img : images )
@@ -73,7 +98,8 @@ plb_TexturesManager::plb_TexturesManager(
 
 		for( const char* const extension : img_extensions )
 		{
-			const std::string file_name= config.textures_path + img.file_name + extension;
+			const std::string file_name= config.textures_path + ReplaceExtension( img.file_name, extension );
+
 			if( ilLoadImage( file_name.c_str() ) )
 			{
 				img_loaded= true;
@@ -91,7 +117,7 @@ plb_TexturesManager::plb_TexturesManager(
 				img.size_log2[0]= img.size_log2[1]= std::max( img.size_log2[0], img.size_log2[1] );
 
 				// kostylj dlä TGA fajlov v Quake III
-				if( std::strcmp(extension, ".tga") == 0 )
+				if( std::strcmp(extension, "tga") == 0 )
 					iluFlipImage();
 
 				ilConvertImage( IL_RGBA, IL_UNSIGNED_BYTE );
@@ -122,11 +148,11 @@ plb_TexturesManager::plb_TexturesManager(
 			img.texture_layer_id= 0;
 
 			ilDeleteImages( 1, &il_textures_handles[i] );
-			std::printf( "warning, texture \"%s\" not found\n", img.file_name.c_str() );
+			std::cout << "warning, texture \"" << img.file_name.c_str() << "\" not found" << std::endl;
 		}
 	}// for images
 
-	std::printf( "textures data size: %d kb\n", textures_data_size>>10 );
+	std::cout << "textures data size: " << (textures_data_size>>10) << " kb" << std::endl;
 
 	for( TextureArray& textures_array : textures_arrays_ )
 	{
@@ -139,6 +165,20 @@ plb_TexturesManager::plb_TexturesManager(
 			GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8,
 			textures_array.size[0], textures_array.size[1], textures_array.size[2],
 			0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+
+		// Dummy
+		if( &textures_array == &textures_arrays_.front() )
+		{
+			std::vector<unsigned char> dummy_data( 4 * textures_array.size[0] * textures_array.size[1] );
+			std::memset( dummy_data.data(), 128, sizeof(unsigned char) * dummy_data.size() );
+
+			glTexSubImage3D(
+				GL_TEXTURE_2D_ARRAY, 0,
+				0, 0, 0,
+				textures_array.size[0], textures_array.size[1], 1,
+				GL_RGBA,
+				GL_UNSIGNED_BYTE, dummy_data.data() );
+		}
 
 		const unsigned int texture_array_number= &textures_array - textures_arrays_.data();
 		for( const plb_ImageInfo& img : images )

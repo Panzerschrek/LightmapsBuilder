@@ -216,9 +216,10 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 }
 
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
-	:config_( config )
+	: config_( config )
 {
-	LoadQ3Bsp( file_name , &level_data_ );
+	LoadQ3Bsp( file_name , config_, level_data_ );
+
 	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
 
 	ClalulateLightmapAtlasCoordinates();

@@ -8,10 +8,10 @@
 
 extern "C"
 {
-typedef unsigned char byte;
-typedef int qboolean;
+#include <common/cmdlib.h>
 #include <common/mathlib.h>
 #include <common/bspfile.h>
+#include <common/scriplib.h>
 
 }
 
@@ -21,13 +21,170 @@ typedef int qboolean;
 #define INV_Q_UNITS_IN_METER 0.015625f
 #define Q3_LIGHTMAP_SIZE 128
 
-static void GetTextures( std::vector<plb_ImageInfo>& out_textures )
+
+// HACK. Use windows-specific function for "listfiles"
+#ifdef _WIN32
+#include <windows.h>
+
+static std::vector<std::string> ShaderInfoFiles( const std::string& shaders_path )
+{
+	std::vector<std::string> result;
+
+	WIN32_FIND_DATAA find_data;
+
+	HANDLE handle= FindFirstFileA( ( shaders_path + "*.shader" ).c_str(), &find_data );
+
+	if( handle != INVALID_HANDLE_VALUE )
+	{
+		do
+		{
+			if( !( ( find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) != 0 ||
+				std::strcmp( find_data.cFileName, "."  ) == 0 ||
+				std::strcmp( find_data.cFileName, ".." ) == 0 ) )
+				result.push_back( find_data.cFileName );
+
+		} while( FindNextFileA( handle, &find_data ) );
+	}
+
+	FindClose( handle );
+
+	return result;
+}
+#endif
+
+struct Q3Shader
+{
+	std::string name;
+
+	std::string albedo_texure;
+
+	float glow_luminosity= 0.0f;
+	std::string luminosity_texture;
+
+	bool alpha_shadow= false;
+};
+
+typedef std::vector<Q3Shader> Q3Shaders;
+
+static Q3Shaders LoadShaders( const std::string& shaders_dir )
+{
+	const std::vector<std::string> shader_info_files= ShaderInfoFiles( shaders_dir );
+
+	Q3Shaders shaders;
+
+	for( const std::string& shader_file : shader_info_files )
+	{
+		LoadScriptFile( ( shaders_dir + shader_file ).c_str() );
+
+		while( GetToken(qtrue) )
+		{
+			shaders.emplace_back();
+			Q3Shader& out_shader= shaders.back();
+
+			out_shader.name= token;
+			out_shader.albedo_texure= out_shader.name;
+
+			MatchToken( "{" );
+			while( GetToken(qtrue) )
+			{
+				unsigned int pass_number= 0;
+
+				if( std::strcmp( token, "}" ) == 0 )
+					break;
+				else if( Q_stricmp( token, "q3map_surfacelight" ) == 0 )
+				{
+					GetToken( qfalse );
+					out_shader.glow_luminosity= std::atof( token );
+				}
+				else if( Q_stricmp( token, "q3map_lightimage" ) == 0 )
+				{
+					GetToken( qfalse );
+					out_shader.luminosity_texture= token;
+				}
+				else if( Q_stricmp( token, "surfaceparm" ) == 0 )
+				{
+					GetToken( qfalse );
+					if( Q_stricmp( token, "alphashadow" ) == 0 )
+						out_shader.alpha_shadow= true;
+				}
+				// Passes
+				// Search passes with textures, which we can use as albedo
+				else if ( std::strcmp( token, "{" ) == 0 )
+				{
+					pass_number++;
+
+					std::string map;
+					bool blend_mul= pass_number == 1; // for first pass act, like we multipy by 1
+					bool rgbgen_identity= false;
+
+					while( GetToken(qtrue) )
+					{
+						if( std::strcmp( token, "}" ) == 0 )
+							break;
+						// Take last "map" or "clampmap" as albedo texture
+						else if( Q_stricmp( token, "map" ) == 0 )
+						{
+							GetToken( qfalse );
+							if( token[0] != '$' ) // Skip $ightmap, $whiteimage, etc.
+								map= token;
+						}
+						else if( Q_stricmp( token, "rgbgen" ) == 0 )
+						{
+							GetToken( qfalse );
+							rgbgen_identity= Q_stricmp( token, "identity" ) == 0;
+						}
+						else if( Q_stricmp( token, "blendfunc" ) == 0 )
+						{
+							blend_mul= false;
+
+							GetToken( qfalse );
+							if( Q_stricmp( token, "filter" ) == 0 )
+								blend_mul= true;
+							else if( Q_stricmp( token, "gl_dst_color" ) == 0 )
+							{
+								GetToken( qfalse );
+								blend_mul= Q_stricmp( token, "gl_zero" ) == 0;
+							}
+							else if( Q_stricmp( token, "gl_zero" ) == 0 )
+							{
+								GetToken( qfalse );
+								blend_mul= Q_stricmp( token, "gl_src_color" ) == 0;
+							}
+						}
+
+					} // Inside pass
+
+					if( !map.empty() && blend_mul && rgbgen_identity )
+						out_shader.albedo_texure= map;
+
+					continue;
+				} // Inside passes
+
+			} // Inside shader
+		} // parse file
+	} // for shader info files
+
+	return shaders;
+}
+
+
+static void GetTextures( const Q3Shaders& shaders, plb_ImageInfos& out_textures )
 {
 	out_textures.reserve( numShaders );
-	for( const dshader_t* shader= dshaders; shader < dshaders + numShaders; shader++ )
+	for( const dshader_t* dshader= dshaders; dshader < dshaders + numShaders; dshader++ )
 	{
 		plb_ImageInfo img;
-		img.file_name= std::string( shader->shader );
+
+		// Use shader name as texture name if shador not found
+		img.file_name= dshader->shader;
+
+		for( const Q3Shader& shader : shaders )
+			if( Q_stricmp( shader.name.c_str(), dshader->shader ) == 0 )
+			{
+				img.file_name= shader.albedo_texure;
+				break;
+			}
+
 		out_textures.push_back(img);
 	}
 }
@@ -392,24 +549,26 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 	} // for entities
 }
 
-void LoadQ3Bsp( const char* file_name, plb_LevelData* level_data )
+void LoadQ3Bsp( const char* file_name, const plb_Config& config, plb_LevelData& level_data )
 {
 	LoadBSPFile( file_name );
 
 	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
 
-	LoadVertices( level_data->vertices );
+	Q3Shaders shaders= LoadShaders( config.textures_path + "shaders/" );
+	GetTextures( shaders, level_data.textures );
 
-	GetTextures( level_data->textures );
+	LoadVertices( level_data.vertices );
+
 	BuildPolygons(
-		level_data->polygons, level_data->sky_polygons,
-		level_data->polygons_indeces, level_data->sky_polygons_indeces,
-		level_data->curved_surfaces , level_data->curved_surfaces_vertices );
-	TransformPolygons(level_data->polygons, level_data->vertices, level_data->polygons_indeces, level_data->sky_polygons_indeces );
-	TransformCurves( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
+		level_data.polygons, level_data.sky_polygons,
+		level_data.polygons_indeces, level_data.sky_polygons_indeces,
+		level_data.curved_surfaces , level_data.curved_surfaces_vertices );
+	TransformPolygons(level_data.polygons, level_data.vertices, level_data.polygons_indeces, level_data.sky_polygons_indeces );
+	TransformCurves( level_data.curved_surfaces , level_data.curved_surfaces_vertices );
 
-	GenCurvesNormalizedLightmapCoords( level_data->curved_surfaces , level_data->curved_surfaces_vertices );
+	GenCurvesNormalizedLightmapCoords( level_data.curved_surfaces , level_data.curved_surfaces_vertices );
 
 	ParseEntities();
-	GetBSPLights( level_data->point_lights, level_data->cone_lights );
+	GetBSPLights( level_data.point_lights, level_data.cone_lights );
 }
