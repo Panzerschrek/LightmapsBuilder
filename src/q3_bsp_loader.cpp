@@ -52,16 +52,12 @@ static std::vector<std::string> ShaderInfoFiles( const std::string& shaders_path
 }
 #endif
 
-struct Q3Shader
+struct Q3Shader : public plb_Material
 {
 	std::string name;
+	bool used_in_current_level= false;
 
-	std::string albedo_texure;
-
-	float glow_luminosity= 0.0f;
-	std::string luminosity_texture;
-
-	bool alpha_shadow= false;
+	unsigned int number_in_level;
 };
 
 typedef std::vector<Q3Shader> Q3Shaders;
@@ -82,7 +78,7 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 			Q3Shader& out_shader= shaders.back();
 
 			out_shader.name= token;
-			out_shader.albedo_texure= out_shader.name;
+			out_shader.albedo_texture_file_name= out_shader.name;
 
 			MatchToken( "{" );
 			while( GetToken(qtrue) )
@@ -94,18 +90,18 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 				else if( Q_stricmp( token, "q3map_surfacelight" ) == 0 )
 				{
 					GetToken( qfalse );
-					out_shader.glow_luminosity= std::atof( token );
+					out_shader.luminosity= std::atof( token );
 				}
 				else if( Q_stricmp( token, "q3map_lightimage" ) == 0 )
 				{
 					GetToken( qfalse );
-					out_shader.luminosity_texture= token;
+					out_shader.light_texture_file_name= token;
 				}
 				else if( Q_stricmp( token, "surfaceparm" ) == 0 )
 				{
 					GetToken( qfalse );
 					if( Q_stricmp( token, "alphashadow" ) == 0 )
-						out_shader.alpha_shadow= true;
+						out_shader.cast_alpha_shadow= true;
 				}
 				// Passes
 				// Search passes with textures, which we can use as albedo
@@ -155,7 +151,7 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 					} // Inside pass
 
 					if( !map.empty() && blend_mul && rgbgen_identity )
-						out_shader.albedo_texure= map;
+						out_shader.albedo_texture_file_name= map;
 
 					continue;
 				} // Inside passes
@@ -168,24 +164,70 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 }
 
 
-static void GetTextures( const Q3Shaders& shaders, plb_ImageInfos& out_textures )
+static void BuildMaterials(
+	Q3Shaders& shaders,
+	plb_Materials& out_materials, plb_ImageInfos& out_textures,
+	std::vector<unsigned short>& shader_num_to_material_index )
 {
-	out_textures.reserve( numShaders );
+	// Search level shaders in shaders list. Add new shader, if not found
 	for( const dshader_t* dshader= dshaders; dshader < dshaders + numShaders; dshader++ )
 	{
-		plb_ImageInfo img;
+		Q3Shader* found_shader= nullptr;
 
-		// Use shader name as texture name if shador not found
-		img.file_name= dshader->shader;
-
-		for( const Q3Shader& shader : shaders )
+		for( Q3Shader& shader : shaders )
 			if( Q_stricmp( shader.name.c_str(), dshader->shader ) == 0 )
 			{
-				img.file_name= shader.albedo_texure;
+				found_shader= &shader;
 				break;
 			}
 
-		out_textures.push_back(img);
+		if( found_shader == nullptr )
+		{
+			shaders.emplace_back();
+			found_shader = &shaders.back();
+			found_shader->albedo_texture_file_name= dshader->shader;
+		}
+
+		found_shader->used_in_current_level= true;
+		found_shader->number_in_level= dshader - dshaders;
+	}
+
+	// Search-inserter for textures.
+	const auto get_image=
+	[&out_textures]( const std::string& file_name ) -> size_t
+	{
+		for( const plb_ImageInfo& image : out_textures )
+		{
+			if( image.file_name == file_name )
+				return &image - out_textures.data();
+		}
+
+		out_textures.emplace_back();
+		out_textures.back().file_name= file_name;
+
+		return out_textures.size() - 1u;
+	};
+
+	shader_num_to_material_index.resize( numShaders );
+
+	// Save to out materials only used shaders.
+	// Set textures indeces for materials.
+	for( const Q3Shader& shader : shaders )
+	{
+		if( !shader.used_in_current_level )
+			continue;
+
+		shader_num_to_material_index[ shader.number_in_level ]= out_materials.size();
+
+		out_materials.emplace_back( shader );
+		plb_Material& material= out_materials.back();
+
+		material.albedo_texture_number= get_image( material.albedo_texture_file_name );
+
+		if( !material.light_texture_file_name.empty() )
+			material.light_texture_number= get_image( material.light_texture_file_name );
+		else
+			material.light_texture_number= material.albedo_texture_number;
 	}
 }
 
@@ -209,6 +251,7 @@ static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
 }
 
 static void BuildPolygons(
+	const std::vector<unsigned short>& shader_num_to_material_index,
 	std::vector<plb_Polygon>& out_polygons, std::vector<plb_Polygon>& out_sky_polygons,
 	std::vector<unsigned int>& out_indeces, std::vector<unsigned int>& out_sky_indeces,
 	std::vector<plb_CurvedSurface>& out_curves, std::vector<plb_Vertex>& out_curves_vertices )
@@ -238,7 +281,7 @@ static void BuildPolygons(
 			polygon.first_index= p->firstIndex;
 			polygon.index_count= p->numIndexes;
 
-			polygon.texture_id= p->shaderNum;
+			polygon.material_id= shader_num_to_material_index[ p->shaderNum ];
 
 			polygon.normal[0]= p->lightmapVecs[2][0];
 			polygon.normal[1]= p->lightmapVecs[2][1];
@@ -263,7 +306,7 @@ static void BuildPolygons(
 			surf.grid_size[1]= p->patchHeight;
 			surf.first_vertex_number= out_curves_vertices.size();
 
-			surf.texture_id= p->shaderNum;
+			surf.material_id= shader_num_to_material_index[ p->shaderNum ];
 
 			surf.bb_min[0]= p->lightmapVecs[0][0];
 			surf.bb_min[1]= p->lightmapVecs[0][1];
@@ -556,11 +599,14 @@ void LoadQ3Bsp( const char* file_name, const plb_Config& config, plb_LevelData& 
 	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
 
 	Q3Shaders shaders= LoadShaders( config.textures_path + "shaders/" );
-	GetTextures( shaders, level_data.textures );
+	std::vector<unsigned short> shader_num_to_material_index;
+
+	BuildMaterials( shaders, level_data.materials, level_data.textures, shader_num_to_material_index );
 
 	LoadVertices( level_data.vertices );
 
 	BuildPolygons(
+		shader_num_to_material_index,
 		level_data.polygons, level_data.sky_polygons,
 		level_data.polygons_indeces, level_data.sky_polygons_indeces,
 		level_data.curved_surfaces , level_data.curved_surfaces_vertices );

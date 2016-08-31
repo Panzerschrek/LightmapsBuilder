@@ -51,7 +51,7 @@ struct plb_Polygon
 	unsigned int first_index;
 	unsigned int index_count;
 
-	unsigned int texture_id;// number of texture in input textures vector
+	unsigned int material_id;// number of material in input materials vector
 
 	plb_SurfaceLightmapData lightmap_data;
 };
@@ -65,12 +65,26 @@ struct plb_CurvedSurface
 	float bb_max[3];
 	unsigned int first_vertex_number;
 
-	unsigned int texture_id;// number of texture in input textures vector
+	unsigned int material_id;// number of material in input materials vector
 
 	plb_SurfaceLightmapData lightmap_data;
 };
 
 typedef std::vector<plb_CurvedSurface> plb_CurvedSurfaces;
+
+struct plb_Material
+{
+	std::string albedo_texture_file_name;
+	std::string light_texture_file_name;
+
+	unsigned int albedo_texture_number;
+	unsigned int light_texture_number;
+
+	float luminosity= 0.0f;
+	bool cast_alpha_shadow= false;
+};
+
+typedef std::vector<plb_Material> plb_Materials;
 
 struct plb_ImageInfo
 {
@@ -79,6 +93,7 @@ struct plb_ImageInfo
 
 	unsigned int size_log2[2]; // size after transforming
 	unsigned int original_size[2]; // size of original image
+
 	std::string file_name;
 };
 
@@ -166,6 +181,7 @@ struct plb_LevelData
 	plb_DirectionalLights directional_lights;
 	plb_ConeLights cone_lights;
 
+	plb_Materials materials;
 	plb_ImageInfos textures;
 
 	plb_CurvedSurfaces curved_surfaces;

@@ -1094,7 +1094,8 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( const plb_Polygon& polygon : level_data_.polygons )
 	{
-		const plb_ImageInfo img= level_data_.textures[ polygon.texture_id ];
+		const plb_ImageInfo& img=
+			level_data_.textures[ level_data_.materials[ polygon.material_id ].albedo_texture_number ];
 		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
 			v_p[v].tex_maps[0]= img.texture_array_id;
@@ -1107,7 +1108,8 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			const plb_ImageInfo& img= level_data_.textures[ curve.texture_id ];
+			const plb_ImageInfo& img=
+				level_data_.textures[ level_data_.materials[ curve.material_id ].albedo_texture_number ];
 			for( unsigned int v= curve.first_vertex_number; v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
 				v_p[v].tex_maps[0]= img.texture_array_id;
