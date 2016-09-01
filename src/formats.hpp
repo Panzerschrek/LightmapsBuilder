@@ -7,6 +7,8 @@ struct plb_Vertex
 {
 	float pos[3];
 	float tex_coord[2];
+
+	// For luminous polygons lightmap_coord[0] is luminosity
 	float lightmap_coord[2];
 
 	// 0 - texture array number
@@ -169,6 +171,7 @@ struct plb_Config
 
 struct plb_LevelData
 {
+	// Vertices for common polygons, sky polygons.
 	plb_Vertices vertices;
 
 	plb_Polygons polygons;

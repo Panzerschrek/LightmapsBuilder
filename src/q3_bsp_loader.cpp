@@ -278,7 +278,7 @@ static void BuildPolygons(
 			polygon.first_vertex_number= p->firstVert;
 			polygon.vertex_count= p->numVerts;
 
-			polygon.first_index= p->firstIndex;
+			polygon.first_index= index_offset;
 			polygon.index_count= p->numIndexes;
 
 			polygon.material_id= shader_num_to_material_index[ p->shaderNum ];

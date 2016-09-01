@@ -24,6 +24,7 @@ public:
 	{
 		WorldCommon= 0,
 		Sky,
+		Luminous,
 		NumTypes
 	};
 /*
@@ -51,6 +52,25 @@ private:
 		unsigned int offset;
 		unsigned int size;
 	};
+
+private:
+	void PrepareWorldCommonPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareSkyPolygons(
+		 const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareLuminousPolygons(
+		 const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
 
 private:
 	r_PolygonBuffer polygon_buffer_;
