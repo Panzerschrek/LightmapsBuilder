@@ -543,6 +543,14 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
+
+	secondary_light_pass_shader_luminocity_shader_.ShaderSource(
+		rLoadShader( "secondary_light_pass_luminosity_f.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_luminocity_shader_);
+	secondary_light_pass_shader_luminocity_shader_.Create();
+
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
@@ -875,20 +883,38 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
 		textures_uniform[i]= arrays_bindings_unit + i;
 
-	secondary_light_pass_shader_.Bind();
-	secondary_light_pass_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
-	secondary_light_pass_shader_.Uniform( "lightmap", int(0) );
-	secondary_light_pass_shader_.Uniform( "view_matrices", final_matrices, 6 );
-	secondary_light_pass_shader_.Uniform( "clip_plane", normal.x, normal.y, normal.z, -(normal * pos) );
+	const auto bind_and_set_uniforms=
+	[&]( r_GLSLProgram& shader )
+	{
+		shader.Bind();
+		shader.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+		shader.Uniform( "lightmap", int(0) );
+		shader.Uniform( "view_matrices", final_matrices, 6 );
+		shader.Uniform( "clip_plane", normal.x, normal.y, normal.z, -(normal * pos) );
+	};
 
+	bind_and_set_uniforms( secondary_light_pass_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+
+	// Luminocity polygons.
+	// Luminocity polygons already drawn, draw it again, but with different texture and shader.
+	// Add luminocity light to diffuse surface light.
+
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE );
+	glDepthFunc( GL_EQUAL );
+
+	bind_and_set_uniforms( secondary_light_pass_shader_luminocity_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Luminous );
+
+	glDisable( GL_BLEND );
+	glDepthFunc( GL_LESS );
 
 	glDisable(GL_CLIP_DISTANCE0);
 
-	r_Framebuffer::BindScreenFramebuffer();
-
 	// Unwrap
 	//
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glDisable( GL_CULL_FACE );
 
