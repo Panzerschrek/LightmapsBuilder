@@ -543,13 +543,18 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
+	{
+		std::vector<std::string> frag_defines;
+		if( config_.use_average_texture_color_for_luminous_surfaces )
+			frag_defines.emplace_back( "AVERAGE_LIGHT" );
 
-	secondary_light_pass_shader_luminocity_shader_.ShaderSource(
-		rLoadShader( "secondary_light_pass_luminosity_f.glsl", g_glsl_version),
-		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
-		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version));
-	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_luminocity_shader_);
-	secondary_light_pass_shader_luminocity_shader_.Create();
+		secondary_light_pass_shader_luminocity_shader_.ShaderSource(
+			rLoadShader( "secondary_light_pass_luminosity_f.glsl", g_glsl_version, frag_defines ),
+			rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version ),
+			rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version ) );
+		plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_luminocity_shader_);
+		secondary_light_pass_shader_luminocity_shader_.Create();
+	}
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader

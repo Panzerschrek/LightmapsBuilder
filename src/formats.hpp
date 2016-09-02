@@ -167,6 +167,10 @@ struct plb_Config
 
 	// Otnošenije razmera ishodnoj karty osvescenija k karte osvescenija ot vtoricnyh istocnikov.
 	unsigned int secondary_lightmap_scaler= 4;
+
+	// Ispoljzovatj li usrednenije çveta tekstury svetäscejsä poverhnosti pri rascöte
+	// sveta ot nejo.
+	bool use_average_texture_color_for_luminous_surfaces= true;
 };
 
 struct plb_LevelData
