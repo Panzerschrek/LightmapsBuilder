@@ -910,6 +910,9 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	glDisable( GL_BLEND );
 	glDepthFunc( GL_LESS );
 
+	// Draw sky polygons as normal polygons, but with luminocity sahader
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
+
 	glDisable(GL_CLIP_DISTANCE0);
 
 	// Unwrap

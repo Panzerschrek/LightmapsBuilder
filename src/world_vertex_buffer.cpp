@@ -141,6 +141,24 @@ void plb_WorldVertexBuffer::PrepareSkyPolygons(
 	polygon_groups_[ int(PolygonType::Sky) ].size= level_data.sky_polygons_indeces.size();
 
 	indeces.insert( indeces.end(), level_data.sky_polygons_indeces.begin(), level_data.sky_polygons_indeces.end() );
+
+	for( const plb_Polygon& poly : level_data.sky_polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		const plb_ImageInfo& texture=
+			level_data.textures[ material.light_texture_number ];
+
+		for( unsigned int v= 0; v < poly.vertex_count; v++ )
+		{
+			plb_Vertex& vertex= vertices[ poly.first_vertex_number + v ];
+
+			vertex.lightmap_coord[0]= material.luminosity;
+
+			vertex.tex_maps[0]= texture.texture_array_id;
+			vertex.tex_maps[1]= texture.texture_layer_id;
+			vertex.tex_maps[2]= 255; // We do not need lightmap layer for polygons of this type
+		} // for polygon vertices
+	} // forsky  polygons
 }
 
 void plb_WorldVertexBuffer::PrepareLuminousPolygons(

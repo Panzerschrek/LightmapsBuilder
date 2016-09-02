@@ -111,7 +111,7 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 
 					std::string map;
 					bool blend_mul= pass_number == 1; // for first pass act, like we multipy by 1
-					bool rgbgen_identity= false;
+					bool rgbgen_identity= true;
 
 					while( GetToken(qtrue) )
 					{
