@@ -464,7 +464,8 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 void plb_LightmapsBuilder::DrawPreview(
 	const m_Mat4& view_matrix, const m_Vec3& cam_pos,
 	const m_Vec3& cam_dir,
-	bool show_primary_lightmap, bool show_secondary_lightmap )
+	float brightness,
+	bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -492,8 +493,10 @@ void plb_LightmapsBuilder::DrawPreview(
 		shader.Uniform( "lightmap_test", int(2) );
 		shader.Uniform( "cubemap", int(3) );
 
+		shader.Uniform( "brightness", brightness );
 		shader.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
 		shader.Uniform( "secondary_lightmap_scaler", show_secondary_lightmap ? 1.0f : 0.0f );
+		shader.Uniform( "gray_factor", show_textures ? 0.0f : 1.0f );
 
 		// Correct lightmap coordinates for secondary lightmaps,
 		// because size % scaler != 0, sometimes.

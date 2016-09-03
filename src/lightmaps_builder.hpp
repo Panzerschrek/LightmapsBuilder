@@ -28,7 +28,8 @@ public:
 	void DrawPreview(
 		const m_Mat4& view_matrix, const m_Vec3& cam_pos,
 		const m_Vec3& cam_dir,
-		bool show_primary_lightmap, bool show_secondary_lightmap );
+		float brightness,
+		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures );
 
 private:
 	void LoadLightPassShaders();

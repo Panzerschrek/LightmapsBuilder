@@ -1,3 +1,4 @@
+#include <cmath>
 #include <iostream>
 #include <memory>
 
@@ -84,6 +85,8 @@ extern "C" int main(int argc, char *argv[])
 
 	bool show_primary_lightmap= true;
 	bool show_secondary_lightmap= true;
+	bool use_textures_in_preview= true;
+	int brightness_log= 0;
 
 	bool quited= false;
 
@@ -132,8 +135,14 @@ extern "C" int main(int argc, char *argv[])
 				case SDLK_SPACE: cam_controller.UpReleased(); break;
 				case SDLK_c: cam_controller.DownReleased(); break;
 
-				case SDLK_l: show_primary_lightmap= !show_primary_lightmap; break;
-				case SDLK_u: show_secondary_lightmap= !show_secondary_lightmap; break;
+				case SDLK_1: show_primary_lightmap= !show_primary_lightmap; break;
+				case SDLK_2: show_secondary_lightmap= !show_secondary_lightmap; break;
+				case SDLK_3: use_textures_in_preview= !use_textures_in_preview; break;
+
+				case SDLK_0: brightness_log= 0; break;
+				case SDLK_MINUS: brightness_log--; break;
+				case SDLK_PLUS:
+				case SDLK_EQUALS: brightness_log++; break;
 				}
 				break;
 
@@ -153,8 +162,10 @@ extern "C" int main(int argc, char *argv[])
 			view_matrix,
 			cam_controller.GetCamPos(),
 			cam_controller.GetCamDir(),
+			std::pow( 2.0f, float(brightness_log) / 2.0f ),
 			show_primary_lightmap,
-			show_secondary_lightmap );
+			show_secondary_lightmap,
+			use_textures_in_preview );
 
 		SDL_GL_SwapWindow(window);
 	};
