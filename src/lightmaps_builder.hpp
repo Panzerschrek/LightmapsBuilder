@@ -73,6 +73,7 @@ private:
 	const plb_Config config_;
 
 	r_GLSLProgram polygons_preview_shader_;
+	r_GLSLProgram polygons_preview_alphatested_shader_;
 
 	struct
 	{
@@ -97,6 +98,7 @@ private:
 	} point_light_shadowmap_cubemap_;
 	r_GLSLProgram point_light_pass_shader_;
 	r_GLSLProgram point_light_shadowmap_shader_;
+	r_GLSLProgram point_light_shadowmap_alphatested_shader_;
 
 	struct
 	{
@@ -117,10 +119,13 @@ private:
 
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
+	r_GLSLProgram secondary_light_pass_shader_luminocity_shader_;
+	r_GLSLProgram secondary_light_pass_shader_alphatested_shader_;
 
 	r_Framebuffer directional_light_shadowmap_;
 
 	r_GLSLProgram shadowmap_shader_; // common with cone light
+	r_GLSLProgram shadowmap_alphatested_shader_; // common with cone light
 	r_GLSLProgram directional_light_sky_mark_shader_;
 	r_GLSLProgram directional_light_pass_shader_;
 

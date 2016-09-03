@@ -4,6 +4,11 @@
 
 #include "formats.hpp"
 
+void GenCurveMesh(
+	const plb_CurvedSurface& curve,
+	const plb_Vertices& curves_vertices,
+	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals );
+
 void GenCurvesMeshes(
 	const plb_CurvedSurfaces& curves, const plb_Vertices& curves_vertices,
 	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals );

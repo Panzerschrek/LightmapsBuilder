@@ -1,5 +1,7 @@
 uniform mat4 view_matrix;
 
+uniform sampler2DArray textures[8];
+
 in vec3 pos;
 in vec2 tex_coord;
 in vec2 lightmap_coord;

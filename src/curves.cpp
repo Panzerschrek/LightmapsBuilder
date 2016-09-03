@@ -132,150 +132,159 @@ static inline m_Vec3 GenCurveNormal( const m_Vec3* base_vertices, float kx, floa
 	return result;
 }
 
+void GenCurveMesh(
+	const plb_CurvedSurface& curve,
+	const plb_Vertices& curves_vertices,
+	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals )
+{
+	const plb_Vertex* v_p= curves_vertices.data();
+
+	for( unsigned int y= 0; y< curve.grid_size[1]-1; y+=2 )
+	for( unsigned int x= 0; x< curve.grid_size[0]-1; x+=2 ) // for curve patches
+	{
+		const m_Vec3 base_vertices[9]=
+		{
+			m_Vec3( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].pos ),
+			m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].pos ),
+		};
+		const m_Vec2 base_vertices_lightmap_coords[9]=
+		{
+			m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
+		};
+		const m_Vec2 base_vertices_texture_coords[9]=
+		{
+			m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].tex_coord ),
+			m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].tex_coord ),
+		};
+
+		const unsigned int base_vertex_index= curve.first_vertex_number + x +  y * curve.grid_size[0];
+		unsigned char tex_maps[4];
+		std::memcpy( tex_maps, v_p[ base_vertex_index ].tex_maps, 4 );
+
+		unsigned int subdivisions[2];
+		GetPatchSubdivisions( base_vertices, g_max_angle_rad, subdivisions );
+
+		const unsigned int patch_gird_size[2]= { subdivisions[0]+1, subdivisions[1]+1 };
+		const unsigned int vertex_count= patch_gird_size[0] * patch_gird_size[1];
+		const unsigned int first_out_vertex_index= out_vertices.size();
+
+		out_vertices.resize( out_vertices.size() + vertex_count );
+		plb_Vertex* const vert= out_vertices.data() + first_out_vertex_index;
+
+		out_normals.resize( out_normals.size() + vertex_count );
+		plb_Normal* const normals= out_normals.data() + out_normals.size() - vertex_count;
+
+		float ky= 0.0f, dky= 1.0f / float(subdivisions[1]);
+		for( unsigned int z= 0; z< patch_gird_size[1]; z++, ky+= dky )
+		{
+			float ky1= 1.0f - ky;
+			float kx= 0.0f, dkx= 1.0f / float(subdivisions[0]);
+			for( unsigned int w= 0; w< patch_gird_size[0]; w++, kx+= dkx )
+			{
+				const float kx1= 1.0f - kx;
+				float vert_k[9];
+				GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
+
+				const unsigned int ind= w + z * patch_gird_size[0];
+
+				const m_Vec3 pos=
+					base_vertices[0] * vert_k[0] +
+					base_vertices[1] * vert_k[1] +
+					base_vertices[2] * vert_k[2] +
+					base_vertices[3] * vert_k[3] +
+					base_vertices[4] * vert_k[4] +
+					base_vertices[5] * vert_k[5] +
+					base_vertices[6] * vert_k[6] +
+					base_vertices[7] * vert_k[7] +
+					base_vertices[8] * vert_k[8];
+				vert[ind].pos[0]= pos.x;
+				vert[ind].pos[1]= pos.y;
+				vert[ind].pos[2]= pos.z;
+
+				std::memcpy( vert[ind].tex_maps, tex_maps, 4 );
+
+				const m_Vec2 lightmap_coord=
+					base_vertices_lightmap_coords[0] * vert_k[0] +
+					base_vertices_lightmap_coords[1] * vert_k[1] +
+					base_vertices_lightmap_coords[2] * vert_k[2] +
+					base_vertices_lightmap_coords[3] * vert_k[3] +
+					base_vertices_lightmap_coords[4] * vert_k[4] +
+					base_vertices_lightmap_coords[5] * vert_k[5] +
+					base_vertices_lightmap_coords[6] * vert_k[6] +
+					base_vertices_lightmap_coords[7] * vert_k[7] +
+					base_vertices_lightmap_coords[8] * vert_k[8];
+				vert[ind].lightmap_coord[0]= lightmap_coord.x;
+				vert[ind].lightmap_coord[1]= lightmap_coord.y;
+
+				const m_Vec2 tex_coord=
+					base_vertices_texture_coords[0] * vert_k[0] +
+					base_vertices_texture_coords[1] * vert_k[1] +
+					base_vertices_texture_coords[2] * vert_k[2] +
+					base_vertices_texture_coords[3] * vert_k[3] +
+					base_vertices_texture_coords[4] * vert_k[4] +
+					base_vertices_texture_coords[5] * vert_k[5] +
+					base_vertices_texture_coords[6] * vert_k[6] +
+					base_vertices_texture_coords[7] * vert_k[7] +
+					base_vertices_texture_coords[8] * vert_k[8];
+				vert[ind].tex_coord[0]= tex_coord.x;
+				vert[ind].tex_coord[1]= tex_coord.y;
+
+				const m_Vec3 normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+				normals[ind].xyz[0]= (char)(normal.x * 127.0f);
+				normals[ind].xyz[1]= (char)(normal.y * 127.0f);
+				normals[ind].xyz[2]= (char)(normal.z * 127.0f);
+
+			}// for patch subdivisions x
+		}// for patch subdivisions y
+
+		const unsigned int index_count= subdivisions[0] * subdivisions[1] * 6;
+		out_indeces.resize( out_indeces.size() + index_count );
+		unsigned int* indeces= out_indeces.data() + out_indeces.size() - index_count;
+
+		for( unsigned int z= 0; z< subdivisions[1]; z++ )
+		for( unsigned int w= 0; w< subdivisions[0]; w++ )
+		{
+			indeces[0]= first_out_vertex_index + w +    z    * patch_gird_size[0];
+			indeces[1]= first_out_vertex_index + w+1 +  z    * patch_gird_size[0];
+			indeces[2]= first_out_vertex_index + w+1 + (z+1) * patch_gird_size[0];
+			indeces[3]= first_out_vertex_index + w +    z    * patch_gird_size[0];
+			indeces[4]= first_out_vertex_index + w+1 + (z+1) * patch_gird_size[0];
+			indeces[5]= first_out_vertex_index + w   + (z+1) * patch_gird_size[0];
+			indeces+= 6;
+		}
+	} // for control vertices (x, y)
+}
+
 void GenCurvesMeshes(
 	const plb_CurvedSurfaces& curves, const plb_Vertices& curves_vertices,
 	plb_Vertices& out_vertices, std::vector<unsigned int>& out_indeces, plb_Normals& out_normals )
 {
-	const plb_Vertex* v_p= curves_vertices.data();
 	for( const plb_CurvedSurface& curve : curves )
 	{
-		for( unsigned int y= 0; y< curve.grid_size[1]-1; y+=2 )
-		for( unsigned int x= 0; x< curve.grid_size[0]-1; x+=2 ) // for curve patches
-		{
-			const m_Vec3 base_vertices[9]=
-			{
-				m_Vec3( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].pos ),
-				m_Vec3( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].pos ),
-			};
-			const m_Vec2 base_vertices_lightmap_coords[9]=
-			{
-				m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].lightmap_coord ),
-			};
-			const m_Vec2 base_vertices_texture_coords[9]=
-			{
-				m_Vec2( v_p[ curve.first_vertex_number + x   +  y    * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 +  y    * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 +  y    * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x   + (y+1) * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+1) * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+1) * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x   + (y+2) * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+1 + (y+2) * curve.grid_size[0] ].tex_coord ),
-				m_Vec2( v_p[ curve.first_vertex_number + x+2 + (y+2) * curve.grid_size[0] ].tex_coord ),
-			};
-
-			const unsigned int base_vertex_index= curve.first_vertex_number + x +  y * curve.grid_size[0];
-			unsigned char tex_maps[4];
-			std::memcpy( tex_maps, v_p[ base_vertex_index ].tex_maps, 4 );
-
-			unsigned int subdivisions[2];
-			GetPatchSubdivisions( base_vertices, g_max_angle_rad, subdivisions );
-
-			const unsigned int patch_gird_size[2]= { subdivisions[0]+1, subdivisions[1]+1 };
-			const unsigned int vertex_count= patch_gird_size[0] * patch_gird_size[1];
-			const unsigned int first_out_vertex_index= out_vertices.size();
-
-			out_vertices.resize( out_vertices.size() + vertex_count );
-			plb_Vertex* const vert= out_vertices.data() + first_out_vertex_index;
-
-			out_normals.resize( out_normals.size() + vertex_count );
-			plb_Normal* const normals= out_normals.data() + out_normals.size() - vertex_count;
-
-			float ky= 0.0f, dky= 1.0f / float(subdivisions[1]);
-			for( unsigned int z= 0; z< patch_gird_size[1]; z++, ky+= dky )
-			{
-				float ky1= 1.0f - ky;
-				float kx= 0.0f, dkx= 1.0f / float(subdivisions[0]);
-				for( unsigned int w= 0; w< patch_gird_size[0]; w++, kx+= dkx )
-				{
-					const float kx1= 1.0f - kx;
-					float vert_k[9];
-					GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
-
-					const unsigned int ind= w + z * patch_gird_size[0];
-
-					const m_Vec3 pos=
-						base_vertices[0] * vert_k[0] +
-						base_vertices[1] * vert_k[1] +
-						base_vertices[2] * vert_k[2] +
-						base_vertices[3] * vert_k[3] +
-						base_vertices[4] * vert_k[4] +
-						base_vertices[5] * vert_k[5] +
-						base_vertices[6] * vert_k[6] +
-						base_vertices[7] * vert_k[7] +
-						base_vertices[8] * vert_k[8];
-					vert[ind].pos[0]= pos.x;
-					vert[ind].pos[1]= pos.y;
-					vert[ind].pos[2]= pos.z;
-
-					std::memcpy( vert[ind].tex_maps, tex_maps, 4 );
-
-					const m_Vec2 lightmap_coord=
-						base_vertices_lightmap_coords[0] * vert_k[0] +
-						base_vertices_lightmap_coords[1] * vert_k[1] +
-						base_vertices_lightmap_coords[2] * vert_k[2] +
-						base_vertices_lightmap_coords[3] * vert_k[3] +
-						base_vertices_lightmap_coords[4] * vert_k[4] +
-						base_vertices_lightmap_coords[5] * vert_k[5] +
-						base_vertices_lightmap_coords[6] * vert_k[6] +
-						base_vertices_lightmap_coords[7] * vert_k[7] +
-						base_vertices_lightmap_coords[8] * vert_k[8];
-					vert[ind].lightmap_coord[0]= lightmap_coord.x;
-					vert[ind].lightmap_coord[1]= lightmap_coord.y;
-
-					const m_Vec2 tex_coord=
-						base_vertices_texture_coords[0] * vert_k[0] +
-						base_vertices_texture_coords[1] * vert_k[1] +
-						base_vertices_texture_coords[2] * vert_k[2] +
-						base_vertices_texture_coords[3] * vert_k[3] +
-						base_vertices_texture_coords[4] * vert_k[4] +
-						base_vertices_texture_coords[5] * vert_k[5] +
-						base_vertices_texture_coords[6] * vert_k[6] +
-						base_vertices_texture_coords[7] * vert_k[7] +
-						base_vertices_texture_coords[8] * vert_k[8];
-					vert[ind].tex_coord[0]= tex_coord.x;
-					vert[ind].tex_coord[1]= tex_coord.y;
-
-					const m_Vec3 normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
-					normals[ind].xyz[0]= (char)(normal.x * 127.0f);
-					normals[ind].xyz[1]= (char)(normal.y * 127.0f);
-					normals[ind].xyz[2]= (char)(normal.z * 127.0f);
-
-				}// for patch subdivisions x
-			}// for patch subdivisions y
-
-			const unsigned int index_count= subdivisions[0] * subdivisions[1] * 6;
-			out_indeces.resize( out_indeces.size() + index_count );
-			unsigned int* indeces= out_indeces.data() + out_indeces.size() - index_count;
-
-			for( unsigned int z= 0; z< subdivisions[1]; z++ )
-			for( unsigned int w= 0; w< subdivisions[0]; w++ )
-			{
-				indeces[0]= first_out_vertex_index + w +    z    * patch_gird_size[0];
-				indeces[1]= first_out_vertex_index + w+1 +  z    * patch_gird_size[0];
-				indeces[2]= first_out_vertex_index + w+1 + (z+1) * patch_gird_size[0];
-				indeces[3]= first_out_vertex_index + w +    z    * patch_gird_size[0];
-				indeces[4]= first_out_vertex_index + w+1 + (z+1) * patch_gird_size[0];
-				indeces[5]= first_out_vertex_index + w   + (z+1) * patch_gird_size[0];
-				indeces+= 6;
-			}
-		} // for control vertices (x, y)
-	}// for curves
+		GenCurveMesh( curve, curves_vertices, out_vertices, out_indeces, out_normals );
+	}
 }
 
 void CalculateCurveCoordinatesForLightTexels(

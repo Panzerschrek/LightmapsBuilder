@@ -216,9 +216,10 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 }
 
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
-	:config_( config )
+	: config_( config )
 {
-	LoadQ3Bsp( file_name , &level_data_ );
+	LoadQ3Bsp( file_name , config_, level_data_ );
+
 	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
 
 	ClalulateLightmapAtlasCoordinates();
@@ -233,6 +234,12 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		rLoadShader( "preview_v.glsl", g_glsl_version) );
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_shader_);
 	polygons_preview_shader_.Create();
+
+	polygons_preview_alphatested_shader_.ShaderSource(
+		rLoadShader( "preview_f.glsl", g_glsl_version, { "ALPHA_TEST" } ),
+		rLoadShader( "preview_v.glsl", g_glsl_version) );
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_alphatested_shader_);
+	polygons_preview_alphatested_shader_.Create();
 
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
@@ -475,37 +482,45 @@ void plb_LightmapsBuilder::DrawPreview(
 
 	glActiveTexture( GL_TEXTURE0 + 0 );
 
-	polygons_preview_shader_.Bind();
-	polygons_preview_shader_.Uniform( "view_matrix", view_matrix );
-	polygons_preview_shader_.Uniform( "lightmap", int(0) );
-	polygons_preview_shader_.Uniform( "secondary_lightmap", int(1) );
-	polygons_preview_shader_.Uniform( "lightmap_test", int(2) );
-	polygons_preview_shader_.Uniform( "cubemap", int(3) );
+	const auto setup_shader=
+	[&](r_GLSLProgram& shader )
+	{
+		shader.Bind();
+		shader.Uniform( "view_matrix", view_matrix );
+		shader.Uniform( "lightmap", int(0) );
+		shader.Uniform( "secondary_lightmap", int(1) );
+		shader.Uniform( "lightmap_test", int(2) );
+		shader.Uniform( "cubemap", int(3) );
 
-	polygons_preview_shader_.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
-	polygons_preview_shader_.Uniform( "secondary_lightmap_scaler", show_secondary_lightmap ? 1.0f : 0.0f );
+		shader.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
+		shader.Uniform( "secondary_lightmap_scaler", show_secondary_lightmap ? 1.0f : 0.0f );
 
-	// Correct lightmap coordinates for secondary lightmaps,
-	// because size % scaler != 0, sometimes.
-	const float tex_scale_x=
-		float(lightmap_atlas_texture_.size[0]) /
-		float( lightmap_atlas_texture_.secondary_lightmap_size[0] * config_.secondary_lightmap_scaler );
-	const float tex_scale_y=
-		float(lightmap_atlas_texture_.size[1]) /
-		float( lightmap_atlas_texture_.secondary_lightmap_size[1] * config_.secondary_lightmap_scaler );
+		// Correct lightmap coordinates for secondary lightmaps,
+		// because size % scaler != 0, sometimes.
+		const float tex_scale_x=
+			float(lightmap_atlas_texture_.size[0]) /
+			float( lightmap_atlas_texture_.secondary_lightmap_size[0] * config_.secondary_lightmap_scaler );
+		const float tex_scale_y=
+			float(lightmap_atlas_texture_.size[1]) /
+			float( lightmap_atlas_texture_.secondary_lightmap_size[1] * config_.secondary_lightmap_scaler );
 
-	polygons_preview_shader_.Uniform(
-		"secondaty_lightmap_tex_coord_scaler",
-		m_Vec2(tex_scale_x, tex_scale_y ) );
+		shader.Uniform(
+			"secondaty_lightmap_tex_coord_scaler",
+			m_Vec2(tex_scale_x, tex_scale_y ) );
 
-	unsigned int arrays_bindings_unit= 3;
-	textures_manager_->BindTextureArrays(arrays_bindings_unit);
-	int textures_uniform[32];
-	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
-		textures_uniform[i]= arrays_bindings_unit + i;
-	polygons_preview_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+		unsigned int arrays_bindings_unit= 3;
+		textures_manager_->BindTextureArrays(arrays_bindings_unit);
+		int textures_uniform[32];
+		for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
+			textures_uniform[i]= arrays_bindings_unit + i;
+		shader.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+	};
 
+	setup_shader( polygons_preview_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+
+	setup_shader( polygons_preview_alphatested_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
 	// Debug secondary light pass
 	/*
@@ -521,6 +536,8 @@ void plb_LightmapsBuilder::DrawPreview(
 
 void plb_LightmapsBuilder::LoadLightPassShaders()
 {
+	const std::vector<std::string> alpha_test_defines{ "ALPHA_TEST" };
+
 	point_light_pass_shader_.ShaderSource(
 		rLoadShader( "point_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
@@ -535,6 +552,13 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_shadowmap_shader_);
 	point_light_shadowmap_shader_.Create();
 
+	point_light_shadowmap_alphatested_shader_.ShaderSource(
+		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version, alpha_test_defines ),
+		rLoadShader( "point_light_shadowmap_v.glsl", g_glsl_version ),
+		rLoadShader( "point_light_shadowmap_g.glsl", g_glsl_version ));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_shadowmap_alphatested_shader_);
+	point_light_shadowmap_alphatested_shader_.Create();
+
 	secondary_light_pass_shader_.ShaderSource(
 		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version),
 		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version),
@@ -542,11 +566,37 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_);
 	secondary_light_pass_shader_.Create();
 
+	{
+		std::vector<std::string> frag_defines;
+		if( config_.use_average_texture_color_for_luminous_surfaces )
+			frag_defines.emplace_back( "AVERAGE_LIGHT" );
+
+		secondary_light_pass_shader_luminocity_shader_.ShaderSource(
+			rLoadShader( "secondary_light_pass_luminosity_f.glsl", g_glsl_version, frag_defines ),
+			rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version ),
+			rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version ) );
+		plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_luminocity_shader_);
+		secondary_light_pass_shader_luminocity_shader_.Create();
+	}
+
+	secondary_light_pass_shader_alphatested_shader_.ShaderSource(
+		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version, alpha_test_defines ),
+		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version ));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_alphatested_shader_);
+	secondary_light_pass_shader_alphatested_shader_.Create();
+
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(shadowmap_shader_);
 	shadowmap_shader_.Create();
+
+	shadowmap_alphatested_shader_.ShaderSource(
+		rLoadShader( "shadowmap_f.glsl", g_glsl_version, alpha_test_defines ),
+		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(shadowmap_alphatested_shader_);
+	shadowmap_alphatested_shader_.Create();
 
 	directional_light_sky_mark_shader_.ShaderSource(
 		rLoadShader( "directional_light_sky_mark_f.glsl", g_glsl_version ),
@@ -640,15 +690,34 @@ void plb_LightmapsBuilder::GenPointlightShadowmap( const m_Vec3& light_pos )
 
 	m_Mat4 final_matrices[6];
 	GenCubemapMatrices( light_pos, final_matrices );
+	const float inv_max_light_dst= 1.0f / point_light_shadowmap_cubemap_.max_light_distance;
 	
+	// Regular geometry
 	point_light_shadowmap_shader_.Bind();
 	point_light_shadowmap_shader_.Uniform( "view_matrices", final_matrices, 6 );
-
-	point_light_shadowmap_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
+	point_light_shadowmap_shader_.Uniform( "inv_max_light_dst", inv_max_light_dst );
 
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	// Alpha-tested geometry
+	glDisable( GL_CULL_FACE );
+
+	point_light_shadowmap_alphatested_shader_.Bind();
+	point_light_shadowmap_alphatested_shader_.Uniform( "view_matrices", final_matrices, 6 );
+	point_light_shadowmap_alphatested_shader_.Uniform( "inv_max_light_dst", inv_max_light_dst );
+
+	int textures_uniform[32];
+	const unsigned int arrays_bindings_unit= 3;
+	textures_manager_->BindTextureArrays( arrays_bindings_unit );
+	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
+		textures_uniform[i]= arrays_bindings_unit + i;
+	point_light_shadowmap_alphatested_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
+
+	glEnable( GL_CULL_FACE );
+
+	r_Framebuffer::BindScreenFramebuffer();
 }
 
 void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3& light_color)
@@ -669,7 +738,9 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 	point_light_pass_shader_.Uniform( "cubemap", int(0) );
 	point_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::AlphaShadow } );
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
@@ -874,20 +945,48 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
 		textures_uniform[i]= arrays_bindings_unit + i;
 
-	secondary_light_pass_shader_.Bind();
-	secondary_light_pass_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
-	secondary_light_pass_shader_.Uniform( "lightmap", int(0) );
-	secondary_light_pass_shader_.Uniform( "view_matrices", final_matrices, 6 );
-	secondary_light_pass_shader_.Uniform( "clip_plane", normal.x, normal.y, normal.z, -(normal * pos) );
+	const auto bind_and_set_uniforms=
+	[&]( r_GLSLProgram& shader )
+	{
+		shader.Bind();
+		shader.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+		shader.Uniform( "lightmap", int(0) );
+		shader.Uniform( "view_matrices", final_matrices, 6 );
+		shader.Uniform( "clip_plane", normal.x, normal.y, normal.z, -(normal * pos) );
+	};
 
+	bind_and_set_uniforms( secondary_light_pass_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+
+	// Alpha-tested polygons (include alpha-tested luminocity polygons
+	glDisable( GL_CULL_FACE );
+	bind_and_set_uniforms( secondary_light_pass_shader_alphatested_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
+	glEnable( GL_CULL_FACE );
+
+
+	// Luminocity polygons.
+	// Luminocity polygons already drawn, draw it again, but with different texture and shader.
+	// Add luminocity light to diffuse surface light.
+
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE );
+	glDepthFunc( GL_EQUAL );
+
+	bind_and_set_uniforms( secondary_light_pass_shader_luminocity_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Luminous );
+
+	glDisable( GL_BLEND );
+	glDepthFunc( GL_LESS );
+
+	// Draw sky polygons as normal polygons, but with luminocity sahader
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
 
 	glDisable(GL_CLIP_DISTANCE0);
 
-	r_Framebuffer::BindScreenFramebuffer();
-
 	// Unwrap
 	//
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glDisable( GL_CULL_FACE );
 
@@ -944,10 +1043,24 @@ void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_ma
 	// Draw world polygons
 	glDisable( GL_CULL_FACE );
 
+	// Regular geometry
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+
+	// Alpha-tested geometry
+	shadowmap_alphatested_shader_.Bind();
+	shadowmap_alphatested_shader_.Uniform( "view_matrix", shadow_mat );
+
+	int textures_uniform[32];
+	const unsigned int arrays_bindings_unit= 3;
+	textures_manager_->BindTextureArrays( arrays_bindings_unit );
+	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
+		textures_uniform[i]= arrays_bindings_unit + i;
+	shadowmap_alphatested_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
 	glEnable( GL_CULL_FACE );
 
@@ -976,7 +1089,9 @@ void plb_LightmapsBuilder::DirectionalLightPass(
 	directional_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	directional_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::AlphaShadow } );
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -991,10 +1106,24 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const m_Mat4& shadow_mat )
 	cone_light_shadowmap_.Bind();
 	glClear( GL_DEPTH_BUFFER_BIT );
 
+	// Regular geometry
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+
+	// Alpha-tested geometry
+	shadowmap_alphatested_shader_.Bind();
+	shadowmap_alphatested_shader_.Uniform( "view_matrix", shadow_mat );
+
+	int textures_uniform[32];
+	const unsigned int arrays_bindings_unit= 3;
+	textures_manager_->BindTextureArrays( arrays_bindings_unit );
+	for( unsigned int i= 0; i< textures_manager_->ArraysCount(); i++ )
+		textures_uniform[i]= arrays_bindings_unit + i;
+	shadowmap_alphatested_shader_.Uniform( "textures", textures_uniform, textures_manager_->ArraysCount() );
+
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
 	r_Framebuffer::BindScreenFramebuffer();
 	glEnable( GL_CULL_FACE );
@@ -1020,7 +1149,9 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Ma
 	cone_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	cone_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::AlphaShadow } );
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -1093,7 +1224,8 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( const plb_Polygon& polygon : level_data_.polygons )
 	{
-		const plb_ImageInfo img= level_data_.textures[ polygon.texture_id ];
+		const plb_ImageInfo& img=
+			level_data_.textures[ level_data_.materials[ polygon.material_id ].albedo_texture_number ];
 		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
 			v_p[v].tex_maps[0]= img.texture_array_id;
@@ -1106,7 +1238,8 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
-			const plb_ImageInfo& img= level_data_.textures[ curve.texture_id ];
+			const plb_ImageInfo& img=
+				level_data_.textures[ level_data_.materials[ curve.material_id ].albedo_texture_number ];
 			for( unsigned int v= curve.first_vertex_number; v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
 				v_p[v].tex_maps[0]= img.texture_array_id;

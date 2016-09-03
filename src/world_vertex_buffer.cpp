@@ -32,28 +32,14 @@ void plb_WorldVertexBuffer::SetupLevelVertexAttributes( r_GLSLProgram& shader )
 
 plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 {
-	plb_Vertices combined_vertices( level_data.vertices );
+	plb_Vertices combined_vertices;
 	plb_Normals normals;
 	std::vector<unsigned int> index_buffer;
 
-	// World Common
-	polygon_groups_[ int(PolygonType::WorldCommon) ].offset= index_buffer.size();
-
-	index_buffer.insert( index_buffer.end(), level_data.polygons_indeces.begin(), level_data.polygons_indeces.end() );
-
-	GenPolygonsVerticesNormals( level_data.polygons, level_data.vertices, normals );
-
-	if( level_data.curved_surfaces.size() > 0 )
-		GenCurvesMeshes( level_data.curved_surfaces, level_data.curved_surfaces_vertices,
-			combined_vertices, index_buffer, normals );
-
-	polygon_groups_[ int(PolygonType::WorldCommon) ].size= index_buffer.size();
-
-	// Sky
-	polygon_groups_[ int(PolygonType::Sky) ].offset= index_buffer.size();
-	polygon_groups_[ int(PolygonType::Sky) ].size= level_data.sky_polygons_indeces.size();
-
-	index_buffer.insert( index_buffer.end(), level_data.sky_polygons_indeces.begin(), level_data.sky_polygons_indeces.end() );
+	PrepareWorldCommonPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareAlphaShadowPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareSkyPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareLuminousPolygons( level_data, combined_vertices, normals, index_buffer );
 
 	// Load to GPU
 	polygon_buffer_.VertexData(
@@ -114,4 +100,184 @@ void plb_WorldVertexBuffer::Draw( const unsigned int polygon_types_flags ) const
 				reinterpret_cast<GLvoid*>( polygon_groups_[i].offset * sizeof(unsigned int) ) );
 		}
 	}
+}
+
+void plb_WorldVertexBuffer::PrepareWorldCommonPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::WorldCommon) ].offset= indeces.size();
+
+	vertices.insert( vertices.end(), level_data.vertices.begin(), level_data.vertices.end() );
+
+	GenPolygonsVerticesNormals( level_data.polygons, level_data.vertices, normals );
+
+	for( const plb_Polygon& poly : level_data.polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
+		indeces.insert(
+			indeces.end(),
+			level_data.polygons_indeces.begin() + poly.first_index,
+			level_data.polygons_indeces.begin() + poly.first_index + poly.index_count );
+	} // for polygons
+
+	for( const plb_CurvedSurface& curve : level_data.curved_surfaces )
+	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
+		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
+	} // for curves
+
+	polygon_groups_[ int(PolygonType::WorldCommon) ].size= indeces.size() - index_cout_before;
+}
+
+void plb_WorldVertexBuffer::PrepareAlphaShadowPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::AlphaShadow) ].offset= indeces.size();
+
+	for( const plb_Polygon& poly : level_data.polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( !material.cast_alpha_shadow )
+			continue;
+
+		indeces.insert(
+			indeces.end(),
+			level_data.polygons_indeces.begin() + poly.first_index,
+			level_data.polygons_indeces.begin() + poly.first_index + poly.index_count );
+	} // for polygons
+
+	for( const plb_CurvedSurface& curve : level_data.curved_surfaces )
+	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( !material.cast_alpha_shadow )
+			continue;
+
+		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
+	} // for curves
+
+	polygon_groups_[ int(PolygonType::AlphaShadow) ].size= indeces.size() - index_cout_before;
+}
+
+void plb_WorldVertexBuffer::PrepareSkyPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	(void) vertices;
+	(void) normals;
+
+	polygon_groups_[ int(PolygonType::Sky) ].offset= indeces.size();
+	polygon_groups_[ int(PolygonType::Sky) ].size= level_data.sky_polygons_indeces.size();
+
+	indeces.insert( indeces.end(), level_data.sky_polygons_indeces.begin(), level_data.sky_polygons_indeces.end() );
+
+	for( const plb_Polygon& poly : level_data.sky_polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		const plb_ImageInfo& texture=
+			level_data.textures[ material.light_texture_number ];
+
+		for( unsigned int v= 0; v < poly.vertex_count; v++ )
+		{
+			plb_Vertex& vertex= vertices[ poly.first_vertex_number + v ];
+
+			vertex.lightmap_coord[0]= material.luminosity;
+
+			vertex.tex_maps[0]= texture.texture_array_id;
+			vertex.tex_maps[1]= texture.texture_layer_id;
+			vertex.tex_maps[2]= 255; // We do not need lightmap layer for polygons of this type
+		} // for polygon vertices
+	} // forsky  polygons
+}
+
+void plb_WorldVertexBuffer::PrepareLuminousPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::Luminous) ].offset= indeces.size();
+
+	for( const plb_Polygon& poly : level_data.polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( material.luminosity <= 0.0f )
+			continue;
+
+		const plb_ImageInfo& texture=
+			level_data.textures[ level_data.materials[ poly.material_id ].light_texture_number ];
+
+		const unsigned int first_vertex= vertices.size();
+		vertices.resize( vertices.size() + poly.vertex_count );
+		normals.resize( vertices.size() + poly.vertex_count );
+
+		plb_Vertex* const v= vertices.data() + vertices.size() - poly.vertex_count;
+		plb_Normal* const n= normals.data() + normals.size() - poly.vertex_count;
+
+		// Copy vertices. Write luminosity to lightmap_coord[0], setup tex_maps.
+		for( unsigned int i= 0; i < poly.vertex_count; i++ )
+		{
+			v[i]= level_data.vertices[ poly.first_vertex_number + i ];
+
+			v[i].lightmap_coord[0]= material.luminosity;
+
+			v[i].tex_maps[0]= texture.texture_array_id;
+			v[i].tex_maps[1]= texture.texture_layer_id;
+			v[i].tex_maps[2]= 255; // We do not need lightmap layer for polygons of this type
+
+			// We do not need normal
+			n[i].xyz[0]= n[i].xyz[1]= n[i].xyz[2]= 0;
+		}
+
+		// Make new indeces for new vertices
+		indeces.resize( indeces.size() + poly.index_count );
+		unsigned int* const index= indeces.data() + indeces.size() - poly.index_count;
+		for( unsigned int i= 0; i < poly.index_count; i++ )
+		{
+			index[i]=
+				( level_data.polygons_indeces[ poly.first_index + i ] - poly.first_vertex_number ) +
+				first_vertex;
+		}
+	} // for polygons
+
+	for( const plb_CurvedSurface& curve : level_data.curved_surfaces )
+	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( material.luminosity <= 0.0f )
+			continue;
+
+		const plb_ImageInfo& texture= level_data.textures[ material.light_texture_number ];
+
+		const unsigned int vertices_before= vertices.size();
+		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
+
+		for( unsigned int v= vertices_before; v < vertices.size(); v++ )
+		{
+			plb_Vertex& vertex= vertices[v];
+
+			vertex.lightmap_coord[0]= material.luminosity;
+
+			vertex.tex_maps[0]= texture.texture_array_id;
+			vertex.tex_maps[1]= texture.texture_layer_id;
+			vertex.tex_maps[2]= 255; // We do not need lightmap layer for polygons of this type
+		}
+	} // for curves
+
+	polygon_groups_[ int(PolygonType::Luminous) ].size= indeces.size() - index_cout_before;
 }
