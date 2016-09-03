@@ -23,6 +23,7 @@ public:
 	enum class PolygonType : unsigned int
 	{
 		WorldCommon= 0,
+		AlphaShadow,
 		Sky,
 		Luminous,
 		NumTypes
@@ -55,6 +56,12 @@ private:
 
 private:
 	void PrepareWorldCommonPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareAlphaShadowPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,

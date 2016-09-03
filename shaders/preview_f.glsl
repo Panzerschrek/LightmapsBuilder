@@ -20,7 +20,11 @@ out vec4 color;
 
 void main()
 {
-	vec3 c= texture( textures[int(f_texture_array)], f_tex_coord ).xyz;
+	vec4 c= texture( textures[int(f_texture_array)], f_tex_coord );
+#ifdef ALPHA_TEST
+	if( c.a < 0.5 )
+		discard;
+#endif
 
 	vec3 secondary_lightmap_coord=
 		vec3( f_lightmap_coord.xy * secondaty_lightmap_tex_coord_scaler, f_lightmap_coord.z );
@@ -29,11 +33,11 @@ void main()
 		texture(lightmap, f_lightmap_coord ).xyz * primary_lightmap_scaler +
 		texture( secondary_lightmap, secondary_lightmap_coord ).xyz * secondary_lightmap_scaler;
 
-	c= vec3( 1.0, 1.0, 1.0 );
-	vec3 linear_color= c * lightmap_light;
+	//c.xyz= vec3( 0.6, 0.6, 0.6 );
+	vec3 linear_color= c.xyz * lightmap_light;
 
 	//color= vec4( vec3(1.0, 1.0, 1.0) - exp(-0.1 * linear_color), 1.0);
-	color= vec4( linear_color * 0.02, 1.0 );
+	color= vec4( linear_color * 0.04, 1.0 );
 
 	//color= vec4( f_normal * 0.5 + vec3(0.5,0.5,0.5), 1.0 );
 }

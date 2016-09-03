@@ -37,14 +37,9 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 	std::vector<unsigned int> index_buffer;
 
 	PrepareWorldCommonPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareAlphaShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareSkyPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareLuminousPolygons( level_data, combined_vertices, normals, index_buffer );
-
-	// Sky
-	polygon_groups_[ int(PolygonType::Sky) ].offset= index_buffer.size();
-	polygon_groups_[ int(PolygonType::Sky) ].size= level_data.sky_polygons_indeces.size();
-
-	index_buffer.insert( index_buffer.end(), level_data.sky_polygons_indeces.begin(), level_data.sky_polygons_indeces.end() );
 
 	// Load to GPU
 	polygon_buffer_.VertexData(
@@ -117,15 +112,64 @@ void plb_WorldVertexBuffer::PrepareWorldCommonPolygons(
 	polygon_groups_[ int(PolygonType::WorldCommon) ].offset= indeces.size();
 
 	vertices.insert( vertices.end(), level_data.vertices.begin(), level_data.vertices.end() );
-	indeces.insert( indeces.end(), level_data.polygons_indeces.begin(), level_data.polygons_indeces.end() );
 
 	GenPolygonsVerticesNormals( level_data.polygons, level_data.vertices, normals );
 
-	GenCurvesMeshes(
-		level_data.curved_surfaces, level_data.curved_surfaces_vertices,
-		vertices, indeces, normals );
+	for( const plb_Polygon& poly : level_data.polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
+		indeces.insert(
+			indeces.end(),
+			level_data.polygons_indeces.begin() + poly.first_index,
+			level_data.polygons_indeces.begin() + poly.first_index + poly.index_count );
+	} // for polygons
+
+	for( const plb_CurvedSurface& curve : level_data.curved_surfaces )
+	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
+		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
+	} // for curves
 
 	polygon_groups_[ int(PolygonType::WorldCommon) ].size= indeces.size() - index_cout_before;
+}
+
+void plb_WorldVertexBuffer::PrepareAlphaShadowPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::AlphaShadow) ].offset= indeces.size();
+
+	for( const plb_Polygon& poly : level_data.polygons )
+	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( !material.cast_alpha_shadow )
+			continue;
+
+		indeces.insert(
+			indeces.end(),
+			level_data.polygons_indeces.begin() + poly.first_index,
+			level_data.polygons_indeces.begin() + poly.first_index + poly.index_count );
+	} // for polygons
+
+	for( const plb_CurvedSurface& curve : level_data.curved_surfaces )
+	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( !material.cast_alpha_shadow )
+			continue;
+
+		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
+	} // for curves
+
+	polygon_groups_[ int(PolygonType::AlphaShadow) ].size= indeces.size() - index_cout_before;
 }
 
 void plb_WorldVertexBuffer::PrepareSkyPolygons(
