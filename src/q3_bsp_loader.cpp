@@ -21,6 +21,8 @@ extern "C"
 #define INV_Q_UNITS_IN_METER 0.015625f
 #define Q3_LIGHTMAP_SIZE 128
 
+#define Q_LIGHT_UNITS_INV_SCALER (1.0f/64.0f)
+
 
 // HACK. Use windows-specific function for "listfiles"
 #ifdef _WIN32
@@ -254,6 +256,8 @@ static void BuildMaterials(
 		out_materials.emplace_back( shader );
 		plb_Material& material= out_materials.back();
 
+		material.luminosity*= Q_LIGHT_UNITS_INV_SCALER;
+
 		material.albedo_texture_number= get_image( material.albedo_texture_file_name );
 
 		if( !material.light_texture_file_name.empty() )
@@ -285,7 +289,7 @@ static void BuildDirectionalLights( const Q3SkyLights& sky_lights, plb_Direction
 			light.direction[0]= std::cos( elevation ) * std::cos( degrees );
 			light.direction[2]= std::cos( elevation ) * std::sin( degrees );
 
-			light.intensity= light_shader.intensity;
+			light.intensity= light_shader.intensity * Q_LIGHT_UNITS_INV_SCALER;
 
 			const float max_in_color_component=
 				std::max(
@@ -652,6 +656,8 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 			std::swap(light.direction[1], light.direction[2]);
 			for( unsigned int j = 0; j < 3; j++)
 				light.pos[j]*= INV_Q_UNITS_IN_METER;
+
+			light.intensity*= Q_LIGHT_UNITS_INV_SCALER;
 
 			if( m_Vec3(light.pos).SquareLength() < 0.1f )
 			{
