@@ -62,7 +62,19 @@ struct Q3Shader : public plb_Material
 
 typedef std::vector<Q3Shader> Q3Shaders;
 
-static Q3Shaders LoadShaders( const std::string& shaders_dir )
+struct Q3SkyLight
+{
+	std::string name;
+
+	float color[3]; // Need to normalize
+	float intensity;
+	float degrees;
+	float elevation;
+};
+
+typedef std::vector<Q3SkyLight> Q3SkyLights;
+
+static Q3Shaders LoadShaders( const std::string& shaders_dir, Q3SkyLights& out_sky_lights )
 {
 	const std::vector<std::string> shader_info_files= ShaderInfoFiles( shaders_dir );
 
@@ -87,6 +99,26 @@ static Q3Shaders LoadShaders( const std::string& shaders_dir )
 
 				if( std::strcmp( token, "}" ) == 0 )
 					break;
+				else if( Q_stricmp( token, "q3map_sun" ) == 0 )
+				{
+					out_sky_lights.emplace_back();
+					Q3SkyLight& light= out_sky_lights.back();
+
+					light.name= out_shader.name;
+
+					GetToken( qfalse );
+					light.color[0]= std::atof( token );
+					GetToken( qfalse );
+					light.color[1]= std::atof( token );
+					GetToken( qfalse );
+					light.color[2]= std::atof( token );
+					GetToken( qfalse );
+					light.intensity= std::atof( token );
+					GetToken( qfalse );
+					light.degrees= std::atof( token );
+					GetToken( qfalse );
+					light.elevation= std::atof( token );
+				}
 				else if( Q_stricmp( token, "q3map_surfacelight" ) == 0 )
 				{
 					GetToken( qfalse );
@@ -229,6 +261,49 @@ static void BuildMaterials(
 		else
 			material.light_texture_number= material.albedo_texture_number;
 	}
+}
+
+static void BuildDirectionalLights( const Q3SkyLights& sky_lights, plb_DirectionalLights& out_lights )
+{
+	for( const dshader_t* dshader= dshaders; dshader < dshaders + numShaders; dshader++ )
+	{
+		for( const Q3SkyLight& light_shader : sky_lights )
+		{
+			if( Q_stricmp( light_shader.name.c_str(), dshader->shader ) != 0 )
+				continue;
+
+			// This light used - add it
+
+			out_lights.emplace_back();
+			plb_DirectionalLight& light= out_lights.back();
+
+			const float c_to_rad= 3.1415926535f / 180.0f;
+			const float elevation= light_shader.elevation * c_to_rad;
+			const float degrees= light_shader.degrees * c_to_rad;
+
+			light.direction[1]= std::sin( elevation );
+			light.direction[0]= std::cos( elevation ) * std::cos( degrees );
+			light.direction[2]= std::cos( elevation ) * std::sin( degrees );
+
+			light.intensity= light_shader.intensity;
+
+			const float max_in_color_component=
+				std::max(
+					std::max( light_shader.color[0], light_shader.color[1] ),
+					light_shader.color[2] );
+
+			for( unsigned int j= 0; j < 3; j++ )
+			{
+				int c= static_cast<int>( 255.0f * light_shader.color[j] / max_in_color_component );
+				if( c < 0 ) c= 0;
+				if( c > 255 ) c= 255;
+				light.color[j]= c;
+			}
+
+			break;
+
+		} // for loaded sky shaders
+	} // for level shaders
 }
 
 static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
@@ -598,10 +673,18 @@ void LoadQ3Bsp( const char* file_name, const plb_Config& config, plb_LevelData& 
 
 	// std::cout << (file_data + header->lumps[ LUMP_ENTITIES ].fileofs );
 
-	Q3Shaders shaders= LoadShaders( config.textures_path + "shaders/" );
-	std::vector<unsigned short> shader_num_to_material_index;
+	Q3SkyLights sky_lights;
+	Q3Shaders shaders= LoadShaders( config.textures_path + "shaders/", sky_lights );
 
+	std::vector<unsigned short> shader_num_to_material_index;
 	BuildMaterials( shaders, level_data.materials, level_data.textures, shader_num_to_material_index );
+
+	BuildDirectionalLights( sky_lights, level_data.directional_lights );
+	if( level_data.directional_lights.size() > 1 )
+	{
+		std::cout << "Warning, more, than one directional light per level not supported" << std::endl;
+		level_data.directional_lights.resize( 1 );
+	}
 
 	LoadVertices( level_data.vertices );
 

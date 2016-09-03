@@ -264,22 +264,6 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		PointLightPass( light_pos, light_color );
 	}
 
-	{ // Add test light, like in q3dm6
-		level_data_.directional_lights.emplace_back();
-		plb_DirectionalLight& dl= level_data_.directional_lights.back();
-
-		dl.color[0]= 128; dl.color[1]= 153; dl.color[2]= 192;
-		dl.intensity= 150.0f / 2.0f;
-
-		const float c_to_rad= g_pi / 180.0f;
-		const float c_elevation= 60.0f * c_to_rad;
-		const float c_degrees= 30.0f * c_to_rad;
-
-		dl.direction[1]= std::sin( c_elevation );
-		dl.direction[0]= std::cos( c_elevation ) * std::cos( c_degrees );
-		dl.direction[2]= std::cos( c_elevation ) * std::sin( c_degrees );
-	}
-
 	for( const plb_DirectionalLight& light : level_data_.directional_lights )
 	{
 		m_Mat4 mat;
