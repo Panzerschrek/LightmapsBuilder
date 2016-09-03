@@ -10,10 +10,10 @@
 #include <texture.hpp>
 #include <vec.hpp>
 
-#include "textures_manager.hpp"
-#include "world_vertex_buffer.hpp"
-
 #include "formats.hpp"
+#include "textures_manager.hpp"
+#include "tracer.hpp"
+#include "world_vertex_buffer.hpp"
 
 #define PLB_MAX_LIGHT_PASSES 8
 
@@ -139,4 +139,5 @@ private:
 
 	std::unique_ptr<plb_TexturesManager> textures_manager_;
 	std::unique_ptr<plb_WorldVertexBuffer> world_vertex_buffer_;
+	std::unique_ptr<plb_Tracer> tracer_;
 };

@@ -215,6 +215,33 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
 }
 
+static m_Vec3 GetPolygonCentroid( const plb_Polygon& poly, const plb_LevelData& level_data )
+{
+	m_Vec3 weighted_triangles_centroid_sum( 0.0f, 0.0f, 0.0f );
+	float polygon_area= 0.0f;
+
+	for( unsigned int t= 0; t < poly.index_count; t+= 3 )
+	{
+		const unsigned int* const index= level_data.polygons_indeces.data() + poly.first_index + t;
+
+		const m_Vec3 v0( level_data.vertices[ index[0] ].pos );
+		const m_Vec3 v1( level_data.vertices[ index[1] ].pos );
+		const m_Vec3 v2( level_data.vertices[ index[2] ].pos );
+
+		const m_Vec3 side1= v1 - v0;
+		const m_Vec3 side2= v2 - v0;
+
+		const float triangle_area= mVec3Cross( side2, side1 ).Length() * 0.5f;
+
+		weighted_triangles_centroid_sum+= ( v0 + v1 + v2 ) * ( triangle_area / 3.0f );
+
+		polygon_area+= triangle_area;
+
+	} // for polygon triangles
+
+	return weighted_triangles_centroid_sum / polygon_area;
+}
+
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
 	: config_( config )
 {
@@ -228,6 +255,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	CalculateLevelBoundingBox();
 
 	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
+	tracer_.reset( new plb_Tracer( level_data_ ) );
 
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "preview_f.glsl", g_glsl_version),
@@ -328,6 +356,8 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 
 		const float basis_scale= float(config_.secondary_lightmap_scaler);
 
+		const m_Vec3 polygon_center= GetPolygonCentroid( poly, level_data_ );
+
 		for( unsigned int y= 0; y < sy; y++ )
 		for( unsigned int x= 0; x < sx; x++ )
 		{
@@ -335,6 +365,9 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				( float(x) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[0]) +
 				( float(y) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[1]) +
 				m_Vec3( poly.lightmap_pos );
+
+			if( tracer_->Trace( polygon_center + normal * 0.05f, pos + normal * 0.05f ) )
+				continue;
 
 			SecondaryLightPass( pos, normal );
 
