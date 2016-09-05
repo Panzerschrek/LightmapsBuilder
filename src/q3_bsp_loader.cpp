@@ -362,9 +362,10 @@ static void BuildPolygons(
 
 			polygon.material_id= shader_num_to_material_index[ p->shaderNum ];
 
-			polygon.normal[0]= p->lightmapVecs[2][0];
-			polygon.normal[1]= p->lightmapVecs[2][1];
-			polygon.normal[2]= p->lightmapVecs[2][2];
+			const float normal_length= m_Vec3( p->lightmapVecs[2] ).Length();
+			polygon.normal[0]= p->lightmapVecs[2][0] / normal_length;
+			polygon.normal[1]= p->lightmapVecs[2][1] / normal_length;
+			polygon.normal[2]= p->lightmapVecs[2][2] / normal_length;
 
 			polygon.lightmap_basis[0][0]= p->lightmapVecs[0][0];
 			polygon.lightmap_basis[0][1]= p->lightmapVecs[0][1];

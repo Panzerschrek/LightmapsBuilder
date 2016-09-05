@@ -21,6 +21,8 @@ struct CubemapGeometryVertex
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
 static const float g_pi= 3.1415926535f;
+static const float g_cubemaps_znear= 1.0f / 32.0f;
+static const float g_cubemaps_min_clip_distance= g_cubemaps_znear * std::sqrt(3.0f);
 
 static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* out_data, unsigned int side_num )
 {
@@ -173,7 +175,7 @@ static void CreateConeLightMatrix(
 static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices )
 {
 	m_Mat4 perspective, shift;
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, g_cubemaps_znear, 256.0f );
 	shift.Translate( -pos );
 
 	m_Mat4 tmp; tmp.RotateZ( g_pi );
@@ -195,7 +197,7 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 {
 	m_Mat4 perspective, shift, rotate, rotate_and_shift;
 
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, 1.0f / 32.0f, 256.0f );
+	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, g_cubemaps_znear, 256.0f );
 	shift.Translate( -pos );
 	CreateRotationMatrixForDirection( dir, rotate );
 
@@ -215,6 +217,17 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
 }
 
+// Normal must be normalized
+static m_Vec3 ProjectPointToPlane( const m_Vec3& point, const m_Vec3& plane_point, const m_Vec3& plane_normal )
+{
+	const m_Vec3 vec_to_plane_point= point - plane_point;
+	const float signed_distance_to_plane= vec_to_plane_point * plane_normal;
+
+	const m_Vec3 projection_point= point - plane_normal * signed_distance_to_plane;
+
+	return projection_point;
+}
+
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
 	: config_( config )
 {
@@ -228,6 +241,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	CalculateLevelBoundingBox();
 
 	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
+	tracer_.reset( new plb_Tracer( level_data_ ) );
 
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "preview_f.glsl", g_glsl_version),
@@ -336,7 +350,8 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				( float(y) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[1]) +
 				m_Vec3( poly.lightmap_pos );
 
-			SecondaryLightPass( pos, normal );
+			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly );
+			SecondaryLightPass( pos_corrected, normal );
 
 			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
 			glViewport(
@@ -1637,4 +1652,110 @@ void plb_LightmapsBuilder::CalculateLevelBoundingBox()
 	}
 	level_bounding_box_.min= l_min;
 	level_bounding_box_.max= l_max;
+}
+
+m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample( const m_Vec3& pos, const plb_Polygon& poly )
+{
+	const float c_up_eps= 1.0f / 16.0f;
+	const float nudge_world_space_eps= 1.0f / 128.0f;
+
+	const m_Vec2 c_check_rays[8]=
+	{
+		m_Vec2(  0.0f, 1.0f ), m_Vec2(  0.0f, -1.0f ),
+		m_Vec2(  1.0f, 0.0f ), m_Vec2( -1.0f,  0.0f ),
+		m_Vec2(  1.0f, 1.0f ), m_Vec2(  1.0f, -1.0f ),
+		m_Vec2( -1.0f, 1.0f ), m_Vec2( -1.0f, -1.0f ),
+	};
+
+	m_Vec3 result_pos= pos;
+	float max_move_square_distance= 0.0f;
+
+	const auto set_result_candidate=
+		[&]( const m_Vec3& moved_pos )
+		{
+			const float square_distance= ( moved_pos - pos ).SquareLength();
+			if( square_distance > max_move_square_distance )
+			{
+				max_move_square_distance= square_distance;
+				result_pos= moved_pos;
+			}
+		};
+
+	const m_Vec3 up_shift= c_up_eps * m_Vec3( poly.normal );
+	const m_Vec3 pos_up_shifted= pos + up_shift;
+
+	const float lightmap_scale= float(config_.secondary_lightmap_scaler);
+
+	for( const m_Vec2& ray : c_check_rays )
+	{
+		constexpr unsigned int c_max_intersections= 8;
+		plb_Tracer::TraceResult trace_result[ c_max_intersections ];
+
+		const m_Vec3 ray_world_space=
+			lightmap_scale * ray.x * m_Vec3(poly.lightmap_basis[0]) +
+			lightmap_scale * ray.y * m_Vec3(poly.lightmap_basis[1]);
+
+		const m_Vec3 normalized_ray_world_space= ray_world_space / ray_world_space.Length();
+
+		// Move sample point just a bit, because we need prevent cases,
+		// when sample point is exactly on polygon plane.
+		const m_Vec3 nudge_vec= normalized_ray_world_space * nudge_world_space_eps;
+
+		const unsigned int intersection_count=
+			std::min(
+				c_max_intersections,
+				tracer_->Trace(
+					pos_up_shifted - nudge_vec,
+					pos_up_shifted + ray_world_space,
+					trace_result, c_max_intersections ) );
+
+		if( intersection_count == 0 )
+			continue;
+
+		// Sort from near to far
+		std::sort(
+			trace_result, trace_result + intersection_count,
+			[&]( const plb_Tracer::TraceResult& l, const plb_Tracer::TraceResult& r )
+			{
+				return
+					( l.pos - pos_up_shifted ).SquareLength() <=
+					( r.pos - pos_up_shifted ).SquareLength();
+			} );
+
+		// First intersection is back face
+		if( trace_result[0].normal * ray_world_space > 0.0f )
+		{
+			// Search first front face after back face
+			unsigned int i= 0;
+			while(
+				i < intersection_count &&
+				trace_result[i].normal * ray_world_space > 0.0f )
+			{
+				i++;
+			}
+			i--;
+
+			// Move sample point beyound intersection plane.
+			const m_Vec3 moved_pos=
+				ProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
+				trace_result[i].normal * g_cubemaps_min_clip_distance;
+			set_result_candidate( moved_pos );
+		}
+		else // Front face
+		{
+			const m_Vec3 projected_pos= ProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
+
+			// Try move sample point from intersection plane just a bit.
+			const float dist= ( pos - projected_pos ) * trace_result[0].normal;
+			if( dist < g_cubemaps_min_clip_distance )
+			{
+				const m_Vec3 moved_pos=
+					projected_pos +
+					trace_result[0].normal * g_cubemaps_min_clip_distance;
+				set_result_candidate( moved_pos );
+			}
+		}
+	} // for rays
+
+	return result_pos;
 }
