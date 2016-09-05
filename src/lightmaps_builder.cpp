@@ -231,7 +231,7 @@ static m_Vec3 ProjectPointToPlane( const m_Vec3& point, const m_Vec3& plane_poin
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
 	: config_( config )
 {
-	LoadQ3Bsp( file_name , config_, level_data_ );
+	LoadBsp( file_name , config_, level_data_ );
 
 	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
 

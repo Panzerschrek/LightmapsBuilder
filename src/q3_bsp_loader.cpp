@@ -341,7 +341,7 @@ static void BuildPolygons(
 	{
 		if( p->surfaceType == 1 // polygon, no model or patch
 			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_NODRAW) ) == 0
-			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_LAVA|CONTENTS_SLIME|CONTENTS_FOG) ) == 0
+			&& (dshaders[p->shaderNum].contentFlags & (/*CONTENTS_LAVA|*/CONTENTS_SLIME|CONTENTS_FOG) ) == 0
 			)
 		{
 			bool is_sky= (dshaders[p->shaderNum].surfaceFlags & SURF_SKY) != 0;
@@ -674,7 +674,10 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 	} // for entities
 }
 
-void LoadQ3Bsp( const char* file_name, const plb_Config& config, plb_LevelData& level_data )
+extern "C" void LoadBsp(
+	const char* file_name,
+	const plb_Config& config,
+	plb_LevelData& level_data )
 {
 	LoadBSPFile( file_name );
 
