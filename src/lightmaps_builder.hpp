@@ -63,6 +63,8 @@ private:
 
 	void CalculateLevelBoundingBox();
 
+	m_Vec3 CorrectSecondaryLightSample( const m_Vec3& pos, const plb_Polygon& poly );
+
 private:
 	plb_LevelData level_data_;
 	struct

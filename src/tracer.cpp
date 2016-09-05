@@ -27,6 +27,10 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	surfaces_.reserve( level_data.polygons.size() );
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
+		const plb_Material& material= level_data.materials[ poly.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
 		surfaces_.emplace_back();
 		Surface& surface= surfaces_.back();
 
@@ -54,6 +58,10 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	plb_Normals curve_normals;
 	for( const plb_CurvedSurface& curve :level_data.curved_surfaces )
 	{
+		const plb_Material& material= level_data.materials[ curve.material_id ];
+		if( material.cast_alpha_shadow )
+			continue;
+
 		const unsigned int first_vertex= vertices_.size();
 
 		curve_vertices.clear();
@@ -69,16 +77,20 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 		surfaces_.reserve( surfaces_.size() + curve_indeces.size() / 3 );
 		for( unsigned int t= 0; t < curve_indeces.size(); t+= 3 )
 		{
-			surfaces_.emplace_back();
-			Surface& surface= surfaces_.back();
-
 			const unsigned int* const index= curve_indeces.data() + t;
 
 			const m_Vec3 side0= m_Vec3(curve_vertices[ index[1] ].pos) - m_Vec3(curve_vertices[ index[0] ].pos);
 			const m_Vec3 side1= m_Vec3(curve_vertices[ index[2] ].pos) - m_Vec3(curve_vertices[ index[1] ].pos);
 
-			surface.normal= mVec3Cross( side0, side1 );
-			surface.normal.Normalize();
+			const m_Vec3 normal= mVec3Cross( side1, side0 );
+			const float normal_length= normal.Length();
+			if( normal_length < 1.0f / (128.0f * 128.0f) )
+				continue; // Degenerate triangle - skip it
+
+			surfaces_.emplace_back();
+			Surface& surface= surfaces_.back();
+
+			surface.normal= normal / normal_length;
 
 			unsigned int first_index= indeces_.size();
 
@@ -96,15 +108,18 @@ plb_Tracer::~plb_Tracer()
 {
 }
 
-bool plb_Tracer::Trace( const m_Vec3& from, const m_Vec3& to ) const
+unsigned int plb_Tracer::Trace(
+	const m_Vec3& from, const m_Vec3& to,
+	TraceResult* out_result,
+	unsigned int max_result_count ) const
 {
-	const float c_length_eps= 0.0001f;
+	unsigned int intersection_count= 0;
+
+	const float c_length_eps= 1.0f / 8192.0f;
+	const float c_square_length_eps= c_length_eps * c_length_eps;
 
 	const m_Vec3 dir= to - from;
 	const float dir_length= dir.Length();
-
-	if( dir_length <= c_length_eps )
-		return false;
 
 	const m_Vec3 dir_normalized= dir / dir_length;
 
@@ -113,7 +128,7 @@ bool plb_Tracer::Trace( const m_Vec3& from, const m_Vec3& to ) const
 		const m_Vec3 vec_to_surface_vertex= vertices_[ indeces_[ surface.first_index ] ] - from;
 
 		const float normal_dir_dot= dir_normalized * surface.normal;
-		if( std::abs(normal_dir_dot) < c_length_eps ) // line parralell to surface plane
+		if( std::abs(normal_dir_dot) < c_length_eps ) // line paralell to surface plane
 			continue;
 
 		const float signed_distance_to_surface_plane= vec_to_surface_vertex * surface.normal;
@@ -128,9 +143,14 @@ bool plb_Tracer::Trace( const m_Vec3& from, const m_Vec3& to ) const
 			from - intersection_point,
 			to - intersection_point,
 		};
-		// Intersection point beyond line segment
-		if( !( vec_from_intersection_point_to_point[0] * vec_from_intersection_point_to_point[1] <= 0.0f ) )
-			continue;
+		// Intersection point beyond line segment and far from 'from' and 'to' points.
+		if(
+			vec_from_intersection_point_to_point[0].SquareLength() >= c_square_length_eps &&
+			vec_from_intersection_point_to_point[1].SquareLength() >= c_square_length_eps &&
+			!( vec_from_intersection_point_to_point[0] * vec_from_intersection_point_to_point[1] <= 0.0f ) )
+		{
+				continue;
+		}
 
 		for( unsigned int t= 0; t < surface.index_count; t+= 3 )
 		{
@@ -142,11 +162,19 @@ bool plb_Tracer::Trace( const m_Vec3& from, const m_Vec3& to ) const
 					vertices_[ index[2] ],
 					intersection_point ) )
 			{
-				return true;
+				intersection_count++;
+				if( out_result!= nullptr &&
+					intersection_count <= max_result_count )
+				{
+					out_result[ intersection_count - 1 ].normal= surface.normal;
+					out_result[ intersection_count - 1 ].pos= intersection_point;
+				}
+
+				break; // Skip other polygon triangles
 			}
 
 		} // for surface triangles
 	} // for surfaces
 
-	return false;
+	return intersection_count;
 }
