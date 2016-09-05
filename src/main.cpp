@@ -82,6 +82,9 @@ extern "C" int main(int argc, char *argv[])
 			"maps/q3dm1.bsp", cfg ) );
 
 	plb_CameraController cam_controller( m_Vec3(0.0f,0.0f,0.0f), m_Vec2(0.0f,0.0f), float(screen_width)/float(screen_height) );
+	m_Vec3 prev_pos= cam_controller.GetCamPos();
+	m_Vec3 prev_dir= cam_controller.GetCamDir();
+	bool force_redraw= true;
 
 	bool show_primary_lightmap= true;
 	bool show_secondary_lightmap= true;
@@ -135,14 +138,32 @@ extern "C" int main(int argc, char *argv[])
 				case SDLK_SPACE: cam_controller.UpReleased(); break;
 				case SDLK_c: cam_controller.DownReleased(); break;
 
-				case SDLK_1: show_primary_lightmap= !show_primary_lightmap; break;
-				case SDLK_2: show_secondary_lightmap= !show_secondary_lightmap; break;
-				case SDLK_3: use_textures_in_preview= !use_textures_in_preview; break;
+				case SDLK_1:
+					show_primary_lightmap= !show_primary_lightmap;
+					force_redraw= true;
+					break;
+				case SDLK_2:
+					show_secondary_lightmap= !show_secondary_lightmap;
+					force_redraw= true;
+					break;
+				case SDLK_3:
+					use_textures_in_preview= !use_textures_in_preview;
+					force_redraw= true;
+					break;
 
-				case SDLK_0: brightness_log= 0; break;
-				case SDLK_MINUS: brightness_log--; break;
+				case SDLK_0:
+					brightness_log= 0;
+					force_redraw= true;
+					break;
+				case SDLK_MINUS:
+					brightness_log--;
+					force_redraw= true;
+					break;
 				case SDLK_PLUS:
-				case SDLK_EQUALS: brightness_log++; break;
+				case SDLK_EQUALS:
+					brightness_log++;
+					force_redraw= true;
+					break;
 				}
 				break;
 
@@ -151,26 +172,38 @@ extern "C" int main(int argc, char *argv[])
 			};
 		}
 
-		glClearColor( 0.3f, 0.0f, 0.3f, 0.0f );
-		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-
 		m_Mat4 view_matrix;
 		cam_controller.Tick();
 		cam_controller.GetViewMatrix( view_matrix );
 
-		lightmaps_builder->DrawPreview(
-			view_matrix,
-			cam_controller.GetCamPos(),
-			cam_controller.GetCamDir(),
-			std::pow( 2.0f, float(brightness_log) / 2.0f ),
-			show_primary_lightmap,
-			show_secondary_lightmap,
-			use_textures_in_preview );
+		const m_Vec3 new_pos= cam_controller.GetCamPos();
+		const m_Vec3 new_dir= cam_controller.GetCamDir();
+		if( force_redraw || new_pos != prev_pos || new_dir != prev_dir )
+		{
+			force_redraw= false;
+			prev_pos= new_pos;
+			prev_dir= new_dir;
 
-		SDL_GL_SwapWindow(window);
+			glClearColor( 0.3f, 0.0f, 0.3f, 0.0f );
+			glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+			lightmaps_builder->DrawPreview(
+				view_matrix,
+				cam_controller.GetCamPos(),
+				cam_controller.GetCamDir(),
+				std::pow( 2.0f, float(brightness_log) / 2.0f ),
+				show_primary_lightmap,
+				show_secondary_lightmap,
+				use_textures_in_preview );
+
+			SDL_GL_SwapWindow(window);
+		}
+		else
+			SDL_GL_SwapWindow(window);
+
 	};
 
-	lightmaps_builder->MakeSecondaryLight( main_loop_iteration );
+	lightmaps_builder->MakeSecondaryLight(main_loop_iteration  );
 
 	do
 	{
