@@ -1249,6 +1249,25 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 			}
 		}
 	}
+
+	// Quake2BSP stroes unnormalized textures coordinates. Normalize it.
+	if( config_.source_data_type == plb_Config::SourceDataType::Quake2BSP )
+	{
+		for( const plb_Polygon& polygon : level_data_.polygons )
+		{
+			const plb_ImageInfo& img=
+				level_data_.textures[ level_data_.materials[ polygon.material_id ].albedo_texture_number ];
+
+			const float scale_x= 1.0f / float( img.original_size[0] );
+			const float scale_y= 1.0f / float( img.original_size[1] );
+
+			for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
+			{
+				v_p[v].tex_coord[0]*= scale_x;
+				v_p[v].tex_coord[1]*= scale_y;
+			}
+		}
+	}
 }
 
 void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()

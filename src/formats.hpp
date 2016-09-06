@@ -135,6 +135,14 @@ typedef std::vector<plb_ConeLight> plb_ConeLights;
 // dlä kotoroj ispoljzyjetsä postroitelj svetokart.
 struct plb_Config
 {
+	enum class SourceDataType
+	{
+		Quake2BSP,
+		Quake3BSP,
+	};
+
+	SourceDataType source_data_type= SourceDataType::Quake3BSP;
+
 	// Putj k teksturam na fajlovoj sisteme.
 	std::string textures_path;
 

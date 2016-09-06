@@ -69,7 +69,9 @@ static void LoadPolygons(
 	const std::vector<unsigned int>& tex_info_to_material_index,
 	plb_Vertices& out_vertices,
 	plb_Polygons& out_polygons,
-	std::vector<unsigned int>& out_indeces )
+	std::vector<unsigned int>& out_indeces,
+	plb_Polygons& out_sky_polygons,
+	std::vector<unsigned int>& out_sky_indeces )
 {
 	for( const dface_t* face= dfaces; face < dfaces + numfaces; face++ )
 	{
@@ -78,8 +80,13 @@ static void LoadPolygons(
 		if( ( tex.flags & (SURF_NODRAW) ) != 0 )
 			continue;
 
-		out_polygons.emplace_back();
-		plb_Polygon& poly=out_polygons.back();
+		const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
+
+		plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
+		std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
+
+		current_polygons.emplace_back();
+		plb_Polygon& poly= current_polygons.back();
 
 		float tc_min[2]= { 1e32f, 1e32f }, tc_max[2]= { -1e32f, -1e32f };
 
@@ -107,7 +114,6 @@ static void LoadPolygons(
 					tex.vecs[j][1] * in_vertex.point[1] +
 					tex.vecs[j][2] * in_vertex.point[2] +
 					tex.vecs[j][3];
-				out_vertex.tex_coord[j]/= 64.0f;
 			}
 
 			// Found tc_min
@@ -152,15 +158,15 @@ static void LoadPolygons(
 		poly.first_vertex_number= first_vertex;
 		poly.vertex_count= static_cast<unsigned int>( face->numedges );
 
-		const unsigned int first_index= out_indeces.size();
+		const unsigned int first_index= current_indeces.size();
 		const unsigned int triangle_count= static_cast<unsigned int>( face->numedges - 2 );
-		out_indeces.resize( out_indeces.size() + triangle_count * 3u );
+		current_indeces.resize( current_indeces.size() + triangle_count * 3u );
 
 		for( unsigned int i= 0; i < triangle_count; i++ )
 		{
-			out_indeces[ first_index + i*3     ]= first_vertex;
-			out_indeces[ first_index + i*3 + 1 ]= first_vertex + i + 1;
-			out_indeces[ first_index + i*3 + 2 ]= first_vertex + i + 2;
+			current_indeces[ first_index + i*3     ]= first_vertex;
+			current_indeces[ first_index + i*3 + 1 ]= first_vertex + i + 1;
+			current_indeces[ first_index + i*3 + 2 ]= first_vertex + i + 2;
 		}
 
 		poly.first_index= first_index;
@@ -173,7 +179,8 @@ static void LoadPolygons(
 static void TransformPolygonsCoordinates(
 	plb_Polygons& polygons,
 	plb_Vertices& vertices,
-	std::vector<unsigned int>& indeces )
+	std::vector<unsigned int>& indeces,
+	std::vector<unsigned int>& sky_indeces )
 {
 	// transform vertices
 	for( plb_Vertex& v : vertices )
@@ -207,6 +214,9 @@ static void TransformPolygonsCoordinates(
 
 	for( unsigned int i= 0; i < indeces.size(); i+= 3 )
 		std::swap( indeces[i], indeces[i+1] );
+
+	for( unsigned int i= 0; i < sky_indeces.size(); i+= 3 )
+		std::swap( sky_indeces[i], sky_indeces[i+1] );
 }
 
 static void ParseColor( const char* str, unsigned char* out_color )
@@ -348,9 +358,14 @@ PLB_DLL_FUNC void LoadBsp(
 
 	LoadPolygons(
 		tex_info_to_material_index,
-		level_data.vertices, level_data.polygons, level_data.polygons_indeces );
+		level_data.vertices, level_data.polygons, level_data.polygons_indeces,
+		level_data.sky_polygons, level_data.sky_polygons_indeces );
 
-	TransformPolygonsCoordinates( level_data.polygons, level_data.vertices, level_data.polygons_indeces );
+	TransformPolygonsCoordinates(
+		level_data.polygons,
+		level_data.vertices,
+		level_data.polygons_indeces,
+		level_data.sky_polygons_indeces );
 
 	GetBSPLights( level_data.point_lights, level_data.cone_lights );
 }
