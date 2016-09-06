@@ -150,9 +150,15 @@ static void LoadPolygons(
 			poly.lightmap_basis[j][2]*= 16.0f;
 		}
 
-		poly.normal[0]= dplanes[ face->planenum ].normal[0];
-		poly.normal[1]= dplanes[ face->planenum ].normal[1];
-		poly.normal[2]= dplanes[ face->planenum ].normal[2];
+		const float side= face->side == 0 ? 1.0f : -1.0f;
+		poly.normal[0]= dplanes[ face->planenum ].normal[0] * side;
+		poly.normal[1]= dplanes[ face->planenum ].normal[1] * side;
+		poly.normal[2]= dplanes[ face->planenum ].normal[2] * side;
+
+		const float normal_length= m_Vec3( poly.normal ).Length();
+		poly.normal[0]/= normal_length;
+		poly.normal[1]/= normal_length;
+		poly.normal[2]/= normal_length;
 
 		poly.material_id= tex_info_to_material_index[ face->texinfo ];
 		poly.first_vertex_number= first_vertex;
