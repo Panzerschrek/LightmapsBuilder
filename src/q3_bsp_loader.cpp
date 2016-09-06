@@ -674,7 +674,7 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 	} // for entities
 }
 
-extern "C" void LoadBsp(
+PLB_DLL_FUNC void LoadBsp(
 	const char* file_name,
 	const plb_Config& config,
 	plb_LevelData& level_data )

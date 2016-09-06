@@ -66,7 +66,7 @@ plb_TexturesManager::plb_TexturesManager(
 {
 	static const char* const img_extensions[]=
 	{
-		"bmp", "pcx", "tga", "jpg", "jpeg"
+		"bmp", "pcx", "tga", "jpg", "jpeg", "wal",
 	};
 
 	unsigned int textures_data_size= 0;
