@@ -28,45 +28,37 @@ extern "C"
 
 static void LoadMaterials(
 	plb_Materials& out_materials,
-	plb_ImageInfos& out_textures,
-	std::vector<unsigned int>& tex_info_to_material_index )
+	plb_ImageInfos& out_textures )
 {
-	tex_info_to_material_index.resize( numtexinfo );
-	std::memset( tex_info_to_material_index.data(), 0, tex_info_to_material_index.size() * sizeof(unsigned int ) );
+	const auto get_texture=
+		[&]( const char* file_name ) -> unsigned int
+		{
+			for( const plb_ImageInfo& img : out_textures )
+			{
+				if( Q_strcasecmp( (char*)img.file_name.c_str(), (char*) file_name ) == 0 )
+					return &img - out_textures.data();
+			}
+
+			out_textures.emplace_back();
+			out_textures.back().file_name= file_name;
+
+			return out_textures.size() - 1u;
+		};
 
 	for( const texinfo_t* tex= texinfo; tex < texinfo + numtexinfo; tex++ )
 	{
-		bool found= false;
-		for( const plb_ImageInfo& texture : out_textures )
-		{
-			if( Q_strcasecmp( (char*)texture.file_name.c_str(), (char*)tex->texture ) == 0 )
-			{
-				tex_info_to_material_index[ tex - texinfo ]= &texture - out_textures.data();
-				found= true;
-				break;
-			}
-		}
-
-		if( found )
-			continue;
-
-		tex_info_to_material_index[ tex - texinfo ]= out_materials.size();
-
 		out_materials.emplace_back();
 		plb_Material& material= out_materials.back();
 
 		material.albedo_texture_number=
-		material.light_texture_number= out_textures.size();
+		material.light_texture_number= get_texture( tex->texture );
 
-		out_textures.emplace_back();
-		plb_ImageInfo& texture= out_textures.back();
-
-		texture.file_name= tex->texture;
+		if( ( tex->flags & SURF_LIGHT ) != 0 )
+			material.luminosity= float(tex->value) * Q_LIGHT_UNITS_INV_SCALER;
 	}
 }
 
 static void LoadPolygons(
-	const std::vector<unsigned int>& tex_info_to_material_index,
 	plb_Vertices& out_vertices,
 	plb_Polygons& out_polygons,
 	std::vector<unsigned int>& out_indeces,
@@ -160,7 +152,7 @@ static void LoadPolygons(
 		poly.normal[1]/= normal_length;
 		poly.normal[2]/= normal_length;
 
-		poly.material_id= tex_info_to_material_index[ face->texinfo ];
+		poly.material_id= face->texinfo;
 		poly.first_vertex_number= first_vertex;
 		poly.vertex_count= static_cast<unsigned int>( face->numedges );
 
@@ -180,7 +172,6 @@ static void LoadPolygons(
 
 	} // for faces
 }
-
 
 static void TransformPolygonsCoordinates(
 	plb_Polygons& polygons,
@@ -359,11 +350,9 @@ PLB_DLL_FUNC void LoadBsp(
 	LoadBSPFile( const_cast<char*>(file_name) );
 	ParseEntities();
 
-	std::vector<unsigned int> tex_info_to_material_index;
-	LoadMaterials( level_data.materials, level_data.textures, tex_info_to_material_index );
+	LoadMaterials( level_data.materials, level_data.textures );
 
 	LoadPolygons(
-		tex_info_to_material_index,
 		level_data.vertices, level_data.polygons, level_data.polygons_indeces,
 		level_data.sky_polygons, level_data.sky_polygons_indeces );
 
