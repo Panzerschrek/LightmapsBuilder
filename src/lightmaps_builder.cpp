@@ -6,6 +6,7 @@
 #include "lightmaps_builder.hpp"
 
 #include "curves.hpp"
+#include "math_utils.hpp"
 #include "q3_bsp_loader.hpp"
 
 #define VEC3_CPY(dst,src) (dst)[0]= (src)[0]; (dst)[1]= (src)[1]; (dst)[2]= (src)[2];
@@ -215,17 +216,6 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 
 	for( unsigned int i= 0; i< 6; i++ )
 		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
-}
-
-// Normal must be normalized
-static m_Vec3 ProjectPointToPlane( const m_Vec3& point, const m_Vec3& plane_point, const m_Vec3& plane_normal )
-{
-	const m_Vec3 vec_to_plane_point= point - plane_point;
-	const float signed_distance_to_plane= vec_to_plane_point * plane_normal;
-
-	const m_Vec3 projection_point= point - plane_normal * signed_distance_to_plane;
-
-	return projection_point;
 }
 
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
@@ -1756,13 +1746,13 @@ m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample( const m_Vec3& pos, con
 
 			// Move sample point beyound intersection plane.
 			const m_Vec3 moved_pos=
-				ProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
+				plbProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
 				trace_result[i].normal * g_cubemaps_min_clip_distance;
 			set_result_candidate( moved_pos );
 		}
 		else // Front face
 		{
-			const m_Vec3 projected_pos= ProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
+			const m_Vec3 projected_pos= plbProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
 
 			// Try move sample point from intersection plane just a bit.
 			const float dist= ( pos - projected_pos ) * trace_result[0].normal;

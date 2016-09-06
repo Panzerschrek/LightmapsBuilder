@@ -4,6 +4,8 @@
 
 #include <vec.hpp>
 
+#include "math_utils.hpp"
+
 #include "q3_bsp_loader.hpp"
 
 extern "C"
@@ -80,7 +82,41 @@ static void LoadPolygons(
 		current_polygons.emplace_back();
 		plb_Polygon& poly= current_polygons.back();
 
-		float tc_min[2]= { 1e32f, 1e32f }, tc_max[2]= { -1e32f, -1e32f };
+		const float side= face->side == 0 ? 1.0f : -1.0f;
+		poly.normal[0]= dplanes[ face->planenum ].normal[0] * side;
+		poly.normal[1]= dplanes[ face->planenum ].normal[1] * side;
+		poly.normal[2]= dplanes[ face->planenum ].normal[2] * side;
+
+		const float normal_length= m_Vec3( poly.normal ).Length();
+		poly.normal[0]/= normal_length;
+		poly.normal[1]/= normal_length;
+		poly.normal[2]/= normal_length;
+
+		// Calculate lightmap basis.
+		// Lightmap basis is projection of texture basis to surface plane
+		for( unsigned int j= 0; j < 2; j++ )
+		{
+			poly.lightmap_basis[j][0]= tex.vecs[j][0] / 16.0f;
+			poly.lightmap_basis[j][1]= tex.vecs[j][1] / 16.0f;
+			poly.lightmap_basis[j][2]= tex.vecs[j][2] / 16.0f;
+
+			const float square_length= m_Vec3( poly.lightmap_basis[j] ).SquareLength();
+			poly.lightmap_basis[j][0]/= square_length;
+			poly.lightmap_basis[j][1]/= square_length;
+			poly.lightmap_basis[j][2]/= square_length;
+
+			const m_Vec3 projected=
+				plbProjectPointToPlane(
+					m_Vec3( poly.lightmap_basis[j] ),
+					m_Vec3( 0.0f, 0.0f, 0.0f ),
+					m_Vec3( poly.normal ) );
+			poly.lightmap_basis[j][0]= projected.x;
+			poly.lightmap_basis[j][1]= projected.y;
+			poly.lightmap_basis[j][2]= projected.z;
+		}
+
+
+		float lm_min[2]= { 1e32f, 1e32f };
 
 		const unsigned int first_vertex= out_vertices.size();
 		out_vertices.resize( out_vertices.size() + face->numedges );
@@ -108,49 +144,27 @@ static void LoadPolygons(
 					tex.vecs[j][3];
 			}
 
-			// Found tc_min
 			for( unsigned int j= 0; j < 2; j++ )
 			{
-				const float tc= m_Vec3(tex.vecs[j]) * m_Vec3(in_vertex.point);
-				if( tc < tc_min[j] ) tc_min[j]= tc;
-				if( tc > tc_max[j] ) tc_max[j]= tc;
+				const m_Vec3 lm_basis_vec( poly.lightmap_basis[j] );
+				const float lm= lm_basis_vec / lm_basis_vec.SquareLength() * m_Vec3(in_vertex.point);
+				if( lm < lm_min[j] ) lm_min[j]= lm;
 			}
-		}
-
-		// Calculate lightmap basis
-		for( unsigned int j= 0; j < 2; j++ )
-		{
-			poly.lightmap_basis[j][0]= tex.vecs[j][0];
-			poly.lightmap_basis[j][1]= tex.vecs[j][1];
-			poly.lightmap_basis[j][2]= tex.vecs[j][2];
-
-			const float square_length= m_Vec3( poly.lightmap_basis[j] ).SquareLength();
-			poly.lightmap_basis[j][0]/= square_length;
-			poly.lightmap_basis[j][1]/= square_length;
-			poly.lightmap_basis[j][2]/= square_length;
 		}
 
 		// Calculate lightmap pos
 		for( unsigned int j= 0; j < 3; j++ )
-			poly.lightmap_pos[j]= poly.lightmap_basis[0][j] * tc_min[0] + poly.lightmap_basis[1][j] * tc_min[1];
+			poly.lightmap_pos[j]= poly.lightmap_basis[0][j] * lm_min[0] + poly.lightmap_basis[1][j] * lm_min[1];
 
-		// Scale lightmap basis
-		for( unsigned int j= 0; j < 2; j++ )
-		{
-			poly.lightmap_basis[j][0]*= 16.0f;
-			poly.lightmap_basis[j][1]*= 16.0f;
-			poly.lightmap_basis[j][2]*= 16.0f;
-		}
-
-		const float side= face->side == 0 ? 1.0f : -1.0f;
-		poly.normal[0]= dplanes[ face->planenum ].normal[0] * side;
-		poly.normal[1]= dplanes[ face->planenum ].normal[1] * side;
-		poly.normal[2]= dplanes[ face->planenum ].normal[2] * side;
-
-		const float normal_length= m_Vec3( poly.normal ).Length();
-		poly.normal[0]/= normal_length;
-		poly.normal[1]/= normal_length;
-		poly.normal[2]/= normal_length;
+		// Project lightmap pos
+		const m_Vec3 lightmap_pos_projected=
+			plbProjectPointToPlane(
+				m_Vec3( poly.lightmap_pos ),
+				m_Vec3( out_vertices[ first_vertex ].pos ),
+				m_Vec3( poly.normal ) );
+		poly.lightmap_pos[0]= lightmap_pos_projected.x;
+		poly.lightmap_pos[1]= lightmap_pos_projected.y;
+		poly.lightmap_pos[2]= lightmap_pos_projected.z;
 
 		poly.material_id= face->texinfo;
 		poly.first_vertex_number= first_vertex;

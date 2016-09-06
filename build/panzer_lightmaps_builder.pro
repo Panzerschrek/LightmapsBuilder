@@ -22,6 +22,7 @@ SOURCES += \
 	../src/curves.cpp \
 	../src/lightmaps_builder.cpp \
 	../src/main.cpp \
+	../src/math_utils.cpp \
 	../src/textures_manager.cpp \
 	../src/tracer.cpp \
 	../src/world_vertex_buffer.cpp \
@@ -39,6 +40,7 @@ HEADERS += \
 	../src/curves.hpp \
 	../src/formats.hpp \
 	../src/lightmaps_builder.hpp \
+	../src/math_utils.hpp \
 	../src/rasterizer.hpp \
 	../src/textures_manager.hpp \
 	../src/tracer.hpp \
