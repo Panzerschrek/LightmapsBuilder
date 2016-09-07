@@ -86,7 +86,11 @@ static void LoadMaterials(
 		out_materials.emplace_back();
 		plb_Material& material= out_materials.back();
 
-		const miptex_t& miptex= *(miptex_t*)( ((byte*)miptexlump) + miptexlump->dataofs[tex->miptex] );
+		const int offset= miptexlump->dataofs[tex->miptex];
+		if( offset == -1 )
+			continue;
+
+		const miptex_t& miptex= *(miptex_t*)( ((byte*)miptexlump) + offset );
 		const char* const texure_file_name= miptex.name;
 
 		material.albedo_texture_file_name= texure_file_name;
@@ -102,11 +106,14 @@ static void LoadBuildInImages(
 {
 	const dmiptexlump_t* const miptexlump= (const dmiptexlump_t*)dtexdata;
 
-	out_images.resize( miptexlump->nummiptex );
 
 	for( unsigned int i= 0; i < (unsigned int)miptexlump->nummiptex; i++ )
 	{
-		plb_BuildInImage& img= out_images[i];
+		if( miptexlump->dataofs[i] == -1 )
+			continue;
+
+		out_images.emplace_back();
+		plb_BuildInImage& img= out_images.back();
 
 		const miptex_t* const miptex= (miptex_t*)( ((byte*)miptexlump) + miptexlump->dataofs[i] );
 
