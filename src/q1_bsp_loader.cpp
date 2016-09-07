@@ -1,5 +1,8 @@
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 #include <vec.hpp>
@@ -29,6 +32,29 @@ extern "C"
 
 #define Q_LIGHT_UNITS_INV_SCALER (1.0f/64.0f)
 
+typedef std::array<byte, 768> Palette;
+
+static const bool IsSky( const std::string& name )
+{
+	return
+		std::strncmp(
+			name.c_str(),
+			"sky", 3 ) == 0;
+}
+
+static void LoadPalette( const char* file_name, Palette& out_palette )
+{
+	FILE* f= std::fopen( file_name, "rb" );
+	if( f == 0 )
+	{
+		std::cout << "Can not open file: " << file_name << std::endl;
+		return;
+	}
+
+	fread( out_palette.data(), 1, 768, f );
+	fclose(f);
+}
+
 static void LoadMaterials(
 	plb_Materials& out_materials,
 	plb_ImageInfos& out_textures )
@@ -48,19 +74,58 @@ static void LoadMaterials(
 			return out_textures.size() - 1u;
 		};
 
+	const dmiptexlump_t* const miptexlump= (const dmiptexlump_t*)dtexdata;
+
 	for( const texinfo_t* tex= texinfo; tex < texinfo + numtexinfo; tex++ )
 	{
 		out_materials.emplace_back();
 		plb_Material& material= out_materials.back();
 
-		const char* const texure_file_name= (const char*)( dtexdata + tex->miptex );
+		const miptex_t& miptex= *(miptex_t*)( ((byte*)miptexlump) + miptexlump->dataofs[tex->miptex] );
+		const char* const texure_file_name= miptex.name;
+
+		material.albedo_texture_file_name= texure_file_name;
 
 		material.albedo_texture_number=
 		material.light_texture_number= get_texture( texure_file_name );
 	}
 }
 
+static void LoadBuildInImages(
+	plb_BuildInImages& out_images,
+	const Palette& palette )
+{
+	const dmiptexlump_t* const miptexlump= (const dmiptexlump_t*)dtexdata;
+
+	out_images.resize( miptexlump->nummiptex );
+
+	for( unsigned int i= 0; i < (unsigned int)miptexlump->nummiptex; i++ )
+	{
+		plb_BuildInImage& img= out_images[i];
+
+		const miptex_t* const miptex= (miptex_t*)( ((byte*)miptexlump) + miptexlump->dataofs[i] );
+
+		img.name= miptex->name;
+		img.size[0]= miptex->width ;
+		img.size[1]= miptex->height;
+
+		const unsigned int img_area= img.size[0] * img.size[1];
+		img.data_rgba.resize( img_area * 4 );
+
+		const byte* const src_tex_data= ((byte*)miptex) + miptex->offsets[0];
+		for( unsigned int c= 0; c < img_area; c++ )
+		{
+			const byte color_index= src_tex_data[c];
+			img.data_rgba[ c * 4     ]= palette[ color_index * 3    ];
+			img.data_rgba[ c * 4 + 1 ]= palette[ color_index * 3 + 1 ];
+			img.data_rgba[ c * 4 + 2 ]= palette[ color_index * 3 + 2 ];
+			img.data_rgba[ c * 4 + 3 ]= 255;
+		}
+	}
+}
+
 static void LoadPolygons(
+	const plb_Materials& materials,
 	plb_Vertices& out_vertices,
 	plb_Polygons& out_polygons,
 	std::vector<unsigned int>& out_indeces,
@@ -70,14 +135,8 @@ static void LoadPolygons(
 	for( const dface_t* face= dfaces; face < dfaces + numfaces; face++ )
 	{
 		const texinfo_t& tex= texinfo[ face->texinfo ];
-#ifdef Q2_LOADER
-		if( ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
-			continue;
 
-		const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
-#else
-		const bool is_sky= false;
-#endif
+		const bool is_sky= IsSky( materials[ face->texinfo ].albedo_texture_file_name );
 
 		plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
 		std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
@@ -387,12 +446,17 @@ PLB_DLL_FUNC void LoadBsp(
 	const plb_Config& config,
 	plb_LevelData& level_data )
 {
+	Palette palette;
+	LoadPalette( ( config.textures_path + "palette.lmp" ).c_str(), palette );
+
 	LoadBSPFile( const_cast<char*>(file_name) );
 	LoadEntities();
 
 	LoadMaterials( level_data.materials, level_data.textures );
+	LoadBuildInImages( level_data.build_in_images, palette );
 
 	LoadPolygons(
+		level_data.materials,
 		level_data.vertices, level_data.polygons, level_data.polygons_indeces,
 		level_data.sky_polygons, level_data.sky_polygons_indeces );
 

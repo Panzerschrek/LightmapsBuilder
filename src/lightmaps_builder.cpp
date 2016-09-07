@@ -223,7 +223,10 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 {
 	LoadBsp( file_name , config_, level_data_ );
 
-	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
+	textures_manager_.reset(
+		new plb_TexturesManager(
+			config_,
+			level_data_.textures, level_data_.build_in_images ) );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
@@ -1240,8 +1243,10 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 		}
 	}
 
-	// Quake2BSP stroes unnormalized textures coordinates. Normalize it.
-	if( config_.source_data_type == plb_Config::SourceDataType::Quake2BSP )
+	// Quake1BSP and Quake2BSP stroes unnormalized textures coordinates. Normalize it.
+	if(
+		config_.source_data_type == plb_Config::SourceDataType::Quake1BSP ||
+		config_.source_data_type == plb_Config::SourceDataType::Quake2BSP )
 	{
 		for( const plb_Polygon& polygon : level_data_.polygons )
 		{

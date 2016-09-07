@@ -74,6 +74,15 @@ struct plb_CurvedSurface
 
 typedef std::vector<plb_CurvedSurface> plb_CurvedSurfaces;
 
+struct plb_BuildInImage
+{
+	std::string name;
+	unsigned int size[2];
+	std::vector<unsigned char> data_rgba;
+};
+
+typedef std::vector<plb_BuildInImage> plb_BuildInImages;
+
 struct plb_Material
 {
 	std::string albedo_texture_file_name;
@@ -137,6 +146,7 @@ struct plb_Config
 {
 	enum class SourceDataType
 	{
+		Quake1BSP,
 		Quake2BSP,
 		Quake3BSP,
 	};
@@ -196,6 +206,7 @@ struct plb_LevelData
 	plb_DirectionalLights directional_lights;
 	plb_ConeLights cone_lights;
 
+	plb_BuildInImages build_in_images;
 	plb_Materials materials;
 	plb_ImageInfos textures;
 
