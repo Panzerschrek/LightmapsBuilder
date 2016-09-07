@@ -351,12 +351,12 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 		if( ent.epairs == nullptr ) continue;
 
 		const char* const classname= ValueForKey( const_cast<entity_t*>(&ent), "classname" );
-		const bool is_point_light= std::strcmp( classname, "light" ) == 0;
 		bool is_cone_light= std::strcmp( classname, "light_spot" ) == 0;
-		if( is_point_light || is_cone_light )
+
+		if( std::strncmp( classname, "light", 5 ) == 0 )
 		{
 			plb_ConeLight light;
-			light.intensity = 0.0f;
+			light.intensity= DEFAULTLIGHTLEVEL;
 			light.color[0]= light.color[1]= light.color[2]= 255;
 
 			light.direction[0]= 0.0f; light.direction[1]= 0.0f;
@@ -372,7 +372,8 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 			const epair_t* epair= ent.epairs;
 			while( epair != nullptr )
 			{
-				if( std::strcmp( epair->key, "light" ) == 0 )
+				if( std::strcmp( epair->key, "light" ) == 0 ||
+					std::strcmp( epair->key, "_light" ) == 0 )
 					light.intensity= std::atof(epair->value);
 				else if( std::strcmp( epair->key, "color" ) == 0 )
 					ParseColor( epair->value, light.color );
