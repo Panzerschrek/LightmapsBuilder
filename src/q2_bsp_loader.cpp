@@ -71,7 +71,7 @@ static void LoadPolygons(
 	{
 		const texinfo_t& tex= texinfo[ face->texinfo ];
 
-		if( ( tex.flags & (SURF_NODRAW) ) != 0 )
+		if( ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
 			continue;
 
 		const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
@@ -93,28 +93,27 @@ static void LoadPolygons(
 		poly.normal[2]/= normal_length;
 
 		// Calculate lightmap basis.
-		// Lightmap basis is projection of texture basis to surface plane
+		// Lightmap basis is projection of texture basis to surface plane.
 		for( unsigned int j= 0; j < 2; j++ )
 		{
-			poly.lightmap_basis[j][0]= tex.vecs[j][0] / 16.0f;
-			poly.lightmap_basis[j][1]= tex.vecs[j][1] / 16.0f;
-			poly.lightmap_basis[j][2]= tex.vecs[j][2] / 16.0f;
-
-			const float square_length= m_Vec3( poly.lightmap_basis[j] ).SquareLength();
-			poly.lightmap_basis[j][0]/= square_length;
-			poly.lightmap_basis[j][1]/= square_length;
-			poly.lightmap_basis[j][2]/= square_length;
+			const m_Vec3 scaled_tex_basis= m_Vec3( tex.vecs[j] ) / 16.0f;
 
 			const m_Vec3 projected=
-				plbProjectPointToPlane(
-					m_Vec3( poly.lightmap_basis[j] ),
-					m_Vec3( 0.0f, 0.0f, 0.0f ),
+				plbProjectVectorToPlane(
+					scaled_tex_basis,
 					m_Vec3( poly.normal ) );
-			poly.lightmap_basis[j][0]= projected.x;
-			poly.lightmap_basis[j][1]= projected.y;
-			poly.lightmap_basis[j][2]= projected.z;
+
+			const float square_length= projected.SquareLength();
+			poly.lightmap_basis[j][0]= projected.x / square_length;
+			poly.lightmap_basis[j][1]= projected.y / square_length;
+			poly.lightmap_basis[j][2]= projected.z / square_length;
 		}
 
+		m_Mat3 inverse_lightmap_basis;
+		plbGetInvLightmapBasisMatrix(
+			m_Vec3( poly.lightmap_basis[0] ),
+			m_Vec3( poly.lightmap_basis[1] ),
+			inverse_lightmap_basis );
 
 		float lm_min[2]= { 1e32f, 1e32f };
 
@@ -144,27 +143,26 @@ static void LoadPolygons(
 					tex.vecs[j][3];
 			}
 
+			m_Vec2 lm= ( m_Vec3(in_vertex.point) * inverse_lightmap_basis ).xy();
 			for( unsigned int j= 0; j < 2; j++ )
-			{
-				const m_Vec3 lm_basis_vec( poly.lightmap_basis[j] );
-				const float lm= lm_basis_vec / lm_basis_vec.SquareLength() * m_Vec3(in_vertex.point);
-				if( lm < lm_min[j] ) lm_min[j]= lm;
-			}
+				if( lm.ToArr()[j] < lm_min[j] )
+					lm_min[j]= lm.ToArr()[j];
 		}
 
-		// Calculate lightmap pos
-		for( unsigned int j= 0; j < 3; j++ )
-			poly.lightmap_pos[j]= poly.lightmap_basis[0][j] * lm_min[0] + poly.lightmap_basis[1][j] * lm_min[1];
+		const m_Vec3 center_projected=
+				plbProjectPointToPlane(
+					m_Vec3( 0.0f, 0.0f, 0.0f ),
+					m_Vec3( out_vertices[ first_vertex ].pos ),
+					m_Vec3( poly.normal ) );
 
-		// Project lightmap pos
-		const m_Vec3 lightmap_pos_projected=
-			plbProjectPointToPlane(
-				m_Vec3( poly.lightmap_pos ),
-				m_Vec3( out_vertices[ first_vertex ].pos ),
-				m_Vec3( poly.normal ) );
-		poly.lightmap_pos[0]= lightmap_pos_projected.x;
-		poly.lightmap_pos[1]= lightmap_pos_projected.y;
-		poly.lightmap_pos[2]= lightmap_pos_projected.z;
+		const m_Vec3 lightmap_pos=
+			center_projected +
+			m_Vec3(poly.lightmap_basis[0]) * lm_min[0] +
+			m_Vec3(poly.lightmap_basis[1]) * lm_min[1];
+
+		poly.lightmap_pos[0]= lightmap_pos.x;
+		poly.lightmap_pos[1]= lightmap_pos.y;
+		poly.lightmap_pos[2]= lightmap_pos.z;
 
 		poly.material_id= face->texinfo;
 		poly.first_vertex_number= first_vertex;
@@ -205,9 +203,9 @@ static void TransformPolygonsCoordinates(
 	// transform polygons
 	for( plb_Polygon& p : polygons )
 	{
-		std::swap(p.normal[1], p.normal[2]);
+		std::swap( p.normal[1], p.normal[2] );
 
-		for( unsigned int i= 0 ;i < 2; i++ )
+		for( unsigned int i= 0 ; i < 2; i++ )
 			std::swap( p.lightmap_basis[i][1], p.lightmap_basis[i][2] );
 
 		std::swap( p.lightmap_pos[1], p.lightmap_pos[2] );

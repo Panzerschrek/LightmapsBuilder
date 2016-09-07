@@ -1287,20 +1287,18 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	{
 		float max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
 
-		m_Vec3 world_to_lightmap_basis_u= m_Vec3(polygon.lightmap_basis[0]);
-		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
-
-		m_Vec3 world_to_lightmap_basis_v= m_Vec3(polygon.lightmap_basis[1]);
-		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+		m_Mat3 inverse_lightmap_basis;
+		plbGetInvLightmapBasisMatrix(
+			m_Vec3( polygon.lightmap_basis[0] ),
+			m_Vec3( polygon.lightmap_basis[1] ),
+			inverse_lightmap_basis );
 
 		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
 			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( polygon.lightmap_pos );
-			float uv[2]= {
-				world_to_lightmap_basis_u * rel_pos,
-				world_to_lightmap_basis_v * rel_pos };
-			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
-			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
+			const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
+			if( uv.x > max_uv[0] ) max_uv[0]= uv.x;
+			if( uv.y > max_uv[1] ) max_uv[1]= uv.y;
 		}
 		if( max_uv[0] < 1.0f )
 			max_uv[0]= 1.0f;
@@ -1313,7 +1311,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
-			float tmp[4];
+			float tmp[3];
 			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float) * 3 );
 			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float) * 3 );
 			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float) * 3 );
@@ -1507,21 +1505,22 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& poly : level_data_.polygons )
 	{
-		m_Vec3 world_to_lightmap_basis_u= m_Vec3(poly.lightmap_basis[0]);
-		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
-
-		m_Vec3 world_to_lightmap_basis_v= m_Vec3(poly.lightmap_basis[1]);
-		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+		m_Mat3 inverse_lightmap_basis;
+		plbGetInvLightmapBasisMatrix(
+			m_Vec3( poly.lightmap_basis[0] ),
+			m_Vec3( poly.lightmap_basis[1] ),
+			inverse_lightmap_basis );
 
 		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
 			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
 
-			v_p[v].lightmap_coord[0]= world_to_lightmap_basis_u * rel_pos;
+			const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
+			v_p[v].lightmap_coord[0]= uv.x;
 			v_p[v].lightmap_coord[0]+= float(poly.lightmap_data.coord[0]);
 			v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-			v_p[v].lightmap_coord[1]= world_to_lightmap_basis_v * rel_pos;
+			v_p[v].lightmap_coord[1]= uv.y;
 			v_p[v].lightmap_coord[1]+= float(poly.lightmap_data.coord[1]);
 			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
