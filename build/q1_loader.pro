@@ -3,17 +3,19 @@ CONFIG+= dll
 
 include (common.pri)
 
-Q2_SRC_DIR = ../../Quake-2-Tools
+Q1_SRC_DIR = ../../Quake-Tools/qutils
 
-INCLUDEPATH += $$Q3_SRC_DIR
+INCLUDEPATH += $$Q1_SRC_DIR
+INCLUDEPATH += $$Q1_SRC_DIR/COMMON
 
 SOURCES += \
 	../src/math_utils.cpp \
-	../src/q2_bsp_loader.cpp \
+	../src/q1_bsp_loader.cpp \
 	../../panzer_ogl_lib/matrix.cpp \
-	$$Q2_SRC_DIR/common/bspfile.c \
-	$$Q2_SRC_DIR/common/cmdlib.c \
-	$$Q2_SRC_DIR/common/scriplib.c \
+	$$Q1_SRC_DIR/COMMON/BSPFILE.c \
+	$$Q1_SRC_DIR/COMMON/CMDLIB.c \
+	$$Q1_SRC_DIR/COMMON/SCRIPLIB.c \
+	$$Q1_SRC_DIR/LIGHT/ENTITIES.c \
 
 HEADERS += \
 	../src/formats.hpp \
