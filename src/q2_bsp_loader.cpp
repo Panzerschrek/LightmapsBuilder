@@ -278,19 +278,23 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 		if( ent.epairs == nullptr ) continue;
 
 		const char* const classname= ValueForKey( const_cast<entity_t*>(&ent), "classname" );
-		if( std::strcmp( classname, "light" ) == 0 )
+		const bool is_point_light= std::strcmp( classname, "light" ) == 0;
+		bool is_cone_light= std::strcmp( classname, "light_spot" ) == 0;
+		if( is_point_light || is_cone_light )
 		{
-			bool is_cone_light= false;
 			plb_ConeLight light;
 			light.intensity = 0.0f;
 			light.color[0]= light.color[1]= light.color[2]= 255;
 
-			float target_pos[3];
-			float target_radius;
+			light.direction[0]= 0.0f; light.direction[1]= 0.0f;
+			light.direction[2]= -1.0f;
 
+			const float c_to_rad= 180.0f * 3.1415926535f;
 			const float c_max_angle_sin= 0.8f;
 			const float c_min_dist_to_target= 64.0f;
 			const float c_min_target_radius= 64.0f;
+
+			GetVectorForKey( const_cast<entity_t*>(&ent), "origin", light.pos );
 
 			const epair_t* epair= ent.epairs;
 			while( epair != nullptr )
@@ -306,35 +310,55 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 					if( const entity_t* const target= FindTarget( epair->value ) )
 					{
 						is_cone_light= true;
+
+						float target_pos[3];
 						GetVectorForKey( const_cast<entity_t*>(target), "origin", target_pos );
 
-						target_radius= FloatForKey( const_cast<entity_t*>(&ent), "radius" );
-						if( target_radius < c_min_target_radius )
-							target_radius= c_min_target_radius;
+						const float target_radius=
+							std::min( FloatForKey( const_cast<entity_t*>(&ent), "radius" ), c_min_target_radius );
+
+						const m_Vec3 dir= m_Vec3(target_pos) - m_Vec3(light.pos);
+						const float len= dir.Length();
+						if( len != 0.0f )
+						{
+							light.angle=
+								std::asin(
+									std::min(
+										target_radius / std::max( len, c_min_dist_to_target ),
+										c_max_angle_sin ) );
+
+							for( unsigned int c= 0; c < 3; c++ )
+								light.direction[c]= dir.ToArr()[c] / len;
+						}
+					}
+				}
+				else if( std::strcmp( epair->key, "_cone" ) == 0 )
+				{
+					light.angle= std::atof( epair->value ) / c_to_rad;
+					light.angle= std::max( 10.0f * c_to_rad, std::min( light.angle, std::asin(c_max_angle_sin) ) );
+				}
+				else if( std::strcmp( epair->key, "angle" ) == 0 )
+				{
+					const float angle= std::atof( epair->value );
+					if( angle == -1 ) // UP
+					{
+						light.direction[0]= 0.0f; light.direction[1]= 0.0f;
+						light.direction[2]= 1.0f;
+					}
+					else if( angle == -2 ) // DOWN
+					{
+						light.direction[0]= 0.0f; light.direction[1]= 0.0f;
+						light.direction[2]= -1.0f;
+					}
+					else
+					{
+						light.direction[0] = std::cos( angle * c_to_rad );
+						light.direction[1] = std::sin( angle * c_to_rad );
+						light.direction[2]= 0.0f;
 					}
 				}
 
 				epair= epair->next;
-			}
-			GetVectorForKey( const_cast<entity_t*>(&ent), "origin", light.pos );
-
-			if( is_cone_light )
-			{
-				const m_Vec3 dir= m_Vec3(target_pos) - m_Vec3(light.pos);
-				const float len= dir.Length();
-				if( len != 0.0f )
-				{
-					light.angle=
-						std::asin(
-							std::min(
-								target_radius / std::max( len, c_min_dist_to_target ),
-								c_max_angle_sin ) );
-
-					for( unsigned int c= 0; c < 3; c++ )
-						light.direction[c]= dir.ToArr()[c] / len;
-				}
-				else // fallback
-					is_cone_light= false;
 			}
 
 			// Change coord system
