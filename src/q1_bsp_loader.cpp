@@ -42,6 +42,11 @@ static const bool IsSky( const std::string& name )
 			"sky", 3 ) == 0;
 }
 
+static const bool IsTrigger( const std::string& name )
+{
+	return std::strcmp( name.c_str(), "trigger" ) == 0;
+}
+
 static void LoadPalette( const char* file_name, Palette& out_palette )
 {
 	FILE* f= std::fopen( file_name, "rb" );
@@ -136,7 +141,12 @@ static void LoadPolygons(
 	{
 		const texinfo_t& tex= texinfo[ face->texinfo ];
 
-		const bool is_sky= IsSky( materials[ face->texinfo ].albedo_texture_file_name );
+		const std::string& texture_file_name= materials[ face->texinfo ].albedo_texture_file_name;
+
+		if( IsTrigger( texture_file_name ) )
+			continue;
+
+		const bool is_sky= IsSky( texture_file_name );
 
 		plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
 		std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
