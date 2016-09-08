@@ -4,6 +4,16 @@
 
 #include "tracer.hpp"
 
+static const m_Vec3 g_axis_normals[3]=
+{
+	{ 1.0f, 0.0f, 0.0f },
+	{ 0.0f, 1.0f, 0.0f },
+	{ 0.0f, 0.0f, 1.0f },
+};
+
+const float g_length_eps= 1.0f / 8192.0f;
+const float g_square_length_eps= g_length_eps * g_length_eps;
+
 static bool IsPointInTriangle(
 	const m_Vec3& v0, const m_Vec3& v1, const m_Vec3& v2,
 	const m_Vec3& point )
@@ -102,21 +112,21 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 
 		} // for curve triangles
 	} // for curves
+
+	BuildTree();
 }
 
 plb_Tracer::~plb_Tracer()
 {
 }
 
+/*
 unsigned int plb_Tracer::Trace(
 	const m_Vec3& from, const m_Vec3& to,
 	TraceResult* out_result,
 	unsigned int max_result_count ) const
 {
 	unsigned int intersection_count= 0;
-
-	const float c_length_eps= 1.0f / 8192.0f;
-	const float c_square_length_eps= c_length_eps * c_length_eps;
 
 	const m_Vec3 dir= to - from;
 	const float dir_length= dir.Length();
@@ -125,56 +135,291 @@ unsigned int plb_Tracer::Trace(
 
 	for( const Surface& surface : surfaces_ )
 	{
-		const m_Vec3 vec_to_surface_vertex= vertices_[ indeces_[ surface.first_index ] ] - from;
+		TraceResult* const surface_collision_result=
+			intersection_count < max_result_count
+				? ( out_result + intersection_count )
+				: nullptr;
 
-		const float normal_dir_dot= dir_normalized * surface.normal;
-		if( std::abs(normal_dir_dot) < c_length_eps ) // line paralell to surface plane
-			continue;
+		if( CheckSurfaceCollision(
+			from, to,
+			dir_normalized,
+			surface,
+			surface_collision_result ) )
+			intersection_count++;
 
-		const float signed_distance_to_surface_plane= vec_to_surface_vertex * surface.normal;
-
-		const m_Vec3 dir_vec_to_plane=
-			dir_normalized * ( signed_distance_to_surface_plane / normal_dir_dot );
-
-		const m_Vec3 intersection_point= from + dir_vec_to_plane;
-
-		const m_Vec3 vec_from_intersection_point_to_point[2]=
-		{
-			from - intersection_point,
-			to - intersection_point,
-		};
-		// Intersection point beyond line segment and far from 'from' and 'to' points.
-		if(
-			vec_from_intersection_point_to_point[0].SquareLength() >= c_square_length_eps &&
-			vec_from_intersection_point_to_point[1].SquareLength() >= c_square_length_eps &&
-			!( vec_from_intersection_point_to_point[0] * vec_from_intersection_point_to_point[1] <= 0.0f ) )
-		{
-				continue;
-		}
-
-		for( unsigned int t= 0; t < surface.index_count; t+= 3 )
-		{
-			const unsigned int* const index= indeces_.data() + surface.first_index + t;
-
-			if( IsPointInTriangle(
-					vertices_[ index[0] ],
-					vertices_[ index[1] ],
-					vertices_[ index[2] ],
-					intersection_point ) )
-			{
-				intersection_count++;
-				if( out_result!= nullptr &&
-					intersection_count <= max_result_count )
-				{
-					out_result[ intersection_count - 1 ].normal= surface.normal;
-					out_result[ intersection_count - 1 ].pos= intersection_point;
-				}
-
-				break; // Skip other polygon triangles
-			}
-
-		} // for surface triangles
 	} // for surfaces
 
 	return intersection_count;
+}*/
+
+unsigned int plb_Tracer::Trace(
+	const m_Vec3& from, const m_Vec3& to,
+	TraceResult* out_result,
+	unsigned int max_result_count ) const
+{
+	const m_Vec3 dir= to - from;
+	const float dir_length= dir.Length();
+
+	TraceRequestData trace_request_data;
+	trace_request_data.from= from;
+	trace_request_data.to= to;
+	trace_request_data.normalized_dir= dir / dir_length;
+	trace_request_data.max_result_count= max_result_count;
+	trace_request_data.result_count= 0;
+	trace_request_data.out_result= out_result;
+
+	const TreeNode* node= &tree_.front();
+
+	unsigned int depth= 0;
+	while(1)
+	{
+		// No childs - return
+		if(
+			node->childs[0] == TreeNode::c_no_child &&
+			node->childs[1] == TreeNode::c_no_child )
+			break;
+
+		const m_Vec3& node_normal= g_axis_normals[ size_t(node->plane_orientation) ];
+		const float from_pos= node_normal * from - node->dist;
+		const float   to_pos= node_normal *   to - node->dist;
+
+		if( from_pos < 0.0f && to_pos < 0.0f )
+			node= tree_.data() + node->childs[0];
+		else if( from_pos >= 0.0f && to_pos >= 0.0f )
+			node= tree_.data() + node->childs[1];
+		else
+			break;
+
+		// Check this node surfaces if not last node
+		for( unsigned int i= node->first_surface; i < node->first_surface + node->surface_count; i++ )
+			CheckSurfaceCollision( trace_request_data, surfaces_[i] );
+
+		depth++;
+	}
+
+
+	CheckCollision_r( trace_request_data, *node );
+
+	return trace_request_data.result_count;
+}
+
+void plb_Tracer::CheckSurfaceCollision(
+	TraceRequestData& data,
+	const Surface& surface ) const
+{
+	const m_Vec3 vec_to_surface_vertex= vertices_[ indeces_[ surface.first_index ] ] - data.from;
+
+	const float normal_dir_dot= data.normalized_dir * surface.normal;
+	if( std::abs(normal_dir_dot) < g_length_eps ) // line paralell to surface plane
+		return;
+
+	const float signed_distance_to_surface_plane= vec_to_surface_vertex * surface.normal;
+
+	const m_Vec3 dir_vec_to_plane=
+		data.normalized_dir * ( signed_distance_to_surface_plane / normal_dir_dot );
+
+	const m_Vec3 intersection_point= data.from + dir_vec_to_plane;
+
+	const m_Vec3 vec_from_intersection_point_to_point[2]=
+	{
+		data.from - intersection_point,
+		data.to - intersection_point,
+	};
+	// Intersection point beyond line segment and far from 'from' and 'to' points.
+	if(
+		vec_from_intersection_point_to_point[0].SquareLength() >= g_square_length_eps &&
+		vec_from_intersection_point_to_point[1].SquareLength() >= g_square_length_eps &&
+		!( vec_from_intersection_point_to_point[0] * vec_from_intersection_point_to_point[1] <= 0.0f ) )
+	{
+		return;
+	}
+
+	for( unsigned int t= 0; t < surface.index_count; t+= 3 )
+	{
+		const unsigned int* const index= indeces_.data() + surface.first_index + t;
+
+		if( IsPointInTriangle(
+				vertices_[ index[0] ],
+				vertices_[ index[1] ],
+				vertices_[ index[2] ],
+				intersection_point ) )
+		{
+			data.result_count++;
+
+			if( data.result_count <= data.max_result_count )
+			{
+				data.out_result[ data.result_count - 1u ].normal= surface.normal;
+				data.out_result[ data.result_count - 1u ].pos= intersection_point;
+			}
+
+			return;
+		}
+	} // for surface triangles
+
+}
+
+void plb_Tracer::CheckCollision_r( TraceRequestData& data, const TreeNode& node ) const
+{
+	for( unsigned int i= node.first_surface; i < node.first_surface + node.surface_count; i++ )
+		CheckSurfaceCollision( data, surfaces_[i] );
+
+	for( unsigned int c= 0; c < 2; c++ )
+		if( node.childs[c] != TreeNode::c_no_child )
+			CheckCollision_r( data, tree_[ node.childs[c] ] );
+}
+
+void plb_Tracer::BuildTree()
+{
+	GeometrySet geometry;
+	geometry.surfaces= std::move(surfaces_);
+	geometry.vertices= std::move(vertices_);
+	geometry.indeces= std::move(indeces_);
+
+	tree_.emplace_back();
+
+	// Calculate bounding box
+	BoundingBox bounding_box;
+	bounding_box.min=
+	bounding_box.max= m_Vec3( 0.0f, 0.0f, 0.0f );
+
+	for( const Vertex& vertex : geometry.vertices )
+	{
+		for( unsigned int j= 0; j < 3; j++ )
+		{
+			if( vertex.ToArr()[j] < bounding_box.min.ToArr()[j] )
+				bounding_box.min.ToArr()[j]= vertex.ToArr()[j];
+			if( vertex.ToArr()[j] > bounding_box.max.ToArr()[j] )
+				bounding_box.max.ToArr()[j]= vertex.ToArr()[j];
+		}
+	}
+
+	// round bounding box coordinates
+	for( unsigned int i= 0; i < 3; i++ )
+	{
+		bounding_box.min.ToArr()[i]= std::ceil ( bounding_box.min.ToArr()[i] );
+		bounding_box.max.ToArr()[i]= std::floor( bounding_box.max.ToArr()[i] );
+	}
+
+	std::vector<unsigned int> used_surfaces_indeces( geometry.surfaces.size() );
+	for( unsigned int& index : used_surfaces_indeces )
+		index= &index - used_surfaces_indeces.data();
+
+	Surfaces result_surfaces;
+
+	BuildTreeNode_r(
+		0,
+		bounding_box,
+		geometry,
+		used_surfaces_indeces,
+		TreeNode::PlaneOrientation::z,
+		result_surfaces,
+		tree_ );
+
+	surfaces_= std::move( result_surfaces );
+	vertices_= std::move( geometry.vertices );
+	indeces_= std::move( geometry.indeces );
+}
+
+void plb_Tracer::BuildTreeNode_r(
+	unsigned int node_index,
+	const BoundingBox& node_bounding_box,
+	const GeometrySet& in_geometry,
+	std::vector<unsigned int>& used_surfaces_indeces,
+	TreeNode::PlaneOrientation plane_orientation,
+	Surfaces& out_surfaces,
+	Tree& out_tree ) const
+{
+	const unsigned int c_min_surfaces_for_node= 16;
+
+	TreeNode* node= out_tree.data() + node_index;
+
+	const m_Vec3& node_plane_normal= g_axis_normals[ size_t(plane_orientation) ];
+
+	node->plane_orientation= plane_orientation;
+	node->dist=
+		node_plane_normal *
+		( ( node_bounding_box.min + node_bounding_box.max ) * 0.5f );
+
+	// Leaf
+	if( used_surfaces_indeces.size() < c_min_surfaces_for_node )
+	{
+		node->childs[0]= node->childs[1]= TreeNode::c_no_child;
+		node->first_surface= out_surfaces.size();
+		node->surface_count= used_surfaces_indeces.size();
+
+		out_surfaces.resize( out_surfaces.size() + node->surface_count );
+
+		for( unsigned int i= 0; i < node->surface_count; i++ )
+			out_surfaces[ node->first_surface + i ]=
+				in_geometry.surfaces[ used_surfaces_indeces[i] ];
+	}
+	else // Node
+	{
+		std::vector<unsigned int> child_surfaces_indeces[2];
+
+		node->first_surface= out_surfaces.size();
+		node->surface_count= 0;
+		node->childs[0]= out_tree.size();
+		node->childs[1]= out_tree.size() + 1;
+
+		out_tree.resize( out_tree.size() + 2 );
+		// Update pointer after vector resize.
+		node= out_tree.data() + node_index;
+
+		for( const unsigned int in_surface_index : used_surfaces_indeces )
+		{
+			unsigned int minus_vertex_count= 0;
+			unsigned int plus_vertex_count= 0;
+
+			const Surface& surface= in_geometry.surfaces[ in_surface_index ];
+			for( unsigned int i= 0; i < surface.index_count; i++ )
+			{
+				const Vertex& vertex=
+					in_geometry.vertices[ in_geometry.indeces[ surface.first_index + i ] ];
+
+				const float signed_distance_to_node_plane=
+					vertex * node_plane_normal - node->dist;
+
+				if( signed_distance_to_node_plane < 0.0f )
+					minus_vertex_count++;
+				else
+					plus_vertex_count++;
+
+			} // for surface indeces
+
+			if( minus_vertex_count == surface.index_count )
+				child_surfaces_indeces[0].push_back( in_surface_index );
+			else if( plus_vertex_count == surface.index_count )
+				child_surfaces_indeces[1].push_back( in_surface_index );
+			else
+			{
+				// Surface splitted by node plane - place it in this node.
+				out_surfaces.push_back( surface );
+				node->surface_count++;
+			}
+
+		} // for input surfaces
+
+		const TreeNode::PlaneOrientation child_planes_orientation=
+			TreeNode::PlaneOrientation( ( size_t(plane_orientation) + 1u ) % 3 );
+
+		for( unsigned int i= 0; i < 2; i++ )
+		{
+			BoundingBox child_box= node_bounding_box;
+			( i == 0 ? child_box.max : child_box.min )
+				.ToArr()[ size_t(plane_orientation) ]= node->dist;
+
+			BuildTreeNode_r(
+				node->childs[i],
+				child_box,
+				in_geometry,
+				child_surfaces_indeces[i],
+				child_planes_orientation,
+				out_surfaces,
+				out_tree );
+
+			// Update pointer after recursive call
+			node= out_tree.data() + node_index;
+		} // for childs
+	} // if node
 }
