@@ -3,8 +3,7 @@
 #include <iostream>
 
 #include "formats.hpp"
-
-#include "q3_bsp_loader.hpp"
+#include "loaders_common.hpp"
 
 extern "C"
 {
@@ -16,12 +15,6 @@ extern "C"
 }
 
 #include <vec.hpp>
-
-#define Q_UNITS_IN_METER 64.0f
-#define INV_Q_UNITS_IN_METER 0.015625f
-#define Q3_LIGHTMAP_SIZE 128
-
-#define Q_LIGHT_UNITS_INV_SCALER (1.0f/64.0f)
 
 
 // HACK. Use windows-specific function for "listfiles"
@@ -423,51 +416,6 @@ static void BuildPolygons(
 	}// for polygons
 }
 
-static void TransformPolygons(
-	plb_Polygons& polygons,
-	plb_Vertices& vertices,
-	std::vector<unsigned int>& indeces,
-	std::vector<unsigned int>& sky_indeces )
-{
-	// transform vertices
-	for( plb_Vertex& v : vertices )
-	{
-		std::swap(v.pos[1], v.pos[2]);
-		v.pos[0]*= INV_Q_UNITS_IN_METER;
-		v.pos[1]*= INV_Q_UNITS_IN_METER;
-		v.pos[2]*= INV_Q_UNITS_IN_METER;
-	}
-
-	plb_Vertex* v_p= vertices.data();
-
-	// transform polygons
-	for( plb_Polygon& p : polygons )
-	{
-		std::swap(p.normal[1], p.normal[2]);
-
-		for( unsigned int i= 0 ;i < 2; i++ )
-			std::swap( p.lightmap_basis[i][1], p.lightmap_basis[i][2] );
-
-		std::swap( p.lightmap_pos[1], p.lightmap_pos[2] );
-
-		p.lightmap_basis[0][0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[0][1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[0][2]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][2]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[2]*= INV_Q_UNITS_IN_METER;
-	}
-
-	for( unsigned int i= 0; i < indeces.size(); i+= 3 )
-		std::swap( indeces[i], indeces[i+1] );
-
-	for( unsigned int i= 0; i < sky_indeces.size(); i+= 3 )
-		std::swap( sky_indeces[i], sky_indeces[i+1] );
-}
-
 static void TransformCurves(
 	plb_CurvedSurfaces& curves,
 	plb_Vertices& curves_vertices )
@@ -703,7 +651,11 @@ PLB_DLL_FUNC void LoadBsp(
 		level_data.polygons, level_data.sky_polygons,
 		level_data.polygons_indeces, level_data.sky_polygons_indeces,
 		level_data.curved_surfaces , level_data.curved_surfaces_vertices );
-	TransformPolygons(level_data.polygons, level_data.vertices, level_data.polygons_indeces, level_data.sky_polygons_indeces );
+
+	plbTransformCoordinatesFromQuakeSystem(
+		level_data.polygons, level_data.vertices,
+		level_data.polygons_indeces, level_data.sky_polygons_indeces );
+
 	TransformCurves( level_data.curved_surfaces , level_data.curved_surfaces_vertices );
 
 	GenCurvesNormalizedLightmapCoords( level_data.curved_surfaces , level_data.curved_surfaces_vertices );

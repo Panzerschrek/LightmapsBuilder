@@ -11,29 +11,12 @@
 
 #include "camera_controller.hpp"
 #include "lightmaps_builder.hpp"
+#include "loaders_common.hpp"
 
 static void FatalError(const char* message)
 {
 	std::cout << message << std::endl;
 	exit(-1);
-}
-
-void (*LoadBsp)(
-	const char* file_name,
-	const plb_Config& config,
-	plb_LevelData& level_data )= nullptr;
-
-static void InitQ3BSPLoader()
-{
-#ifdef _WIN32
-
-	const HMODULE module= LoadLibraryA( "q3_loader.dll" );
-	LoadBsp= reinterpret_cast<decltype(LoadBsp)>( GetProcAddress( module, "LoadBsp" ) );
-	if( LoadBsp == nullptr )
-		FatalError( "Can not load q3_bsp loader" );
-
-#else // TODO - load dynamyc library, get file
-#endif
 }
 
 extern "C" int main(int argc, char *argv[])
@@ -42,7 +25,7 @@ extern "C" int main(int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
-	InitQ3BSPLoader();
+	LoadLoaderLibrary( "q3_loader" );
 
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
 		FatalError("Can not initialize sdl video");

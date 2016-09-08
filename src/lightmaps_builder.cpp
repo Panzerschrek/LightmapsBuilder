@@ -6,8 +6,8 @@
 #include "lightmaps_builder.hpp"
 
 #include "curves.hpp"
+#include "loaders_common.hpp"
 #include "math_utils.hpp"
-#include "q3_bsp_loader.hpp"
 
 #define VEC3_CPY(dst,src) (dst)[0]= (src)[0]; (dst)[1]= (src)[1]; (dst)[2]= (src)[2];
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;

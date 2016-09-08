@@ -10,6 +10,7 @@ INCLUDEPATH += $$Q3_SRC_DIR
 OBJECTS_DIR = q3_loader
 
 SOURCES += \
+	../src/loaders_common.cpp \
 	../src/q3_bsp_loader.cpp \
 	$$Q3_SRC_DIR/common/bspfile.c \
 	$$Q3_SRC_DIR/common/cmdlib.c \
@@ -17,6 +18,6 @@ SOURCES += \
 
 HEADERS += \
 	../src/formats.hpp \
-	../src/q3_bsp_loader.hpp
+	../src/loaders_common.hpp \
 
 DEFINES += PLB_DLL_BUILD

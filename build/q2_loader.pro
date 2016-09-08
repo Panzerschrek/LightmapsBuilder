@@ -11,6 +11,7 @@ OBJECTS_DIR = q2_loader
 
 SOURCES += \
 	../src/math_utils.cpp \
+	../src/loaders_common.cpp \
 	../src/q2_bsp_loader.cpp \
 	../../panzer_ogl_lib/matrix.cpp \
 	$$Q2_SRC_DIR/common/bspfile.c \
@@ -19,6 +20,7 @@ SOURCES += \
 
 HEADERS += \
 	../src/formats.hpp \
+	../src/loaders_common.hpp \
 	../src/math_utils.hpp \
 	../src/q3_bsp_loader.hpp \
 	../../panzer_ogl_lib/matrix.hpp \

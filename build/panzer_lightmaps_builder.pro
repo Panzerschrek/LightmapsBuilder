@@ -23,6 +23,7 @@ SOURCES += \
 	../src/camera_controller.cpp \
 	../src/curves.cpp \
 	../src/lightmaps_builder.cpp \
+	../src/loaders_common.cpp \
 	../src/main.cpp \
 	../src/math_utils.cpp \
 	../src/textures_manager.cpp \
@@ -42,6 +43,7 @@ HEADERS += \
 	../src/curves.hpp \
 	../src/formats.hpp \
 	../src/lightmaps_builder.hpp \
+	../src/loaders_common.hpp \
 	../src/math_utils.hpp \
 	../src/rasterizer.hpp \
 	../src/textures_manager.hpp \

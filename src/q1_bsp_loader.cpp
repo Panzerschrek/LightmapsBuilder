@@ -7,9 +7,8 @@
 
 #include <vec.hpp>
 
+#include "loaders_common.hpp"
 #include "math_utils.hpp"
-
-#include "q3_bsp_loader.hpp"
 
 extern "C"
 {
@@ -26,11 +25,6 @@ extern "C"
 #undef false
 
 }
-
-#define Q_UNITS_IN_METER 64.0f
-#define INV_Q_UNITS_IN_METER 0.015625f
-
-#define Q_LIGHT_UNITS_INV_SCALER (1.0f/64.0f)
 
 typedef std::array<byte, 768> Palette;
 
@@ -264,50 +258,6 @@ static void LoadPolygons(
 	} // for faces
 }
 
-static void TransformPolygonsCoordinates(
-	plb_Polygons& polygons,
-	plb_Vertices& vertices,
-	std::vector<unsigned int>& indeces,
-	std::vector<unsigned int>& sky_indeces )
-{
-	// transform vertices
-	for( plb_Vertex& v : vertices )
-	{
-		std::swap( v.pos[1], v.pos[2] );
-		v.pos[0]*= INV_Q_UNITS_IN_METER;
-		v.pos[1]*= INV_Q_UNITS_IN_METER;
-		v.pos[2]*= INV_Q_UNITS_IN_METER;
-	}
-
-	// transform polygons
-	for( plb_Polygon& p : polygons )
-	{
-		std::swap( p.normal[1], p.normal[2] );
-
-		for( unsigned int i= 0 ; i < 2; i++ )
-			std::swap( p.lightmap_basis[i][1], p.lightmap_basis[i][2] );
-
-		std::swap( p.lightmap_pos[1], p.lightmap_pos[2] );
-
-		p.lightmap_basis[0][0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[0][1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[0][2]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_basis[1][2]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[0]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[1]*= INV_Q_UNITS_IN_METER;
-		p.lightmap_pos[2]*= INV_Q_UNITS_IN_METER;
-	}
-
-	for( unsigned int i= 0; i < indeces.size(); i+= 3 )
-		std::swap( indeces[i], indeces[i+1] );
-
-	for( unsigned int i= 0; i < sky_indeces.size(); i+= 3 )
-		std::swap( sky_indeces[i], sky_indeces[i+1] );
-}
-
-
 static void ParseColor( const char* str, unsigned char* out_color )
 {
 	double rgb[3];
@@ -478,7 +428,7 @@ PLB_DLL_FUNC void LoadBsp(
 		level_data.vertices, level_data.polygons, level_data.polygons_indeces,
 		level_data.sky_polygons, level_data.sky_polygons_indeces );
 
-	TransformPolygonsCoordinates(
+	plbTransformCoordinatesFromQuakeSystem(
 		level_data.polygons,
 		level_data.vertices,
 		level_data.polygons_indeces,
