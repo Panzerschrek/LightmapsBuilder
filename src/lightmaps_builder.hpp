@@ -48,6 +48,8 @@ private:
 	void GenConeLightShadowmap( const m_Mat4& shadow_mat );
 	void ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat );
 
+	void MarkLuminousMaterials();
+
 	// Builds lightmap basises from texture basises.
 	// Needs only for input data without lightmap basises.
 	void BuildLightmapBasises();

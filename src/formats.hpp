@@ -92,6 +92,7 @@ struct plb_Material
 	unsigned int light_texture_number;
 
 	float luminosity= 0.0f;
+	bool split_to_point_lights= false;
 	bool cast_alpha_shadow= false;
 };
 
@@ -177,6 +178,11 @@ struct plb_Config
 	unsigned int directional_light_shadowmap_size_log2= 11;
 	unsigned int cone_light_shadowmap_size_log2= 10;
 	unsigned int secondary_light_pass_cubemap_size_log2= 7;
+
+	// Maksimaljnaja svetimostj poverhnosti, pri kotoroj svet ot nejo jescö
+	// risujetsä rasterizaçijej na stadii vtoricnogo osvescenija.
+	// Poverhnsoti s boljšej jarkostju budut razbivatjsä na tocecnyje istocniki sveta.
+	float max_luminocity_for_direct_luminous_surfaces_drawing= 20.0f;
 
 	// Razmer boljšoj tekstury, gde razmescajutsä svetokarty otdeljnyh poverhnostej.
 	// Želateljno, ctoby razmer po osi X byl ne ocenj boljšim, ctoby stroki karty osvescenija

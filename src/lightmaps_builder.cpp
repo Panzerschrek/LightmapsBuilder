@@ -228,6 +228,8 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 			config_,
 			level_data_.textures, level_data_.build_in_images ) );
 
+	MarkLuminousMaterials();
+
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
 	TransformTexturesCoordinates();
@@ -1152,6 +1154,15 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Ma
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
+}
+
+void plb_LightmapsBuilder::MarkLuminousMaterials()
+{
+	for( plb_Material& material : level_data_.materials )
+	{
+		if( material.luminosity > config_.max_luminocity_for_direct_luminous_surfaces_drawing )
+			material.split_to_point_lights= true;
+	}
 }
 
 void plb_LightmapsBuilder::BuildLightmapBasises()
