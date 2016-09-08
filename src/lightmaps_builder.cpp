@@ -276,6 +276,25 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		PointLightPass( light_pos, light_color );
 	}
 
+	for( const plb_SurfaceSampleLight& light : bright_lumonous_surfaces_lights_ )
+	{
+		m_Vec3 light_color;
+		unsigned char max_color_component= 1;
+		for( int j= 0; j< 3; j++ )
+		{
+			unsigned char c= light.color[j];
+			light_color.ToArr()[j]= light.intensity * float(light.color[j]) / 255.0f;
+			if( c > max_color_component ) max_color_component= c;
+		}
+		light_color/= float(max_color_component) / 255.0f;
+
+		GenPointlightShadowmap( m_Vec3( light.pos ) );
+		SurfaceSampleLightPass(
+			m_Vec3( light.pos ),
+			m_Vec3( light.normal ),
+			light_color );
+	}
+
 	for( const plb_DirectionalLight& light : level_data_.directional_lights )
 	{
 		m_Mat4 mat;
@@ -545,6 +564,14 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
 
+
+	surface_sample_light_pass_shader_.ShaderSource(
+		rLoadShader( "surface_sample_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(surface_sample_light_pass_shader_);
+	surface_sample_light_pass_shader_.Create();
+
 	point_light_shadowmap_shader_.ShaderSource(
 		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version),
 		rLoadShader( "point_light_shadowmap_v.glsl", g_glsl_version),
@@ -737,6 +764,38 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 	point_light_pass_shader_.Uniform( "light_color", light_color );
 	point_light_pass_shader_.Uniform( "cubemap", int(0) );
 	point_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
+
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::AlphaShadow } );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	glEnable( GL_CULL_FACE );
+	glDisable( GL_BLEND );
+}
+
+void plb_LightmapsBuilder::SurfaceSampleLightPass(
+	const m_Vec3& light_pos,
+	const m_Vec3& light_normal,
+	const m_Vec3& light_color )
+{
+	glDisable( GL_CULL_FACE );
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE );
+
+	glViewport( 0, 0, lightmap_atlas_texture_.size[0], lightmap_atlas_texture_.size[1] );
+	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
+
+	glActiveTexture( GL_TEXTURE0 + 0 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, point_light_shadowmap_cubemap_.depth_tex_id );
+
+	surface_sample_light_pass_shader_.Bind();
+	surface_sample_light_pass_shader_.Uniform( "light_pos", light_pos );
+	surface_sample_light_pass_shader_.Uniform( "light_normal", light_normal );
+	surface_sample_light_pass_shader_.Uniform( "light_color", light_color );
+	surface_sample_light_pass_shader_.Uniform( "cubemap", int(0) );
+	surface_sample_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
 	world_vertex_buffer_->Draw( {
 		plb_WorldVertexBuffer::PolygonType::WorldCommon,

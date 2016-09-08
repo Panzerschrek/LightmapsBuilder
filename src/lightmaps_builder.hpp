@@ -36,7 +36,8 @@ private:
 
 	void CreateShadowmapCubemap();
 	void GenPointlightShadowmap( const m_Vec3& light_pos );
-	void PointLightPass(const m_Vec3& light_pos, const m_Vec3& light_color);
+	void PointLightPass( const m_Vec3& light_pos, const m_Vec3& light_color );
+	void SurfaceSampleLightPass( const m_Vec3& light_pos, const m_Vec3& light_normal, const m_Vec3& light_color );
 
 	void GenSecondaryLightPassCubemap();
 	void GenSecondaryLightPassUnwrapBuffer();
@@ -106,6 +107,7 @@ private:
 		float max_light_distance;
 	} point_light_shadowmap_cubemap_;
 	r_GLSLProgram point_light_pass_shader_;
+	r_GLSLProgram surface_sample_light_pass_shader_;
 	r_GLSLProgram point_light_shadowmap_shader_;
 	r_GLSLProgram point_light_shadowmap_alphatested_shader_;
 
