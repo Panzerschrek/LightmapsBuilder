@@ -78,7 +78,7 @@ private:
 		m_Vec3 max;
 	} level_bounding_box_;
 
-	plb_SurfaceSampleLights bright_lumonous_surfaces_lights_;
+	plb_SurfaceSampleLights bright_luminous_surfaces_lights_;
 
 	const plb_Config config_;
 

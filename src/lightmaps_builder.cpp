@@ -276,7 +276,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		PointLightPass( light_pos, light_color );
 	}
 
-	for( const plb_SurfaceSampleLight& light : bright_lumonous_surfaces_lights_ )
+	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
 	{
 		m_Vec3 light_color;
 		unsigned char max_color_component= 1;
@@ -1332,8 +1332,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			if( covered <= 0.0001f )
 				continue;
 
-			bright_lumonous_surfaces_lights_.emplace_back();
-			plb_SurfaceSampleLight& light= bright_lumonous_surfaces_lights_.back();
+			bright_luminous_surfaces_lights_.emplace_back();
+			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
 			light.intensity=
 				material.luminosity * covered / ( c_subdivide_inv_size * c_subdivide_inv_size );
