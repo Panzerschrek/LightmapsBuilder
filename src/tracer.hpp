@@ -29,10 +29,13 @@ public:
 private:
 	struct Surface
 	{
-		unsigned int first_index;
-		unsigned int index_count;
-
 		m_Vec3 normal;
+
+		unsigned int first_index;
+		unsigned int first_vertex;
+
+		unsigned short index_count;
+		unsigned short vertex_count;
 	};
 
 	typedef std::vector<Surface> Surfaces;
@@ -46,7 +49,6 @@ private:
 		Surfaces surfaces;
 		Vertices vertices;
 		Indeces indeces;
-
 	};
 
 	struct BoundingBox
@@ -102,7 +104,7 @@ private:
 		const GeometrySet& in_geometry,
 		std::vector<unsigned int>& used_surfaces_indeces,
 		TreeNode::PlaneOrientation plane_orientation,
-		Surfaces& out_surfaces,
+		GeometrySet& out_geometry,
 		Tree& out_tree ) const;
 
 private:

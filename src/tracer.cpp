@@ -32,7 +32,7 @@ static bool IsPointInTriangle(
 }
 
 plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
-{
+{	
 	// Convert input polygons to more compact format
 	surfaces_.reserve( level_data.polygons.size() );
 	for( const plb_Polygon& poly : level_data.polygons )
@@ -53,6 +53,9 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 		surface.first_index= indeces_.size();
 		surface.index_count= poly.index_count;
 
+		surface.first_vertex= first_vertex;
+		surface.vertex_count= poly.vertex_count;
+
 		// Add and correct indeces
 		indeces_.resize( indeces_.size() + poly.index_count );
 		unsigned int* const index= indeces_.data() + indeces_.size() - poly.index_count;
@@ -72,19 +75,14 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 		if( material.cast_alpha_shadow )
 			continue;
 
-		const unsigned int first_vertex= vertices_.size();
-
 		curve_vertices.clear();
 		curve_indeces.clear();
-
 		GenCurveMesh( curve, level_data.curved_surfaces_vertices, curve_vertices, curve_indeces, curve_normals );
 
 		vertices_.reserve( vertices_.size() + curve_vertices.size() );
-		for( const plb_Vertex& curve_vertex : curve_vertices )
-			vertices_.emplace_back( curve_vertex.pos );
-
 		indeces_.reserve( indeces_.size() + curve_indeces.size() );
-		surfaces_.reserve( surfaces_.size() + curve_indeces.size() / 3 );
+		surfaces_.reserve( surfaces_.size() + curve_indeces.size() / 3u );
+
 		for( unsigned int t= 0; t < curve_indeces.size(); t+= 3 )
 		{
 			const unsigned int* const index= curve_indeces.data() + t;
@@ -102,14 +100,23 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 
 			surface.normal= normal / normal_length;
 
-			unsigned int first_index= indeces_.size();
+			const unsigned int first_index= indeces_.size();
+			indeces_.resize( indeces_.size() + 3u );
+
+			const unsigned int first_vertex= vertices_.size();
+			vertices_.resize( vertices_.size() + 3u );
 
 			surface.first_index= first_index;
-			surface.index_count= 3;
+			surface.index_count= 3u;
+			surface.first_vertex= first_vertex;
+			surface.vertex_count= 3u;
 
-			for( unsigned int i= 0; i < 3; i++ )
-				indeces_.push_back( index[i] + first_vertex );
-
+			// Put triangle vertices and indeces
+			for( unsigned int i= 0; i < 3u; i++ )
+			{
+				indeces_[ first_index + i ]= first_vertex + i;
+				vertices_[ first_vertex + i ]= m_Vec3( curve_vertices[ index[i] ].pos );
+			}
 		} // for curve triangles
 	} // for curves
 
@@ -196,7 +203,6 @@ unsigned int plb_Tracer::Trace(
 
 		depth++;
 	}
-
 
 	CheckCollision_r( trace_request_data, *node );
 
@@ -304,7 +310,7 @@ void plb_Tracer::BuildTree()
 	for( unsigned int& index : used_surfaces_indeces )
 		index= &index - used_surfaces_indeces.data();
 
-	Surfaces result_surfaces;
+	GeometrySet result_geometry;
 
 	BuildTreeNode_r(
 		0,
@@ -312,12 +318,12 @@ void plb_Tracer::BuildTree()
 		geometry,
 		used_surfaces_indeces,
 		TreeNode::PlaneOrientation::z,
-		result_surfaces,
+		result_geometry,
 		tree_ );
 
-	surfaces_= std::move( result_surfaces );
-	vertices_= std::move( geometry.vertices );
-	indeces_= std::move( geometry.indeces );
+	surfaces_= std::move( result_geometry.surfaces );
+	vertices_= std::move( result_geometry.vertices );
+	indeces_= std::move( result_geometry.indeces );
 }
 
 void plb_Tracer::BuildTreeNode_r(
@@ -326,10 +332,39 @@ void plb_Tracer::BuildTreeNode_r(
 	const GeometrySet& in_geometry,
 	std::vector<unsigned int>& used_surfaces_indeces,
 	TreeNode::PlaneOrientation plane_orientation,
-	Surfaces& out_surfaces,
+	GeometrySet& out_geometry,
 	Tree& out_tree ) const
 {
+	// TODO - profile this
 	const unsigned int c_min_surfaces_for_node= 16;
+
+	auto insert_surface=
+	[&]( const Surface& in_surface ) mutable -> void
+	{
+		out_geometry.surfaces.emplace_back();
+		Surface& out_surface= out_geometry.surfaces.back();
+
+		out_surface.normal= in_surface.normal;
+		out_surface.index_count= in_surface.index_count;
+		out_surface.vertex_count= in_surface.vertex_count;
+
+		const unsigned int first_index= out_geometry.indeces.size();
+		const unsigned int first_vertex= out_geometry.vertices.size();
+		out_geometry.indeces.resize( first_index + out_surface.index_count );
+		out_geometry.vertices.resize( first_vertex + out_surface.vertex_count );
+
+		for( unsigned int i= 0; i < out_surface.index_count; i++ )
+			out_geometry.indeces[ first_index + i ]=
+				in_geometry.indeces[ in_surface.first_index + i ] -
+				in_surface.first_vertex + first_vertex;
+
+		for( unsigned int v= 0; v < out_surface.vertex_count; v++ )
+			out_geometry.vertices[ first_vertex + v ]=
+				in_geometry.vertices[ in_surface.first_vertex + v ];
+
+		out_surface.first_index= first_index;
+		out_surface.first_vertex= first_vertex;
+	};
 
 	TreeNode* node= out_tree.data() + node_index;
 
@@ -344,20 +379,17 @@ void plb_Tracer::BuildTreeNode_r(
 	if( used_surfaces_indeces.size() < c_min_surfaces_for_node )
 	{
 		node->childs[0]= node->childs[1]= TreeNode::c_no_child;
-		node->first_surface= out_surfaces.size();
+		node->first_surface= out_geometry.surfaces.size();
 		node->surface_count= used_surfaces_indeces.size();
 
-		out_surfaces.resize( out_surfaces.size() + node->surface_count );
-
 		for( unsigned int i= 0; i < node->surface_count; i++ )
-			out_surfaces[ node->first_surface + i ]=
-				in_geometry.surfaces[ used_surfaces_indeces[i] ];
+			insert_surface( in_geometry.surfaces[ used_surfaces_indeces[i] ] );
 	}
 	else // Node
 	{
 		std::vector<unsigned int> child_surfaces_indeces[2];
 
-		node->first_surface= out_surfaces.size();
+		node->first_surface= out_geometry.surfaces.size();
 		node->surface_count= 0;
 		node->childs[0]= out_tree.size();
 		node->childs[1]= out_tree.size() + 1;
@@ -394,7 +426,7 @@ void plb_Tracer::BuildTreeNode_r(
 			else
 			{
 				// Surface splitted by node plane - place it in this node.
-				out_surfaces.push_back( surface );
+				insert_surface( surface );
 				node->surface_count++;
 			}
 
@@ -415,7 +447,7 @@ void plb_Tracer::BuildTreeNode_r(
 				in_geometry,
 				child_surfaces_indeces[i],
 				child_planes_orientation,
-				out_surfaces,
+				out_geometry,
 				out_tree );
 
 			// Update pointer after recursive call
