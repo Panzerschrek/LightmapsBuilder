@@ -1243,6 +1243,14 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 		if( !( material.luminosity > 0.0f && material.split_to_point_lights ) )
 			continue;
 
+		const plb_ImageInfo& image_info= level_data_.textures[ material.light_texture_number ];
+
+		unsigned char average_texture_color[4];
+		textures_manager_->GetTextureAverageColor(
+			image_info.texture_array_id,
+			image_info.texture_layer_id,
+			average_texture_color );
+
 		m_Vec3 polygon_projection_basis[2]; // normalized
 		for( unsigned int i= 0; i < 2; i++ )
 		{
@@ -1341,8 +1349,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 				light.normal[i]= poly.normal[i];
 			}
 
-			light.color[0]= light.color[1]= light.color[2]= 255; // TODO - get light from texture
-
+			std::memcpy( light.color, average_texture_color, 3 );
 		} // for light grid
 
 	} // for polygons
