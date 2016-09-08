@@ -5,7 +5,9 @@ include (common.pri)
 
 Q2_SRC_DIR = ../../Quake-2-Tools
 
-INCLUDEPATH += $$Q3_SRC_DIR
+INCLUDEPATH += $$Q2_SRC_DIR
+
+OBJECTS_DIR = q2_loader
 
 SOURCES += \
 	../src/math_utils.cpp \

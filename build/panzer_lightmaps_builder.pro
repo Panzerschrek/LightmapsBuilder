@@ -2,6 +2,8 @@ TEMPLATE = app
 
 include (common.pri)
 
+OBJECTS_DIR = lightmaps_builder
+
 SDL_INCLUDES_DIR = ../../SDL2-2.0.3/include
 SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
 

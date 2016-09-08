@@ -7,6 +7,8 @@ Q3_SRC_DIR = ../../Quake-III-Arena
 
 INCLUDEPATH += $$Q3_SRC_DIR
 
+OBJECTS_DIR = q3_loader
+
 SOURCES += \
 	../src/q3_bsp_loader.cpp \
 	$$Q3_SRC_DIR/common/bspfile.c \

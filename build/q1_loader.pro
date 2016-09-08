@@ -8,6 +8,8 @@ Q1_SRC_DIR = ../../Quake-Tools/qutils
 INCLUDEPATH += $$Q1_SRC_DIR
 INCLUDEPATH += $$Q1_SRC_DIR/COMMON
 
+OBJECTS_DIR = q1_loader
+
 SOURCES += \
 	../src/math_utils.cpp \
 	../src/q1_bsp_loader.cpp \
