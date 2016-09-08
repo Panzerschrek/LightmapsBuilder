@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <cstring>
 
 #include <shaders_loading.hpp>
@@ -1353,6 +1354,11 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 		} // for light grid
 
 	} // for polygons
+
+
+	std::cout << "Bright luminous surfaces lights generated: " <<
+		bright_luminous_surfaces_lights_.size() <<
+		std::endl;
 }
 
 void plb_LightmapsBuilder::BuildLightmapBasises()
