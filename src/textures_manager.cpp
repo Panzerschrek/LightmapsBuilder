@@ -62,11 +62,13 @@ static std::string ReplaceExtension( const std::string& path, const char* extens
 
 plb_TexturesManager::plb_TexturesManager(
 	const plb_Config& config,
-	plb_ImageInfos& images )
+	plb_ImageInfos& images,
+	const plb_BuildInImages& build_in_images )
 {
 	static const char* const img_extensions[]=
 	{
-		"bmp", "pcx", "tga", "jpg", "jpeg"
+		"*", // Hack for buildin textures loading
+		"bmp", "pcx", "tga", "jpg", "jpeg", "wal",
 	};
 
 	unsigned int textures_data_size= 0;
@@ -98,11 +100,30 @@ plb_TexturesManager::plb_TexturesManager(
 
 		for( const char* const extension : img_extensions )
 		{
-			const std::string file_name= config.textures_path + ReplaceExtension( img.file_name, extension );
+			// Try load buildin image
+			if( extension[0] == '*' )
+				for( const plb_BuildInImage& build_in_img : build_in_images )
+				{
+					if( build_in_img.name == img.file_name )
+					{
+						ilTexImage(
+							build_in_img.size[0], build_in_img.size[1], 1,
+							4, IL_RGBA, IL_UNSIGNED_BYTE,
+							const_cast<unsigned char*>(build_in_img.data_rgba.data() ) );
 
-			if( ilLoadImage( file_name.c_str() ) )
+						img_loaded= true;
+						break;
+					}
+				}
+
+			if( !img_loaded )
 			{
-				img_loaded= true;
+				const std::string file_name= config.textures_path + ReplaceExtension( img.file_name, extension );
+				img_loaded= ilLoadImage( file_name.c_str() );
+			}
+
+			if( img_loaded )
+			{
 				img.original_size[0]= ilGetInteger( IL_IMAGE_WIDTH  );
 				img.original_size[1]= ilGetInteger( IL_IMAGE_HEIGHT );
 

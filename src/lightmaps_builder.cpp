@@ -6,7 +6,8 @@
 #include "lightmaps_builder.hpp"
 
 #include "curves.hpp"
-#include "q3_bsp_loader.hpp"
+#include "loaders_common.hpp"
+#include "math_utils.hpp"
 
 #define VEC3_CPY(dst,src) (dst)[0]= (src)[0]; (dst)[1]= (src)[1]; (dst)[2]= (src)[2];
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
@@ -217,23 +218,15 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 		out_matrices[i]= rotate_and_shift * out_matrices[i] * perspective;
 }
 
-// Normal must be normalized
-static m_Vec3 ProjectPointToPlane( const m_Vec3& point, const m_Vec3& plane_point, const m_Vec3& plane_normal )
-{
-	const m_Vec3 vec_to_plane_point= point - plane_point;
-	const float signed_distance_to_plane= vec_to_plane_point * plane_normal;
-
-	const m_Vec3 projection_point= point - plane_normal * signed_distance_to_plane;
-
-	return projection_point;
-}
-
 plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Config& config )
 	: config_( config )
 {
-	LoadQ3Bsp( file_name , config_, level_data_ );
+	LoadBsp( file_name , config_, level_data_ );
 
-	textures_manager_.reset( new plb_TexturesManager( config_, level_data_.textures ) );
+	textures_manager_.reset(
+		new plb_TexturesManager(
+			config_,
+			level_data_.textures, level_data_.build_in_images ) );
 
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
@@ -1249,6 +1242,27 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 			}
 		}
 	}
+
+	// Quake1BSP and Quake2BSP stroes unnormalized textures coordinates. Normalize it.
+	if(
+		config_.source_data_type == plb_Config::SourceDataType::Quake1BSP ||
+		config_.source_data_type == plb_Config::SourceDataType::Quake2BSP )
+	{
+		for( const plb_Polygon& polygon : level_data_.polygons )
+		{
+			const plb_ImageInfo& img=
+				level_data_.textures[ level_data_.materials[ polygon.material_id ].albedo_texture_number ];
+
+			const float scale_x= 1.0f / float( img.original_size[0] );
+			const float scale_y= 1.0f / float( img.original_size[1] );
+
+			for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
+			{
+				v_p[v].tex_coord[0]*= scale_x;
+				v_p[v].tex_coord[1]*= scale_y;
+			}
+		}
+	}
 }
 
 void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
@@ -1278,20 +1292,18 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	{
 		float max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
 
-		m_Vec3 world_to_lightmap_basis_u= m_Vec3(polygon.lightmap_basis[0]);
-		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
-
-		m_Vec3 world_to_lightmap_basis_v= m_Vec3(polygon.lightmap_basis[1]);
-		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+		m_Mat3 inverse_lightmap_basis;
+		plbGetInvLightmapBasisMatrix(
+			m_Vec3( polygon.lightmap_basis[0] ),
+			m_Vec3( polygon.lightmap_basis[1] ),
+			inverse_lightmap_basis );
 
 		for( unsigned int v= polygon.first_vertex_number; v< polygon.first_vertex_number + polygon.vertex_count; v++ )
 		{
 			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( polygon.lightmap_pos );
-			float uv[2]= {
-				world_to_lightmap_basis_u * rel_pos,
-				world_to_lightmap_basis_v * rel_pos };
-			if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
-			if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
+			const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
+			if( uv.x > max_uv[0] ) max_uv[0]= uv.x;
+			if( uv.y > max_uv[1] ) max_uv[1]= uv.y;
 		}
 		if( max_uv[0] < 1.0f )
 			max_uv[0]= 1.0f;
@@ -1304,7 +1316,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
 		{
-			float tmp[4];
+			float tmp[3];
 			std::memcpy( tmp, polygon.lightmap_basis[0], sizeof(float) * 3 );
 			std::memcpy( polygon.lightmap_basis[0], polygon.lightmap_basis[1], sizeof(float) * 3 );
 			std::memcpy( polygon.lightmap_basis[1], tmp, sizeof(float) * 3 );
@@ -1498,21 +1510,22 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& poly : level_data_.polygons )
 	{
-		m_Vec3 world_to_lightmap_basis_u= m_Vec3(poly.lightmap_basis[0]);
-		world_to_lightmap_basis_u/= world_to_lightmap_basis_u.SquareLength();
-
-		m_Vec3 world_to_lightmap_basis_v= m_Vec3(poly.lightmap_basis[1]);
-		world_to_lightmap_basis_v/= world_to_lightmap_basis_v.SquareLength();
+		m_Mat3 inverse_lightmap_basis;
+		plbGetInvLightmapBasisMatrix(
+			m_Vec3( poly.lightmap_basis[0] ),
+			m_Vec3( poly.lightmap_basis[1] ),
+			inverse_lightmap_basis );
 
 		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
 			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
 
-			v_p[v].lightmap_coord[0]= world_to_lightmap_basis_u * rel_pos;
+			const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
+			v_p[v].lightmap_coord[0]= uv.x;
 			v_p[v].lightmap_coord[0]+= float(poly.lightmap_data.coord[0]);
 			v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-			v_p[v].lightmap_coord[1]= world_to_lightmap_basis_v * rel_pos;
+			v_p[v].lightmap_coord[1]= uv.y;
 			v_p[v].lightmap_coord[1]+= float(poly.lightmap_data.coord[1]);
 			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
@@ -1737,13 +1750,13 @@ m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample( const m_Vec3& pos, con
 
 			// Move sample point beyound intersection plane.
 			const m_Vec3 moved_pos=
-				ProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
+				plbProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
 				trace_result[i].normal * g_cubemaps_min_clip_distance;
 			set_result_candidate( moved_pos );
 		}
 		else // Front face
 		{
-			const m_Vec3 projected_pos= ProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
+			const m_Vec3 projected_pos= plbProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
 
 			// Try move sample point from intersection plane just a bit.
 			const float dist= ( pos - projected_pos ) * trace_result[0].normal;

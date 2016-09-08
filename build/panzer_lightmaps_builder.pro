@@ -1,14 +1,8 @@
 TEMPLATE = app
-CONFIG -= app_bundle
-CONFIG += windows
-CONFIG -= qt
-CONFIG += c++11
 
-CONFIG( debug, debug|release ) {
-	CONFIG+= PLB_DUBUG
-}
+include (common.pri)
 
-Q3_SRC_DIR = ../../Quake-III-Arena
+OBJECTS_DIR = lightmaps_builder
 
 SDL_INCLUDES_DIR = ../../SDL2-2.0.3/include
 SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
@@ -16,11 +10,8 @@ SDL_LIBS_DIR = ../../SDL2-2.0.3/lib/x86
 DEVIL_INCLUDES_DIR = ../../DevIL/include
 DEVIL_LIBS_DIR = ../../DevIL/lib
 
-INCLUDEPATH += $$Q3_SRC_DIR
 INCLUDEPATH += $$SDL_INCLUDES_DIR
 INCLUDEPATH += $$DEVIL_INCLUDES_DIR
-INCLUDEPATH += ../../panzer_ogl_lib
-INCLUDEPATH += ../src
 
 LIBS += $$SDL_LIBS_DIR/SDL2main.lib
 LIBS += $$SDL_LIBS_DIR/SDL2.lib
@@ -28,23 +19,16 @@ LIBS += $$DEVIL_LIBS_DIR/DevIL.lib
 LIBS += $$DEVIL_LIBS_DIR/ILU.lib
 LIBS+= libopengl32
 
-PLB_DUBUG {
-	DEFINES+= DEBUG
-} else {
-}
-
 SOURCES += \
 	../src/camera_controller.cpp \
 	../src/curves.cpp \
 	../src/lightmaps_builder.cpp \
+	../src/loaders_common.cpp \
 	../src/main.cpp \
-	../src/q3_bsp_loader.cpp \
+	../src/math_utils.cpp \
 	../src/textures_manager.cpp \
 	../src/tracer.cpp \
 	../src/world_vertex_buffer.cpp \
-	../../Quake-III-Arena/common/bspfile.c \
-	../../Quake-III-Arena/common/cmdlib.c \
-	../../Quake-III-Arena/common/scriplib.c \
 	../../panzer_ogl_lib/polygon_buffer.cpp \
 	../../panzer_ogl_lib/shaders_loading.cpp \
 	../../panzer_ogl_lib/texture.cpp \
@@ -59,7 +43,8 @@ HEADERS += \
 	../src/curves.hpp \
 	../src/formats.hpp \
 	../src/lightmaps_builder.hpp \
-	../src/q3_bsp_loader.hpp \
+	../src/loaders_common.hpp \
+	../src/math_utils.hpp \
 	../src/rasterizer.hpp \
 	../src/textures_manager.hpp \
 	../src/tracer.hpp \

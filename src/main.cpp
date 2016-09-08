@@ -11,6 +11,7 @@
 
 #include "camera_controller.hpp"
 #include "lightmaps_builder.hpp"
+#include "loaders_common.hpp"
 
 static void FatalError(const char* message)
 {
@@ -23,6 +24,8 @@ extern "C" int main(int argc, char *argv[])
 	// TODO - work with parameters
 	(void)argc;
 	(void)argv;
+
+	LoadLoaderLibrary( "q3_loader" );
 
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
 		FatalError("Can not initialize sdl video");

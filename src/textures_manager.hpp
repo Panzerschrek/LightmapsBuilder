@@ -7,7 +7,11 @@
 class plb_TexturesManager final
 {
 public:
-	plb_TexturesManager( const plb_Config& config, plb_ImageInfos& images );
+	plb_TexturesManager(
+		const plb_Config& config,
+		plb_ImageInfos& images,
+		const plb_BuildInImages& build_in_images );
+
 	~plb_TexturesManager();
 
 	void BindTextureArrays( unsigned int base_unit ) const;
