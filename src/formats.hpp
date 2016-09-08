@@ -137,6 +137,15 @@ struct plb_ConeLight : public plb_PointLight
 	float angle;
 };
 
+// Light of small luminous surface.
+// Light intensity depends on cosine of angle between direction to light and light sample normal.
+struct plb_SurfaceSampleLight : public plb_PointLight
+{
+	float normal[3];
+};
+
+typedef std::vector<plb_SurfaceSampleLight> plb_SurfaceSampleLights;
+
 typedef std::vector<plb_ConeLight> plb_ConeLights;
 
 // Konfig postroitelä.

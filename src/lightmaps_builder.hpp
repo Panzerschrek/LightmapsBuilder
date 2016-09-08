@@ -50,6 +50,8 @@ private:
 
 	void MarkLuminousMaterials();
 
+	void BuildLuminousSurfacesLights();
+
 	// Builds lightmap basises from texture basises.
 	// Needs only for input data without lightmap basises.
 	void BuildLightmapBasises();
@@ -74,6 +76,8 @@ private:
 		m_Vec3 min;
 		m_Vec3 max;
 	} level_bounding_box_;
+
+	plb_SurfaceSampleLights bright_lumonous_surfaces_lights_;
 
 	const plb_Config config_;
 
