@@ -1326,7 +1326,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			rasterizer_buffer.size[i]= light_grid_size[i] * c_scale_in_rasterizer;
 
 			// Move polygon projection to center of light grid.
-			proj_min.ToArr()[i]-= float(light_grid_size[i]) - proj_size.ToArr()[i];
+			proj_min.ToArr()[i]-= 0.5f * ( float(light_grid_size[i]) - proj_size.ToArr()[i] );
 		}
 
 		rasterizer_data.resize( rasterizer_buffer.size[0] * rasterizer_buffer.size[1], 0.0f );
@@ -1381,8 +1381,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 				material.luminosity * covered / ( c_subdivide_inv_size * c_subdivide_inv_size );
 
 			const m_Vec3 pos=
-				( float(x) + 0.5f ) / c_subdivide_inv_size * polygon_projection_basis[0] +
-				( float(y) + 0.5f ) / c_subdivide_inv_size * polygon_projection_basis[1] +
+				( float(x) + 0.5f + proj_min.x ) / c_subdivide_inv_size * polygon_projection_basis[0] +
+				( float(y) + 0.5f + proj_min.y ) / c_subdivide_inv_size * polygon_projection_basis[1] +
 				m_Vec3( poly.lightmap_pos );
 
 			for( unsigned int i= 0; i < 3; i++ )
