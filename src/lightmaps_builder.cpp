@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 #include <cstring>
 
 #include <shaders_loading.hpp>
@@ -8,6 +9,7 @@
 #include "curves.hpp"
 #include "loaders_common.hpp"
 #include "math_utils.hpp"
+#include "rasterizer.hpp"
 
 #define VEC3_CPY(dst,src) (dst)[0]= (src)[0]; (dst)[1]= (src)[1]; (dst)[2]= (src)[2];
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
@@ -228,10 +230,20 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 			config_,
 			level_data_.textures, level_data_.build_in_images ) );
 
+	MarkLuminousMaterials();
+
 	ClalulateLightmapAtlasCoordinates();
 	CreateLightmapBuffers();
 	TransformTexturesCoordinates();
 	CalculateLevelBoundingBox();
+
+	BuildLuminousSurfacesLights();
+
+	lights_visualizer_.reset(
+		new plb_LightsVisualizer(
+			level_data_.point_lights,
+			level_data_.cone_lights,
+			bright_luminous_surfaces_lights_ ) );
 
 	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
 	tracer_.reset( new plb_Tracer( level_data_ ) );
@@ -301,6 +313,33 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 
 plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
+}
+
+void plb_LightmapsBuilder::MakeBrightLuminousSurfacesLight(
+	const std::function<void()>& wake_up_callback )
+{
+	unsigned int count= 0;
+
+	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
+	{
+		m_Vec3 light_color;
+
+		for( int j= 0; j< 3; j++ )
+			light_color.ToArr()[j]= light.intensity * float(light.color[j]) / 255.0f;
+
+		GenPointlightShadowmap( m_Vec3( light.pos ) );
+		SurfaceSampleLightPass(
+			m_Vec3( light.pos ),
+			m_Vec3( light.normal ),
+			light_color );
+
+		count++;
+		if( count == 30 )
+		{
+			wake_up_callback();
+			count= 0;
+		}
+	}
 }
 
 void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake_up_callback )
@@ -517,6 +556,7 @@ void plb_LightmapsBuilder::DrawPreview(
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
+	lights_visualizer_->Draw( view_matrix, cam_pos );
 	// Debug secondary light pass
 	/*
 	SecondaryLightPass( cam_pos, cam_dir );
@@ -539,6 +579,14 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(point_light_pass_shader_);
 	point_light_pass_shader_.Create();
+
+
+	surface_sample_light_pass_shader_.ShaderSource(
+		rLoadShader( "surface_sample_light_pass_f.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_v.glsl", g_glsl_version),
+		rLoadShader( "point_light_pass_g.glsl", g_glsl_version));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(surface_sample_light_pass_shader_);
+	surface_sample_light_pass_shader_.Create();
 
 	point_light_shadowmap_shader_.ShaderSource(
 		rLoadShader( "point_light_shadowmap_f.glsl", g_glsl_version),
@@ -732,6 +780,38 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 	point_light_pass_shader_.Uniform( "light_color", light_color );
 	point_light_pass_shader_.Uniform( "cubemap", int(0) );
 	point_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
+
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::AlphaShadow } );
+
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	glEnable( GL_CULL_FACE );
+	glDisable( GL_BLEND );
+}
+
+void plb_LightmapsBuilder::SurfaceSampleLightPass(
+	const m_Vec3& light_pos,
+	const m_Vec3& light_normal,
+	const m_Vec3& light_color )
+{
+	glDisable( GL_CULL_FACE );
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE );
+
+	glViewport( 0, 0, lightmap_atlas_texture_.size[0], lightmap_atlas_texture_.size[1] );
+	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
+
+	glActiveTexture( GL_TEXTURE0 + 0 );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, point_light_shadowmap_cubemap_.depth_tex_id );
+
+	surface_sample_light_pass_shader_.Bind();
+	surface_sample_light_pass_shader_.Uniform( "light_pos", light_pos );
+	surface_sample_light_pass_shader_.Uniform( "light_normal", light_normal );
+	surface_sample_light_pass_shader_.Uniform( "light_color", light_color );
+	surface_sample_light_pass_shader_.Uniform( "cubemap", int(0) );
+	surface_sample_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
 	world_vertex_buffer_->Draw( {
 		plb_WorldVertexBuffer::PolygonType::WorldCommon,
@@ -1152,6 +1232,182 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Ma
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
+}
+
+void plb_LightmapsBuilder::MarkLuminousMaterials()
+{
+	for( plb_Material& material : level_data_.materials )
+	{
+		if( material.luminosity > config_.max_luminocity_for_direct_luminous_surfaces_drawing )
+			material.split_to_point_lights= true;
+	}
+}
+
+void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
+{
+	typedef plb_Rasterizer<float> Rasterizer;
+
+	const unsigned int c_scale_in_rasterizer= 4;
+	const float subdivide_inv_size= config_.luminous_surfaces_tessellation_inv_size;
+
+	std::vector<float> rasterizer_data;
+
+	for( const plb_Polygon& poly : level_data_.polygons )
+	{
+		const plb_Material& material= level_data_.materials[ poly.material_id ];
+		if( !( material.luminosity > 0.0f && material.split_to_point_lights ) )
+			continue;
+
+		const plb_ImageInfo& image_info= level_data_.textures[ material.light_texture_number ];
+
+		unsigned char average_texture_color[4];
+		textures_manager_->GetTextureAverageColor(
+			image_info.texture_array_id,
+			image_info.texture_layer_id,
+			average_texture_color );
+
+		m_Vec3 polygon_projection_basis[2]; // normalized
+		for( unsigned int i= 0; i < 2; i++ )
+		{
+			polygon_projection_basis[i]= m_Vec3( poly.lightmap_basis[i] );
+			polygon_projection_basis[i].Normalize();
+		}
+
+		m_Mat3 inv_basis;
+		plbGetInvLightmapBasisMatrix(
+			polygon_projection_basis[0], polygon_projection_basis[1],
+			inv_basis );
+
+		// Calculate size of poygon projection.
+		m_Vec2 proj_min( +REALLY_MAX_FLOAT, +REALLY_MAX_FLOAT );
+		m_Vec2 proj_max( -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT );
+		for( unsigned int v= poly.first_vertex_number; v < poly.first_vertex_number + poly.vertex_count; v++ )
+		{
+			const m_Vec3 relative_pos=
+				m_Vec3( level_data_.vertices[v].pos ) -
+				m_Vec3( poly.lightmap_pos );
+
+			const m_Vec2 projection_pos= ( relative_pos * inv_basis ).xy();
+
+			if( projection_pos.x < proj_min.x ) proj_min.x= projection_pos.x;
+			if( projection_pos.y < proj_min.y ) proj_min.y= projection_pos.y;
+			if( projection_pos.x > proj_max.x ) proj_max.x= projection_pos.x;
+			if( projection_pos.y > proj_max.y ) proj_max.y= projection_pos.y;
+		} // for vertices
+
+		proj_min*= subdivide_inv_size;
+		proj_max*= subdivide_inv_size;
+		const m_Vec2 proj_size= proj_max - proj_min;
+
+		// Small polygon - generate single light source.
+		if( proj_size.x < 1.5f && proj_size.y < 1.5f )
+		{
+			bright_luminous_surfaces_lights_.emplace_back();
+			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
+
+			light.intensity=
+				material.luminosity *
+				plbGetPolygonArea( poly, level_data_.vertices, level_data_.polygons_indeces );
+
+			const m_Vec3 pos=
+				plbGetPolygonCenter( poly, level_data_.vertices, level_data_.polygons_indeces );
+
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				light.pos[i]= pos.ToArr()[i];
+				light.normal[i]= poly.normal[i];
+			}
+
+			std::memcpy( light.color, average_texture_color, 3 );
+
+			continue;
+		} // small polygon
+
+		// Create rasterizer
+		Rasterizer::Buffer rasterizer_buffer;
+		unsigned int light_grid_size[2];
+
+		for( unsigned int i= 0; i < 2; i++ )
+		{
+			light_grid_size[i]= static_cast<unsigned int>( std::ceil( proj_size.ToArr()[i] ) );
+			rasterizer_buffer.size[i]= light_grid_size[i] * c_scale_in_rasterizer;
+
+			// Move polygon projection to center of light grid.
+			proj_min.ToArr()[i]-= 0.5f * ( float(light_grid_size[i]) - proj_size.ToArr()[i] );
+		}
+
+		rasterizer_data.clear();
+		rasterizer_data.resize( rasterizer_buffer.size[0] * rasterizer_buffer.size[1], 0.0f );
+		rasterizer_buffer.data= rasterizer_data.data();
+
+		Rasterizer rasterizer( rasterizer_buffer );
+
+		// Rasterize polygon triangles.
+		for( unsigned int t= 0; t < poly.index_count; t+= 3 )
+		{
+			m_Vec2 v[3];
+			float attrib[3]= { 1.0f, 1.0f, 1.0f };
+
+			const unsigned int* const triangle_indeces= level_data_.polygons_indeces.data() + poly.first_index + t;
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				const m_Vec3 world_space_vertex=
+					m_Vec3( level_data_.vertices[ triangle_indeces[i] ].pos ) -
+					m_Vec3( poly.lightmap_pos );
+
+				v[i]= ( world_space_vertex * inv_basis ).xy();
+				v[i]*= subdivide_inv_size;
+				v[i]-= proj_min;
+				v[i]*= float(c_scale_in_rasterizer);
+			}
+
+			rasterizer.DrawTriangle( v, attrib );
+		} // for polygon triangles
+
+		// Get back data from rasterizer, create final light sources.
+		for( unsigned int y= 0; y < light_grid_size[1]; y++ )
+		for( unsigned int x= 0; x < light_grid_size[0]; x++ )
+		{
+			float covered= 0.0f;
+			for( unsigned int v= 0; v < c_scale_in_rasterizer; v++ )
+			for( unsigned int u= 0; u < c_scale_in_rasterizer; u++ )
+			{
+				covered+=
+					rasterizer_data[
+						x * c_scale_in_rasterizer + u +
+						( y * c_scale_in_rasterizer + v ) * rasterizer_buffer.size[0] ];
+			}
+			if( covered < 0.5f )
+				continue;
+
+			covered/= float( c_scale_in_rasterizer * c_scale_in_rasterizer );
+
+			bright_luminous_surfaces_lights_.emplace_back();
+			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
+
+			light.intensity=
+				material.luminosity * covered / ( subdivide_inv_size * subdivide_inv_size );
+
+			const m_Vec3 pos=
+				( float(x) + 0.5f + proj_min.x ) / subdivide_inv_size * polygon_projection_basis[0] +
+				( float(y) + 0.5f + proj_min.y ) / subdivide_inv_size * polygon_projection_basis[1] +
+				m_Vec3( poly.lightmap_pos );
+
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				light.pos[i]= pos.ToArr()[i];
+				light.normal[i]= poly.normal[i];
+			}
+
+			std::memcpy( light.color, average_texture_color, 3 );
+		} // for light grid
+
+	} // for polygons
+
+
+	std::cout << "Bright luminous surfaces lights generated: " <<
+		bright_luminous_surfaces_lights_.size() <<
+		std::endl;
 }
 
 void plb_LightmapsBuilder::BuildLightmapBasises()

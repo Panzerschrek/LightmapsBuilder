@@ -35,3 +35,59 @@ void plbGetInvLightmapBasisMatrix(
 
 	out_mat.Inverse();
 }
+
+m_Vec3 plbGetPolygonCenter(
+	const plb_Polygon& poly,
+	const plb_Vertices& vertices,
+	const std::vector<unsigned int>& indeces )
+{
+	m_Vec3 weighted_triangles_centroid_sum( 0.0f, 0.0f, 0.0f );
+	float polygon_area= 0.0f;
+
+	for( unsigned int t= 0; t < poly.index_count; t+= 3 )
+	{
+		const unsigned int* const index= indeces.data() + poly.first_index + t;
+
+		const m_Vec3 v0( vertices[ index[0] ].pos );
+		const m_Vec3 v1( vertices[ index[1] ].pos );
+		const m_Vec3 v2( vertices[ index[2] ].pos );
+
+		const m_Vec3 side1= v1 - v0;
+		const m_Vec3 side2= v2 - v0;
+
+		const float triangle_area= mVec3Cross( side2, side1 ).Length() * 0.5f;
+
+		weighted_triangles_centroid_sum+= ( v0 + v1 + v2 ) * ( triangle_area / 3.0f );
+
+		polygon_area+= triangle_area;
+
+	} // for polygon triangles
+
+	return weighted_triangles_centroid_sum / polygon_area;
+}
+
+float plbGetPolygonArea(
+	const plb_Polygon& poly,
+	const plb_Vertices& vertices,
+	const std::vector<unsigned int>& indeces )
+{
+	float area= 0.0f;
+
+	for( unsigned int t= 0; t < poly.index_count; t+= 3 )
+	{
+		const unsigned int* const index= indeces.data() + poly.first_index + t;
+
+		const m_Vec3 v0( vertices[ index[0] ].pos );
+		const m_Vec3 v1( vertices[ index[1] ].pos );
+		const m_Vec3 v2( vertices[ index[2] ].pos );
+
+		const m_Vec3 side1= v1 - v0;
+		const m_Vec3 side2= v2 - v0;
+
+		const float triangle_area= mVec3Cross( side2, side1 ).Length() * 0.5f;
+		area+= triangle_area;
+
+	} // for polygon triangles
+
+	return area;
+}

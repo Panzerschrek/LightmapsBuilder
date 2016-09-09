@@ -88,6 +88,7 @@ extern "C" int main(int argc, char *argv[])
 	m_Vec3 prev_pos= cam_controller.GetCamPos();
 	m_Vec3 prev_dir= cam_controller.GetCamDir();
 	bool force_redraw= true;
+	bool preview_allowed= false;
 
 	bool show_primary_lightmap= true;
 	bool show_secondary_lightmap= true;
@@ -181,7 +182,8 @@ extern "C" int main(int argc, char *argv[])
 
 		const m_Vec3 new_pos= cam_controller.GetCamPos();
 		const m_Vec3 new_dir= cam_controller.GetCamDir();
-		if( force_redraw || new_pos != prev_pos || new_dir != prev_dir )
+		if( preview_allowed &&
+			( force_redraw || new_pos != prev_pos || new_dir != prev_dir ) )
 		{
 			force_redraw= false;
 			prev_pos= new_pos;
@@ -206,7 +208,12 @@ extern "C" int main(int argc, char *argv[])
 
 	};
 
-	lightmaps_builder->MakeSecondaryLight(main_loop_iteration  );
+	main_loop_iteration();
+
+	lightmaps_builder->MakeBrightLuminousSurfacesLight( main_loop_iteration );
+
+	preview_allowed= true;
+	lightmaps_builder->MakeSecondaryLight( main_loop_iteration );
 
 	do
 	{

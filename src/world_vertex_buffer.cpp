@@ -217,7 +217,7 @@ void plb_WorldVertexBuffer::PrepareLuminousPolygons(
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
 		const plb_Material& material= level_data.materials[ poly.material_id ];
-		if( material.luminosity <= 0.0f )
+		if( !( material.luminosity > 0.0f && !material.split_to_point_lights ) )
 			continue;
 
 		const plb_ImageInfo& texture=

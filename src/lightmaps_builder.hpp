@@ -11,6 +11,7 @@
 #include <vec.hpp>
 
 #include "formats.hpp"
+#include "lights_visualizer.hpp"
 #include "textures_manager.hpp"
 #include "tracer.hpp"
 #include "world_vertex_buffer.hpp"
@@ -22,6 +23,8 @@ class plb_LightmapsBuilder final
 public:
 	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
+
+	void MakeBrightLuminousSurfacesLight( const std::function<void()>& wake_up_callback );
 
 	void MakeSecondaryLight( const std::function<void()>& wake_up_callback );
 
@@ -36,7 +39,8 @@ private:
 
 	void CreateShadowmapCubemap();
 	void GenPointlightShadowmap( const m_Vec3& light_pos );
-	void PointLightPass(const m_Vec3& light_pos, const m_Vec3& light_color);
+	void PointLightPass( const m_Vec3& light_pos, const m_Vec3& light_color );
+	void SurfaceSampleLightPass( const m_Vec3& light_pos, const m_Vec3& light_normal, const m_Vec3& light_color );
 
 	void GenSecondaryLightPassCubemap();
 	void GenSecondaryLightPassUnwrapBuffer();
@@ -47,6 +51,10 @@ private:
 
 	void GenConeLightShadowmap( const m_Mat4& shadow_mat );
 	void ConeLightPass( const plb_ConeLight& light, const m_Mat4& shadow_mat );
+
+	void MarkLuminousMaterials();
+
+	void BuildLuminousSurfacesLights();
 
 	// Builds lightmap basises from texture basises.
 	// Needs only for input data without lightmap basises.
@@ -72,6 +80,8 @@ private:
 		m_Vec3 min;
 		m_Vec3 max;
 	} level_bounding_box_;
+
+	plb_SurfaceSampleLights bright_luminous_surfaces_lights_;
 
 	const plb_Config config_;
 
@@ -100,6 +110,7 @@ private:
 		float max_light_distance;
 	} point_light_shadowmap_cubemap_;
 	r_GLSLProgram point_light_pass_shader_;
+	r_GLSLProgram surface_sample_light_pass_shader_;
 	r_GLSLProgram point_light_shadowmap_shader_;
 	r_GLSLProgram point_light_shadowmap_alphatested_shader_;
 
@@ -142,4 +153,5 @@ private:
 	std::unique_ptr<plb_TexturesManager> textures_manager_;
 	std::unique_ptr<plb_WorldVertexBuffer> world_vertex_buffer_;
 	std::unique_ptr<plb_Tracer> tracer_;
+	std::unique_ptr<plb_LightsVisualizer> lights_visualizer_;
 };

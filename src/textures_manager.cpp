@@ -17,6 +17,23 @@ static unsigned int PowerOfTwoCeil( unsigned int x )
 	return p;
 }
 
+static void GetAverageColor(
+	const unsigned char* data_rgba, unsigned int pixel_count,
+	unsigned char* out_color )
+{
+	unsigned int color_sum[4]= { 0u, 0u, 0u, 0u };
+
+	for( unsigned int i= 0; i < pixel_count; i++ )
+	{
+		const unsigned char* color= data_rgba + ( i << 2 );
+		for( unsigned int j= 0; j < 4; j++ )
+			color_sum[j]+= color[j];
+	}
+
+	for( unsigned int j= 0; j < 4; j++ )
+		out_color[j]= color_sum[j] / pixel_count;
+}
+
 #if 0
 static void GenStubTexture( unsigned char* dst, unsigned int width, unsigned char height )
 {
@@ -180,6 +197,8 @@ plb_TexturesManager::plb_TexturesManager(
 		if( textures_array.size[2] == 0 )
 			continue;
 
+		textures_array.textures_data.resize( textures_array.size[2] );
+
 		glGenTextures( 1, &textures_array.tex_id );
 		glBindTexture( GL_TEXTURE_2D_ARRAY, textures_array.tex_id );
 		glTexImage3D(
@@ -208,9 +227,16 @@ plb_TexturesManager::plb_TexturesManager(
 				img.texture_array_id == texture_array_number &&
 				img.original_size[0] > 0 && img.original_size[1] > 0 )
 			{
-				ilBindImage( il_textures_handles[ &img - images.data()] );
+				const unsigned int image_index= &img - images.data();
+
+				ilBindImage( il_textures_handles[ image_index ] );
 				const void* const tex_data= ilGetData();
 				const unsigned int channels= ilGetInteger( IL_IMAGE_CHANNELS );
+
+				GetAverageColor(
+					static_cast<const unsigned char*>(tex_data),
+					textures_array.size[0] * textures_array.size[1],
+					textures_array.textures_data[ img.texture_layer_id ].average_color );
 
 				GLenum format= 0;
 				if( channels == 1 ) format = GL_RED;
@@ -225,7 +251,7 @@ plb_TexturesManager::plb_TexturesManager(
 					format,
 					GL_UNSIGNED_BYTE, tex_data );
 
-				ilDeleteImages( 1, &il_textures_handles[ &img - images.data()] );
+				ilDeleteImages( 1, &il_textures_handles[ image_index ] );
 
 			}// if image in this array
 		}// for images
@@ -259,4 +285,15 @@ void plb_TexturesManager::BindTextureArrays( const unsigned int base_unit ) cons
 		glActiveTexture( GL_TEXTURE0 + base_unit + i );
 		glBindTexture( GL_TEXTURE_2D_ARRAY, textures_arrays_[i].tex_id );
 	}
+}
+
+void plb_TexturesManager::GetTextureAverageColor(
+	unsigned int textures_array_id,
+	unsigned int textures_array_layer,
+	unsigned char* out_color_rgba ) const
+{
+	std::memcpy(
+		out_color_rgba,
+		textures_arrays_[ textures_array_id ].textures_data[ textures_array_layer ].average_color,
+		4 );
 }

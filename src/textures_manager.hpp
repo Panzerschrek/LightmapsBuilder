@@ -17,11 +17,23 @@ public:
 	void BindTextureArrays( unsigned int base_unit ) const;
 	unsigned int ArraysCount() const;
 
+	void GetTextureAverageColor(
+		unsigned int textures_array_id,
+		unsigned int textures_array_layer,
+		unsigned char* out_color_rgba ) const;
+
 private:
+	struct TexturesArrayLayer
+	{
+		unsigned char average_color[4];
+	};
+
 	struct TextureArray
 	{
 		unsigned int size[3];
 		GLuint tex_id;
+
+		std::vector<TexturesArrayLayer> textures_data;
 	};
 
 	std::vector<TextureArray> textures_arrays_;
