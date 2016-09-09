@@ -1233,7 +1233,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 	typedef plb_Rasterizer<float> Rasterizer;
 
 	// TODO - move to config
-	const float c_subdivide_inv_size= 16.0f;
+	const float c_subdivide_inv_size= 8.0f;
 	const unsigned int c_scale_in_rasterizer= 4;
 
 	std::vector<float> rasterizer_data;
@@ -1265,7 +1265,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			inv_basis );
 
 		// Calculate size of poygon projection.
-		m_Vec2 proj_max( 0.0f, 0.0f );
+		m_Vec2 proj_min( +REALLY_MAX_FLOAT, +REALLY_MAX_FLOAT );
+		m_Vec2 proj_max( -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT );
 		for( unsigned int v= poly.first_vertex_number; v < poly.first_vertex_number + poly.vertex_count; v++ )
 		{
 			const m_Vec3 relative_pos=
@@ -1274,11 +1275,39 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 
 			const m_Vec2 projection_pos= ( relative_pos * inv_basis ).xy();
 
+			if( projection_pos.x < proj_min.x ) proj_min.x= projection_pos.x;
+			if( projection_pos.y < proj_min.y ) proj_min.y= projection_pos.y;
 			if( projection_pos.x > proj_max.x ) proj_max.x= projection_pos.x;
 			if( projection_pos.y > proj_max.y ) proj_max.y= projection_pos.y;
 		} // for vertices
 
+		proj_min*= c_subdivide_inv_size;
 		proj_max*= c_subdivide_inv_size;
+		const m_Vec2 proj_size= proj_max - proj_min;
+
+		// Small polygon - generate one light
+		if( proj_size.x < 1.5f && proj_size.y < 1.5f )
+		{
+			bright_luminous_surfaces_lights_.emplace_back();
+			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
+
+			light.intensity=
+				material.luminosity *
+				plbGetPolygonArea( poly, level_data_.vertices, level_data_.polygons_indeces );
+
+			const m_Vec3 pos=
+				plbGetPolygonCenter( poly, level_data_.vertices, level_data_.polygons_indeces );
+
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				light.pos[i]= pos.ToArr()[i];
+				light.normal[i]= poly.normal[i];
+			}
+
+			std::memcpy( light.color, average_texture_color, 3 );
+
+			continue;
+		} // small polygon
 
 		// Create rasterizer
 		Rasterizer::Buffer rasterizer_buffer;
@@ -1286,8 +1315,11 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 
 		for( unsigned int i= 0; i < 2; i++ )
 		{
-			light_grid_size[i]= static_cast<unsigned int>( std::ceil( proj_max.ToArr()[i] ) );
+			light_grid_size[i]= static_cast<unsigned int>( std::ceil( proj_size.ToArr()[i] ) );
 			rasterizer_buffer.size[i]= light_grid_size[i] * c_scale_in_rasterizer;
+
+			// Move polygon projection to center of light grid.
+			proj_min.ToArr()[i]-= float(light_grid_size[i]) - proj_size.ToArr()[i];
 		}
 
 		rasterizer_data.resize( rasterizer_buffer.size[0] * rasterizer_buffer.size[1], 0.0f );
@@ -1309,7 +1341,9 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 					m_Vec3( poly.lightmap_pos );
 
 				v[i]= ( world_space_vertex * inv_basis ).xy();
-				v[i]*= float(c_scale_in_rasterizer) * c_subdivide_inv_size;
+				v[i]*= c_subdivide_inv_size;
+				v[i]-= proj_min;
+				v[i]*= float(c_scale_in_rasterizer);
 			}
 
 			rasterizer.DrawTriangle( v, attrib );
