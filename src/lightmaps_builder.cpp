@@ -239,6 +239,12 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 
 	BuildLuminousSurfacesLights();
 
+	lights_visualizer_.reset(
+		new plb_LightsVisualizer(
+			level_data_.point_lights,
+			level_data_.cone_lights,
+			bright_luminous_surfaces_lights_ ) );
+
 	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
 	tracer_.reset( new plb_Tracer( level_data_ ) );
 
@@ -542,6 +548,7 @@ void plb_LightmapsBuilder::DrawPreview(
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
+	lights_visualizer_->Draw( view_matrix, cam_pos );
 	// Debug secondary light pass
 	/*
 	SecondaryLightPass( cam_pos, cam_dir );
@@ -1285,7 +1292,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 		proj_max*= c_subdivide_inv_size;
 		const m_Vec2 proj_size= proj_max - proj_min;
 
-		// Small polygon - generate one light
+		// Small polygon - generate single light source.
 		if( proj_size.x < 1.5f && proj_size.y < 1.5f )
 		{
 			bright_luminous_surfaces_lights_.emplace_back();

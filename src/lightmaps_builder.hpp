@@ -11,6 +11,7 @@
 #include <vec.hpp>
 
 #include "formats.hpp"
+#include "lights_visualizer.hpp"
 #include "textures_manager.hpp"
 #include "tracer.hpp"
 #include "world_vertex_buffer.hpp"
@@ -150,4 +151,5 @@ private:
 	std::unique_ptr<plb_TexturesManager> textures_manager_;
 	std::unique_ptr<plb_WorldVertexBuffer> world_vertex_buffer_;
 	std::unique_ptr<plb_Tracer> tracer_;
+	std::unique_ptr<plb_LightsVisualizer> lights_visualizer_;
 };
