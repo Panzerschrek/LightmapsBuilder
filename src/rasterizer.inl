@@ -16,21 +16,22 @@ void plb_Rasterizer<RasterElement>::DrawTriangle(
 	unsigned int middle_index;
 	unsigned int lower_index;
 
-	if( vertices[0].y > vertices[1].y && vertices[0].y > vertices[2].y )
+	if( vertices[0].y >= vertices[1].y && vertices[0].y >= vertices[2].y )
 	{
 		upper_index= 0;
 		lower_index= vertices[1].y < vertices[2].y ? 1u : 2u;
 	}
-	else if( vertices[1].y > vertices[0].y && vertices[1].y > vertices[2].y )
+	else if( vertices[1].y >= vertices[0].y && vertices[1].y >= vertices[2].y )
 	{
 		upper_index= 1;
 		lower_index= vertices[0].y < vertices[2].y ? 0u : 2u;
 	}
-	else//if( vertices[2].y > vertices[0].y && vertices[2].y > vertices[1].y )
+	else//if( vertices[2].y >= vertices[0].y && vertices[2].y >= vertices[1].y )
 	{
 		upper_index= 2;
 		lower_index= vertices[0].y < vertices[1].y ? 0u : 1u;
 	}
+
 	middle_index= 0u + 1u + 2u - upper_index - lower_index;
 
 	const float long_edge_y_length=  vertices[ upper_index ].y - vertices[ lower_index ].y;
