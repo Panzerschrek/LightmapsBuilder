@@ -283,25 +283,6 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		PointLightPass( light_pos, light_color );
 	}
 
-	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
-	{
-		m_Vec3 light_color;
-		unsigned char max_color_component= 1;
-		for( int j= 0; j< 3; j++ )
-		{
-			unsigned char c= light.color[j];
-			light_color.ToArr()[j]= light.intensity * float(light.color[j]) / 255.0f;
-			if( c > max_color_component ) max_color_component= c;
-		}
-		light_color/= float(max_color_component) / 255.0f;
-
-		GenPointlightShadowmap( m_Vec3( light.pos ) );
-		SurfaceSampleLightPass(
-			m_Vec3( light.pos ),
-			m_Vec3( light.normal ),
-			light_color );
-	}
-
 	for( const plb_DirectionalLight& light : level_data_.directional_lights )
 	{
 		m_Mat4 mat;
@@ -332,6 +313,38 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 
 plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
+}
+
+void plb_LightmapsBuilder::MakeBrightLuminousSurfacesLight(
+	const std::function<void()>& wake_up_callback )
+{
+	unsigned int count= 0;
+
+	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
+	{
+		m_Vec3 light_color;
+		unsigned char max_color_component= 1;
+		for( int j= 0; j< 3; j++ )
+		{
+			unsigned char c= light.color[j];
+			light_color.ToArr()[j]= light.intensity * float(light.color[j]) / 255.0f;
+			if( c > max_color_component ) max_color_component= c;
+		}
+		light_color/= float(max_color_component) / 255.0f;
+
+		GenPointlightShadowmap( m_Vec3( light.pos ) );
+		SurfaceSampleLightPass(
+			m_Vec3( light.pos ),
+			m_Vec3( light.normal ),
+			light_color );
+
+		count++;
+		if( count == 30 )
+		{
+			wake_up_callback();
+			count= 0;
+		}
+	}
 }
 
 void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake_up_callback )

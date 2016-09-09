@@ -24,6 +24,8 @@ public:
 	plb_LightmapsBuilder( const char* file_name, const plb_Config& config );
 	~plb_LightmapsBuilder();
 
+	void MakeBrightLuminousSurfacesLight( const std::function<void()>& wake_up_callback );
+
 	void MakeSecondaryLight( const std::function<void()>& wake_up_callback );
 
 	void DrawPreview(
