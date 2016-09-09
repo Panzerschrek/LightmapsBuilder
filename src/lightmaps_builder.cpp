@@ -323,14 +323,9 @@ void plb_LightmapsBuilder::MakeBrightLuminousSurfacesLight(
 	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
 	{
 		m_Vec3 light_color;
-		unsigned char max_color_component= 1;
+
 		for( int j= 0; j< 3; j++ )
-		{
-			unsigned char c= light.color[j];
 			light_color.ToArr()[j]= light.intensity * float(light.color[j]) / 255.0f;
-			if( c > max_color_component ) max_color_component= c;
-		}
-		light_color/= float(max_color_component) / 255.0f;
 
 		GenPointlightShadowmap( m_Vec3( light.pos ) );
 		SurfaceSampleLightPass(
