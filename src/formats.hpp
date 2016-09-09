@@ -137,6 +137,8 @@ struct plb_ConeLight : public plb_PointLight
 	float angle;
 };
 
+typedef std::vector<plb_ConeLight> plb_ConeLights;
+
 // Light of small luminous surface.
 // Light intensity depends on cosine of angle between direction to light and light sample normal.
 struct plb_SurfaceSampleLight : public plb_PointLight
@@ -145,8 +147,6 @@ struct plb_SurfaceSampleLight : public plb_PointLight
 };
 
 typedef std::vector<plb_SurfaceSampleLight> plb_SurfaceSampleLights;
-
-typedef std::vector<plb_ConeLight> plb_ConeLights;
 
 // Konfig postroitelä.
 // Parametry po umolcaniju blizki k prijemlemym.
@@ -191,7 +191,11 @@ struct plb_Config
 	// Maksimaljnaja svetimostj poverhnosti, pri kotoroj svet ot nejo jescö
 	// risujetsä rasterizaçijej na stadii vtoricnogo osvescenija.
 	// Poverhnsoti s boljšej jarkostju budut razbivatjsä na tocecnyje istocniki sveta.
-	float max_luminocity_for_direct_luminous_surfaces_drawing= 20.0f;
+	float max_luminocity_for_direct_luminous_surfaces_drawing= 50.0f;
+
+	// Na skoljko castej nužno delitj odin metr jarkoj svetäscejsä poverhnosti.
+	// Cem boljše eto cislo, tem boljše budet sozdano istocnikov sveta ot poverhnosti.
+	float luminous_surfaces_tessellation_inv_size= 8.0f;
 
 	// Razmer boljšoj tekstury, gde razmescajutsä svetokarty otdeljnyh poverhnostej.
 	// Želateljno, ctoby razmer po osi X byl ne ocenj boljšim, ctoby stroki karty osvescenija

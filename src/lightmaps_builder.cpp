@@ -1247,9 +1247,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 {
 	typedef plb_Rasterizer<float> Rasterizer;
 
-	// TODO - move to config
-	const float c_subdivide_inv_size= 8.0f;
 	const unsigned int c_scale_in_rasterizer= 4;
+	const float subdivide_inv_size= config_.luminous_surfaces_tessellation_inv_size;
 
 	std::vector<float> rasterizer_data;
 
@@ -1296,8 +1295,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			if( projection_pos.y > proj_max.y ) proj_max.y= projection_pos.y;
 		} // for vertices
 
-		proj_min*= c_subdivide_inv_size;
-		proj_max*= c_subdivide_inv_size;
+		proj_min*= subdivide_inv_size;
+		proj_max*= subdivide_inv_size;
 		const m_Vec2 proj_size= proj_max - proj_min;
 
 		// Small polygon - generate single light source.
@@ -1357,7 +1356,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 					m_Vec3( poly.lightmap_pos );
 
 				v[i]= ( world_space_vertex * inv_basis ).xy();
-				v[i]*= c_subdivide_inv_size;
+				v[i]*= subdivide_inv_size;
 				v[i]-= proj_min;
 				v[i]*= float(c_scale_in_rasterizer);
 			}
@@ -1387,11 +1386,11 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
 			light.intensity=
-				material.luminosity * covered / ( c_subdivide_inv_size * c_subdivide_inv_size );
+				material.luminosity * covered / ( subdivide_inv_size * subdivide_inv_size );
 
 			const m_Vec3 pos=
-				( float(x) + 0.5f + proj_min.x ) / c_subdivide_inv_size * polygon_projection_basis[0] +
-				( float(y) + 0.5f + proj_min.y ) / c_subdivide_inv_size * polygon_projection_basis[1] +
+				( float(x) + 0.5f + proj_min.x ) / subdivide_inv_size * polygon_projection_basis[0] +
+				( float(y) + 0.5f + proj_min.y ) / subdivide_inv_size * polygon_projection_basis[1] +
 				m_Vec3( poly.lightmap_pos );
 
 			for( unsigned int i= 0; i < 3; i++ )
