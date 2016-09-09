@@ -1329,6 +1329,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			proj_min.ToArr()[i]-= 0.5f * ( float(light_grid_size[i]) - proj_size.ToArr()[i] );
 		}
 
+		rasterizer_data.clear();
 		rasterizer_data.resize( rasterizer_buffer.size[0] * rasterizer_buffer.size[1], 0.0f );
 		rasterizer_buffer.data= rasterizer_data.data();
 
@@ -1361,18 +1362,18 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 		for( unsigned int x= 0; x < light_grid_size[0]; x++ )
 		{
 			float covered= 0.0f;
-			for( unsigned int u= 0; u < c_scale_in_rasterizer; u++ )
 			for( unsigned int v= 0; v < c_scale_in_rasterizer; v++ )
+			for( unsigned int u= 0; u < c_scale_in_rasterizer; u++ )
 			{
 				covered+=
 					rasterizer_data[
 						x * c_scale_in_rasterizer + u +
-						( y * c_scale_in_rasterizer + v ) * light_grid_size[0] ];
+						( y * c_scale_in_rasterizer + v ) * rasterizer_buffer.size[0] ];
 			}
-			covered/= float( c_scale_in_rasterizer * c_scale_in_rasterizer );
-
-			if( covered <= 0.0001f )
+			if( covered < 0.5f )
 				continue;
+
+			covered/= float( c_scale_in_rasterizer * c_scale_in_rasterizer );
 
 			bright_luminous_surfaces_lights_.emplace_back();
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
