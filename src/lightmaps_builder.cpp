@@ -1305,7 +1305,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			bright_luminous_surfaces_lights_.emplace_back();
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
-			light.intensity=
+			light.intensity= ( 1.0f / g_pi ) *
 				material.luminosity *
 				plbGetPolygonArea( poly, level_data_.vertices, level_data_.polygons_indeces );
 
@@ -1385,7 +1385,7 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			bright_luminous_surfaces_lights_.emplace_back();
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
-			light.intensity=
+			light.intensity= ( 1.0f / g_pi ) *
 				material.luminosity * covered / ( subdivide_inv_size * subdivide_inv_size );
 
 			const m_Vec3 pos=
