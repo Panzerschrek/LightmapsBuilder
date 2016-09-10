@@ -49,23 +49,24 @@ static void GenCubemapSideDirectionMultipler( unsigned int size, unsigned char* 
 		side_vectors + side_num * 12 + 9
 	};
 
-	float dkx= 1.0f / float(size);
+	const float dk= 1.0f / float(size);
 	for( unsigned int y= 0; y< size; y++ )
 	{
-		float yk= float(y) / float(size);
-		float yk1= 1.0f - yk;
+		const float yk= (float(y) + 0.5f) * dk;
+		const float yk1= 1.0f - yk;
 		m_Vec3 vy[2];
 		vy[0]= m_Vec3( control_vectors[0] ) * yk1 + m_Vec3( control_vectors[2] ) * yk;
 		vy[1]= m_Vec3( control_vectors[1] ) * yk1 + m_Vec3( control_vectors[3] ) * yk;
 
-		float xk= 0.0f, xk1= 1.0f;
-		for( unsigned int x= 0; x< size; x++, xk+= dkx, xk1-= dkx )
+		float xk= dk * 0.5f;
+		float xk1= 1.0f - xk;
+		for( unsigned int x= 0; x< size; x++, xk+= dk, xk1-= dk )
 		{
-			m_Vec3 vec= vy[0] * xk1 + vy[1] * xk;
-			m_Vec3 side_vec( xk * 2.0f - 1.0f, yk * 2.0f - 1.0f, 1.0f );
-			float f= 255.0f * vec.z / ( vec.Length() * side_vec.Length() );
+			const m_Vec3 vec= vy[0] * xk1 + vy[1] * xk;
+			const m_Vec3 side_vec( xk * 2.0f - 1.0f, yk * 2.0f - 1.0f, 1.0f );
+			const float f= 255.0f * vec.z / ( vec.Length() * side_vec.Length() );
 			
-			int fi= int(f);
+			int fi= int( std::round(f) );
 			if( fi > 255 ) fi= 255;
 			else if( fi < 0 ) fi= 0;
 			out_data[ x + y * size ]= fi;
