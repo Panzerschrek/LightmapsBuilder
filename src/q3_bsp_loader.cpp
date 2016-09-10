@@ -4,6 +4,7 @@
 
 #include "formats.hpp"
 #include "loaders_common.hpp"
+#include "math_utils.hpp"
 
 extern "C"
 {
@@ -274,9 +275,8 @@ static void BuildDirectionalLights( const Q3SkyLights& sky_lights, plb_Direction
 			out_lights.emplace_back();
 			plb_DirectionalLight& light= out_lights.back();
 
-			const float c_to_rad= 3.1415926535f / 180.0f;
-			const float elevation= light_shader.elevation * c_to_rad;
-			const float degrees= light_shader.degrees * c_to_rad;
+			const float elevation= light_shader.elevation * plb_Constants::to_rad;
+			const float degrees= light_shader.degrees * plb_Constants::to_rad;
 
 			light.direction[1]= std::sin( elevation );
 			light.direction[0]= std::cos( elevation ) * std::cos( degrees );

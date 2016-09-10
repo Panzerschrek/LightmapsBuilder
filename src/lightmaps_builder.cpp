@@ -23,7 +23,6 @@ struct CubemapGeometryVertex
 
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
-static const float g_pi= 3.1415926535f;
 static const float g_cubemaps_znear= 1.0f / 32.0f;
 static const float g_cubemaps_min_clip_distance= g_cubemaps_znear * std::sqrt(3.0f);
 
@@ -97,9 +96,9 @@ static void CreateRotationMatrixForDirection(
 	const float c_sin_eps= 0.995f;
 
 		 if( dir.y >=  c_sin_eps )
-		out_mat.RotateX(  g_pi * 0.5f );
+		out_mat.RotateX(  plb_Constants::half_pi );
 	else if( dir.y <= -c_sin_eps )
-		out_mat.RotateX( -g_pi * 0.5f );
+		out_mat.RotateX( -plb_Constants::half_pi );
 	else
 	{
 		m_Mat4 rotate_x, rotate_y;
@@ -124,7 +123,7 @@ static void CreateDirectionalLightMatrix(
 	m_Vec3 dir( light.direction );
 	dir.Normalize();
 
-	rotation.RotateX( -g_pi * 0.5f );
+	rotation.RotateX( -plb_Constants::half_pi );
 
 	shift.Identity();
 	shift[4]= -dir.x / dir.y;
@@ -178,17 +177,17 @@ static void CreateConeLightMatrix(
 static void GenCubemapMatrices( const m_Vec3& pos, m_Mat4* out_matrices )
 {
 	m_Mat4 perspective, shift;
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, g_cubemaps_znear, 256.0f );
+	perspective.PerspectiveProjection( 1.0f, plb_Constants::half_pi, g_cubemaps_znear, 256.0f );
 	shift.Translate( -pos );
 
-	m_Mat4 tmp; tmp.RotateZ( g_pi );
-	out_matrices[0].RotateY( g_pi * 0.5f );
-	out_matrices[1].RotateY( -g_pi* 0.5f );
-	out_matrices[2].RotateX( -g_pi * 0.5f );
+	m_Mat4 tmp; tmp.RotateZ( plb_Constants::pi );
+	out_matrices[0].RotateY( plb_Constants::half_pi );
+	out_matrices[1].RotateY( -plb_Constants::half_pi );
+	out_matrices[2].RotateX( -plb_Constants::half_pi );
 	out_matrices[2]*= tmp;
-	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3].RotateX( plb_Constants::half_pi );
 	out_matrices[3]*= tmp;
-	out_matrices[4].RotateY( -g_pi );
+	out_matrices[4].RotateY( -plb_Constants::pi );
 	out_matrices[5].Identity();
 
 	for( unsigned int i= 0; i< 6; i++ )
@@ -200,18 +199,18 @@ static void GenCubemapMatrices( const m_Vec3& pos, const m_Vec3& dir, m_Mat4* ou
 {
 	m_Mat4 perspective, shift, rotate, rotate_and_shift;
 
-	perspective.PerspectiveProjection( 1.0f, g_pi * 0.5f, g_cubemaps_znear, 256.0f );
+	perspective.PerspectiveProjection( 1.0f, plb_Constants::half_pi, g_cubemaps_znear, 256.0f );
 	shift.Translate( -pos );
 	CreateRotationMatrixForDirection( dir, rotate );
 
-	m_Mat4 tmp; tmp.RotateZ( g_pi );
-	out_matrices[0].RotateY( g_pi * 0.5f );
-	out_matrices[1].RotateY( -g_pi* 0.5f );
-	out_matrices[2].RotateX( -g_pi * 0.5f );
+	m_Mat4 tmp; tmp.RotateZ( plb_Constants::pi );
+	out_matrices[0].RotateY( plb_Constants::half_pi );
+	out_matrices[1].RotateY( -plb_Constants::half_pi );
+	out_matrices[2].RotateX( -plb_Constants::half_pi );
 	out_matrices[2]*= tmp;
-	out_matrices[3].RotateX( g_pi * 0.5f );
+	out_matrices[3].RotateX( plb_Constants::half_pi );
 	out_matrices[3]*= tmp;
-	out_matrices[4].RotateY( -g_pi );
+	out_matrices[4].RotateY( -plb_Constants::pi );
 	out_matrices[5].Identity();
 
 	rotate_and_shift= shift * rotate;
@@ -1305,8 +1304,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			bright_luminous_surfaces_lights_.emplace_back();
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
-			light.intensity= ( 1.0f / g_pi ) *
-				material.luminosity *
+			light.intensity=
+				plb_Constants::inv_pi * material.luminosity *
 				plbGetPolygonArea( poly, level_data_.vertices, level_data_.polygons_indeces );
 
 			const m_Vec3 pos=
@@ -1385,8 +1384,9 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			bright_luminous_surfaces_lights_.emplace_back();
 			plb_SurfaceSampleLight& light= bright_luminous_surfaces_lights_.back();
 
-			light.intensity= ( 1.0f / g_pi ) *
-				material.luminosity * covered / ( subdivide_inv_size * subdivide_inv_size );
+			light.intensity=
+				plb_Constants::inv_pi * material.luminosity *
+				covered / ( subdivide_inv_size * subdivide_inv_size );
 
 			const m_Vec3 pos=
 				( float(x) + 0.5f + proj_min.x ) / subdivide_inv_size * polygon_projection_basis[0] +

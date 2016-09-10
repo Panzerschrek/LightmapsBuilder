@@ -241,7 +241,6 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 			light.direction[0]= 0.0f; light.direction[1]= 0.0f;
 			light.direction[2]= -1.0f;
 
-			const float c_to_rad= 180.0f * 3.1415926535f;
 			const float c_max_angle_sin= 0.8f;
 			const float c_min_dist_to_target= 64.0f;
 			const float c_min_target_radius= 64.0f;
@@ -286,8 +285,11 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 				}
 				else if( std::strcmp( epair->key, "_cone" ) == 0 )
 				{
-					light.angle= std::atof( epair->value ) / c_to_rad;
-					light.angle= std::max( 10.0f * c_to_rad, std::min( light.angle, std::asin(c_max_angle_sin) ) );
+					light.angle= std::atof( epair->value ) * plb_Constants::to_rad;
+					light.angle=
+						std::max(
+							10.0f * plb_Constants::to_rad,
+							std::min( light.angle, std::asin(c_max_angle_sin) ) );
 				}
 				else if( std::strcmp( epair->key, "angle" ) == 0 )
 				{
@@ -304,8 +306,8 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 					}
 					else
 					{
-						light.direction[0] = std::cos( angle * c_to_rad );
-						light.direction[1] = std::sin( angle * c_to_rad );
+						light.direction[0] = std::cos( angle * plb_Constants::to_rad );
+						light.direction[1] = std::sin( angle * plb_Constants::to_rad );
 						light.direction[2]= 0.0f;
 					}
 				}

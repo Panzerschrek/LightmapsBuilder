@@ -5,13 +5,15 @@
 #include <vec.hpp>
 #include <matrix.hpp>
 
+#include "math_utils.hpp"
+
 class plb_CameraController final
 {
 public:
 	plb_CameraController(
 		const m_Vec3& pos= m_Vec3(0.0f, 0.0f, 0.0f),
 		const m_Vec2& angle= m_Vec2(0.0f, 0.0f),
-		float aspect= 1.0f, float fov= 3.1415926535f*0.5f );
+		float aspect= 1.0f, float fov= plb_Constants::half_pi );
 
 	~plb_CameraController();
 

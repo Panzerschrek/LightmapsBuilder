@@ -33,11 +33,10 @@ void plb_CameraController::Tick()
 	const float rot_speed= 1.75f;
 	angle_+= dt_s * rot_speed * rotate_vec;
 	
-	const float pi= 3.1415926535f;
-	if( angle_.y > pi * 2.0f ) angle_.y-= 2.0f * pi;
-	else if( angle_.y < 0.0f ) angle_.y+= 2.0f * pi;
-	if( angle_.x > pi * 0.5f ) angle_.x= pi * 0.5f;
-	else if( angle_.x < -pi * 0.5f ) angle_.x= -pi * 0.5f;
+	if( angle_.y > plb_Constants::two_pi ) angle_.y-= plb_Constants::two_pi;
+	else if( angle_.y < 0.0f ) angle_.y+= plb_Constants::two_pi;
+	if( angle_.x > plb_Constants::half_pi ) angle_.x= plb_Constants::half_pi;
+	else if( angle_.x < -plb_Constants::half_pi ) angle_.x= -plb_Constants::half_pi;
 
 	m_Vec3 move_vector(0.0f,0.0f,0.0f);
 

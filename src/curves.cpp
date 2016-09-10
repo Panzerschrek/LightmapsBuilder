@@ -4,11 +4,12 @@
 
 #include <vec.hpp>
 
+#include "math_utils.hpp"
 #include "rasterizer.hpp"
 
 #include "curves.hpp"
 
-static const float g_max_angle_rad= 8.0f * 3.1415926535f / 180.0f;
+static const float g_max_angle_rad= 8.0f * plb_Constants::to_rad;
 static const unsigned int g_max_subdivisions= 63;
 
 static void GetControlPointsWeights( float kx, float ky, float kx1, float ky1, float* out_weights )
