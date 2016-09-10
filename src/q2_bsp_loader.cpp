@@ -66,10 +66,10 @@ static void LoadPolygons(
 	{
 		const texinfo_t& tex= texinfo[ face->texinfo ];
 
-		if( ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
-			continue;
-
 		const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
+
+		if( !is_sky && ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
+			continue;
 
 		plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
 		std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
