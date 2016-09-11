@@ -17,6 +17,22 @@ struct PositionAndNormal
 {
 	m_Vec3 pos;
 	m_Vec3 normal;
+
+	PositionAndNormal operator+( const PositionAndNormal& other ) const
+	{
+		PositionAndNormal result;
+		result.pos= pos + other.pos;
+		result.normal= normal + other.normal;
+		return result;
+	}
+
+	PositionAndNormal operator*( const float f ) const
+	{
+		PositionAndNormal result;
+		result.pos= pos * f;
+		result.normal= normal * f;
+		return result;
+	}
 };
 
 void CalculateCurveCoordinatesForLightTexels(

@@ -295,11 +295,14 @@ void CalculateCurveCoordinatesForLightTexels(
 	const plb_Vertices& vertices,
 	PositionAndNormal* out_coordinates )
 {
-	typedef plb_Rasterizer<m_Vec2> Rasterizer;
+	// Fill normal with zero - indicates no geometry
+	for( unsigned int i= 0; i < lightmap_size[0] * lightmap_size[1]; i++ )
+		out_coordinates[i].normal= m_Vec3( 0.0f, 0.0f, 0.0f );
 
-	std::vector<m_Vec2> buffer_data( lightmap_size[0] * lightmap_size[1] );
+	typedef plb_Rasterizer<PositionAndNormal> Rasterizer;
+
 	Rasterizer::Buffer buffer;
-	buffer.data= buffer_data.data();
+	buffer.data= out_coordinates;
 	buffer.size[0]= lightmap_size[0];
 	buffer.size[1]= lightmap_size[1];
 
@@ -339,28 +342,26 @@ void CalculateCurveCoordinatesForLightTexels(
 					base_vertices_lightmap_coords[i].y * lightmap_coord_scaler.y )
 					+ lightmap_coord_shift;
 
-		const auto get_lightmap_coord=
-			[&]( const float kx, const float ky ) -> m_Vec2
+		const auto get_lightmap_coord_and_pos=
+			[&]( const float kx, const float ky, m_Vec2& out_lightmap_coord, m_Vec3& out_pos )
 			{
 				const float kx1= 1.0f - kx;
 				const float ky1= 1.0f - ky;
 				float vert_k[9];
 				GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
 
-				m_Vec2 result( 0.0f, 0.0f );
+				out_lightmap_coord= m_Vec2( 0.0f, 0.0f );
+				out_pos= m_Vec3( 0.0f, 0.0f, 0.0f );
+
 				for( unsigned int i= 0; i < 9; i++ )
-					result+= base_vertices_lightmap_coords[i] * vert_k[i];
-				return result;
+				{
+					out_lightmap_coord+= base_vertices_lightmap_coords[i] * vert_k[i];
+					out_pos+= base_vertices[i] * vert_k[i];
+				}
 			};
 
 		unsigned int subdivisions[2];
-		//subdivisions[0]= 4;
-		//subdivisions[1]= 4;
 		GetPatchSubdivisions( base_vertices, g_max_angle_rad, subdivisions );
-
-		// Set unrendered
-		for( m_Vec2& pix : buffer_data )
-			pix.x= -1.0f;
 
 		const float step_x = 1.0f / float(subdivisions[0]);
 		const float step_y = 1.0f / float(subdivisions[1]);
@@ -370,43 +371,33 @@ void CalculateCurveCoordinatesForLightTexels(
 		{
 			const float kx= float(z) * step_x;
 			const float ky= float(w) * step_y;
+			const float kx1= 1.0f - kx;
+			const float ky1= 1.0f - ky;
 			m_Vec2 vert[4];
-			m_Vec2 attrib[4];
+			PositionAndNormal attrib[4];
 
-			attrib[0]= m_Vec2( kx, ky );
-			vert[0]= get_lightmap_coord( kx, ky );
-			attrib[1]= m_Vec2( kx + step_x, ky );
-			vert[1]= get_lightmap_coord( kx + step_x, ky );
-			attrib[2]= m_Vec2( kx, ky + step_y );
-			vert[2]= get_lightmap_coord( kx, ky + step_y );
-			attrib[3]= m_Vec2( kx + step_x, ky + step_y );
-			vert[3]= get_lightmap_coord( kx + step_x, ky + step_y );
+			get_lightmap_coord_and_pos( kx, ky, vert[0], attrib[0].pos );
+			attrib[0].normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+
+			get_lightmap_coord_and_pos( kx + step_x, ky, vert[1], attrib[1].pos );
+			attrib[1].normal= GenCurveNormal( base_vertices, kx + step_x, ky, kx1 - step_x, ky1 );
+
+			get_lightmap_coord_and_pos( kx, ky + step_y, vert[2], attrib[2].pos );
+			attrib[2].normal= GenCurveNormal( base_vertices, kx, ky + step_y, kx1, ky1 - step_y );
+
+			get_lightmap_coord_and_pos( kx + step_x, ky + step_y, vert[3], attrib[3].pos );
+			attrib[3].normal= GenCurveNormal( base_vertices, kx + step_x, ky + step_y, kx1 - step_x, ky1 - step_y );
 
 			rasterizer.DrawTriangle( vert, attrib );
 			rasterizer.DrawTriangle( vert + 1, attrib + 1 );
 		}
-
-		for( const m_Vec2& pix : buffer_data )
-		{
-			if( pix.x < 0.0f )
-				continue;
-
-			PositionAndNormal& out_coord= out_coordinates[ &pix - buffer_data.data() ];
-
-			const float kx= pix.x;
-			const float ky= pix.y;
-			const float kx1= 1.0f - kx;
-			const float ky1= 1.0f - ky;
-			float vert_k[9];
-			GetControlPointsWeights( kx, ky, kx1, ky1, vert_k );
-
-			out_coord.normal=
-				GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
-
-			out_coord.pos= m_Vec3( 0.0f, 0.0f, 0.0f );
-			for( unsigned int i= 0; i < 9; i++ )
-				out_coord.pos+= vert_k[i] * base_vertices[i];
-		}
-
 	} // for curve patches
+
+	// Normalize normal after rasterization
+	for( unsigned int i= 0; i < lightmap_size[0] * lightmap_size[1]; i++ )
+	{
+		const float normal_length= out_coordinates->normal.Length();
+		if( normal_length >= 0.01f )
+			out_coordinates->normal/= normal_length;
+	}
 }
