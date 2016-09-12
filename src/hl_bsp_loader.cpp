@@ -111,8 +111,7 @@ static void LoadMaterials(
 		if( IsSky( material.albedo_texture_file_name ) )
 			material.luminosity= 5.0f;
 
-		if( !material.albedo_texture_file_name.empty() &&
-			material.albedo_texture_file_name[0] == '~' )
+		if( !material.albedo_texture_file_name.empty() )
 		{
 			if( material.albedo_texture_file_name[0] == '~' )
 				material.luminosity= 80.0f;
@@ -345,7 +344,9 @@ static void GetBSPLights(
 
 		if( std::strncmp( classname, "light", 5 ) == 0 )
 		{
-			bool is_cone_light= std::strcmp( classname, "light_spot" ) == 0;
+			bool is_cone_light=
+				std::strcmp( classname, "light_spot" ) == 0 ||
+				std::strcmp( classname, "environment_light" ) == 0;
 
 			const bool is_sky_light=
 				FloatForKey( const_cast<entity_t*>(&ent), "_sky" ) != 0.0f;
@@ -418,8 +419,8 @@ static void GetBSPLights(
 					}
 					else
 					{
-						light.direction[0] = std::cos( angle * plb_Constants::to_rad );
-						light.direction[1] = std::sin( angle * plb_Constants::to_rad );
+						light.direction[0]= std::cos( angle * plb_Constants::to_rad );
+						light.direction[1]= std::sin( angle * plb_Constants::to_rad );
 						light.direction[2]= 0.0f;
 					}
 				}
