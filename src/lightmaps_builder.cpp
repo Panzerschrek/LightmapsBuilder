@@ -1503,7 +1503,8 @@ void plb_LightmapsBuilder::TransformTexturesCoordinates()
 	// Quake1BSP and Quake2BSP stroes unnormalized textures coordinates. Normalize it.
 	if(
 		config_.source_data_type == plb_Config::SourceDataType::Quake1BSP ||
-		config_.source_data_type == plb_Config::SourceDataType::Quake2BSP )
+		config_.source_data_type == plb_Config::SourceDataType::Quake2BSP ||
+		config_.source_data_type == plb_Config::SourceDataType::HalfLifeBSP)
 	{
 		for( const plb_Polygon& polygon : level_data_.polygons )
 		{
