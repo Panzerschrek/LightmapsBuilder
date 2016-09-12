@@ -7,3 +7,8 @@ build/*.pro.user
 # Windows binaries
 *.dll
 *.exe
+
+# directories with test data
+maps/*
+textures/*
+screenshots/*
