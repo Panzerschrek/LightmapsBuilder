@@ -1,32 +1,64 @@
+#include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 #include <vec.hpp>
 
-#include "formats.hpp"
 #include "loaders_common.hpp"
 #include "math_utils.hpp"
 
 extern "C"
 {
 
-#define false Q2_false
-#define true Q2_true
+#define false Q_false
+#define true Q_true
 
-#include <common/cmdlib.h>
-#include <common/mathlib.h>
-#include <common/bspfile.h>
+#include <utils/common/cmdlib.h>
+#include <utils/common/mathlib.h>
+#include <utils/common/bspfile.h>
 
 #undef true
 #undef false
 
 }
 
+static const bool IsSky( const std::string& name )
+{
+	return
+		std::strncmp(
+			name.c_str(),
+			"sky", 3 ) == 0;
+}
+
+static const bool SkipSurfaceWithTexture( const std::string& name )
+{
+	static const char* const special_textures[]=
+	{
+		"aaatrigger",
+		"trigger",
+		"clip",
+		"origin",
+		"hint",
+		"skip",
+		"null",
+	};
+
+	for( const auto tex : special_textures )
+		if( std::strcmp( tex, name.c_str() ) == 0 )
+			return true;
+
+	return false;
+}
+
 static void LoadMaterials(
 	plb_Materials& out_materials,
 	plb_ImageInfos& out_textures )
 {
+	// TODO - read .rad file with materials info
+
 	const auto get_texture=
 		[&]( const char* file_name ) -> unsigned int
 		{
@@ -42,16 +74,35 @@ static void LoadMaterials(
 			return out_textures.size() - 1u;
 		};
 
+	const dmiptexlump_t* const miptexlump= (const dmiptexlump_t*)dtexdata;
+
 	for( const texinfo_t* tex= texinfo; tex < texinfo + numtexinfo; tex++ )
 	{
 		out_materials.emplace_back();
 		plb_Material& material= out_materials.back();
 
-		material.albedo_texture_number=
-		material.light_texture_number= get_texture( tex->texture );
+		const int offset= miptexlump->dataofs[tex->miptex];
+		if( offset == -1 )
+			continue;
 
-		if( ( tex->flags & SURF_LIGHT ) != 0 )
-			material.luminosity= float(tex->value) * Q_LIGHT_UNITS_INV_SCALER;
+		const miptex_t& miptex= *(miptex_t*)( ((byte*)miptexlump) + offset );
+		const char* const texure_file_name= miptex.name;
+
+		material.albedo_texture_file_name= texure_file_name;
+
+		material.albedo_texture_number=
+		material.light_texture_number= get_texture( texure_file_name );
+
+		if( IsSky( material.albedo_texture_file_name ) )
+			material.luminosity= 2.5f;
+
+		if( !material.albedo_texture_file_name.empty() )
+		{
+			if( material.albedo_texture_file_name[0] == '~' )
+				material.luminosity= 80.0f;
+			if( material.albedo_texture_file_name[0] == '{' )
+				material.cast_alpha_shadow= true;
+		}
 	}
 }
 
@@ -75,6 +126,7 @@ static void GetOriginForModel( unsigned int model_number, float* origin )
 }
 
 static void LoadPolygons(
+	const plb_Materials& materials,
 	plb_Vertices& out_vertices,
 	plb_Polygons& out_polygons,
 	std::vector<unsigned int>& out_indeces,
@@ -93,10 +145,12 @@ static void LoadPolygons(
 		{
 			const texinfo_t& tex= texinfo[ face->texinfo ];
 
-			const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
+			const std::string& texture_file_name= materials[ face->texinfo ].albedo_texture_file_name;
 
-			if( !is_sky && ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
+			if( SkipSurfaceWithTexture( texture_file_name ) )
 				continue;
+
+			const bool is_sky= IsSky( texture_file_name );
 
 			plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
 			std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
@@ -208,33 +262,38 @@ static void LoadPolygons(
 	} // for models
 }
 
-static void ParseColor( const char* str, unsigned char* out_color )
+static void ParseLightAndColor( const char* str, float& out_light, unsigned char* out_color )
 {
-	double rgb[3];
+	double val[4];
 
-	sscanf( str, "%lf %lf %lf", &rgb[0], &rgb[1], &rgb[2] );
+	const unsigned int count=
+		std::sscanf( str, "%lf %lf %lf %lf", &val[0], &val[1], &val[2], &val[3] );
+
+	if( count == 1 )
+	{
+		out_light= val[0];
+		out_color[0]= out_color[1]= out_color[2]= 255;
+		return;
+	}
+
+	out_light= 0.0f;
 	for( unsigned int i= 0; i < 3; i++ )
 	{
-		if( rgb[i] > 255.0 ) rgb[i]= 255.0;
-		if( rgb[i] < 0.0 ) rgb[i]= 0.0;
-
-		out_color[i]= static_cast<unsigned char>( rgb[i] );
+		if( val[i] > out_light )
+			out_light= float(val[i]);
 	}
-}
 
-static void ParseColorF( const char* str, unsigned char* out_color )
-{
-	double rgb[3];
-
-	sscanf( str, "%lf %lf %lf", &rgb[0], &rgb[1], &rgb[2] );
 	for( unsigned int i= 0; i < 3; i++ )
 	{
-		rgb[i]*= 255.0;
-		if( rgb[i] > 255.0 ) rgb[i]= 255.0;
-		if( rgb[i] < 0.0 ) rgb[i]= 0.0;
+		int c= static_cast<int>( 255.0f * val[i] / out_light );
+		if( c < 0 ) c= 0;
+		if( c > 255 ) c= 255;
 
-		out_color[i]= static_cast<unsigned char>( rgb[i] );
+		out_color[i]= static_cast<unsigned char>( c );
 	}
+
+	if( count == 4 && val[3] > 0.0f )
+		out_light= val[3];
 }
 
 static const entity_t* FindTarget( const char* key )
@@ -250,7 +309,10 @@ static const entity_t* FindTarget( const char* key )
 	return nullptr;
 }
 
-static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_lights )
+static void GetBSPLights(
+	plb_PointLights& point_lights,
+	plb_ConeLights& cone_lights,
+	plb_DirectionalLights& directional_lights )
 {
 	for( unsigned int i= 0; i < (unsigned int)num_entities; i++ )
 	{
@@ -258,12 +320,18 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 		if( ent.epairs == nullptr ) continue;
 
 		const char* const classname= ValueForKey( const_cast<entity_t*>(&ent), "classname" );
-		const bool is_point_light= std::strcmp( classname, "light" ) == 0;
-		bool is_cone_light= std::strcmp( classname, "light_spot" ) == 0;
-		if( is_point_light || is_cone_light )
+
+		if( std::strncmp( classname, "light", 5 ) == 0 )
 		{
+			bool is_cone_light=
+				std::strcmp( classname, "light_spot" ) == 0 ||
+				std::strcmp( classname, "environment_light" ) == 0;
+
+			const bool is_sky_light=
+				FloatForKey( const_cast<entity_t*>(&ent), "_sky" ) != 0.0f;
+
 			plb_ConeLight light;
-			light.intensity = 0.0f;
+			light.intensity= 0.0f;
 			light.color[0]= light.color[1]= light.color[2]= 255;
 
 			light.direction[0]= 0.0f; light.direction[1]= 0.0f;
@@ -278,12 +346,9 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 			const epair_t* epair= ent.epairs;
 			while( epair != nullptr )
 			{
-				if( std::strcmp( epair->key, "light" ) == 0 )
-					light.intensity= std::atof(epair->value);
-				else if( std::strcmp( epair->key, "color" ) == 0 )
-					ParseColor( epair->value, light.color );
-				else if( std::strcmp( epair->key, "_color" ) == 0 )
-					ParseColorF( epair->value, light.color );
+				if( std::strcmp( epair->key, "light" ) == 0 ||
+					std::strcmp( epair->key, "_light" ) == 0 )
+					ParseLightAndColor( epair->value, light.intensity, light.color );
 				else if( std::strcmp( epair->key, "target" ) == 0 )
 				{
 					if( const entity_t* const target= FindTarget( epair->value ) )
@@ -314,10 +379,9 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 				else if( std::strcmp( epair->key, "_cone" ) == 0 )
 				{
 					light.angle= std::atof( epair->value ) * plb_Constants::to_rad;
-					light.angle=
-						std::max(
-							10.0f * plb_Constants::to_rad,
-							std::min( light.angle, std::asin(c_max_angle_sin) ) );
+					light.angle= std::max(
+						10.0f * plb_Constants::to_rad,
+						std::min( light.angle, std::asin(c_max_angle_sin) ) );
 				}
 				else if( std::strcmp( epair->key, "angle" ) == 0 )
 				{
@@ -334,13 +398,34 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 					}
 					else
 					{
-						light.direction[0] = std::cos( angle * plb_Constants::to_rad );
-						light.direction[1] = std::sin( angle * plb_Constants::to_rad );
+						light.direction[0]= std::cos( angle * plb_Constants::to_rad );
+						light.direction[1]= std::sin( angle * plb_Constants::to_rad );
 						light.direction[2]= 0.0f;
 					}
 				}
+				else if( std::strcmp( epair->key, "angles" ) == 0 )
+				{
+					float angles[3];
+					std::sscanf( epair->value, "%f %f %f", &angles[0], &angles[1], &angles[2] );
+
+					light.direction[0]= std::cos( angles[1] * plb_Constants::to_rad );
+					light.direction[1]= std::sin( angles[1] * plb_Constants::to_rad );
+					light.direction[2]= 0.0f;
+				}
 
 				epair= epair->next;
+			}
+
+			float pitch= FloatForKey( const_cast<entity_t*>(&ent), "pitch" );
+			if( pitch == 0.0f )
+				pitch= FloatForKey( const_cast<entity_t*>(&ent), "angles" );
+			if( pitch != 0.0f )
+			{
+				const float pitch_rad= pitch * plb_Constants::to_rad;
+				const float c= std::cos( pitch_rad );
+				light.direction[0]*= c;
+				light.direction[1]*= c;
+				light.direction[2]= std::sin( pitch_rad );
 			}
 
 			// Change coord system
@@ -351,7 +436,19 @@ static void GetBSPLights( plb_PointLights& point_lights, plb_ConeLights& cone_li
 
 			light.intensity*= Q_LIGHT_UNITS_INV_SCALER;
 
-			if( is_cone_light )
+			if( is_sky_light )
+			{
+				plb_DirectionalLight dl;
+				for( unsigned int i= 0; i < 3; i++ )
+				{
+					dl.color[i]= light.color[i];
+					dl.direction[i]= light.direction[i];
+				}
+				dl.intensity= light.intensity;
+
+				directional_lights.push_back(dl);
+			}
+			else if( is_cone_light )
 				cone_lights.push_back(light);
 			else
 				point_lights.push_back(light);
@@ -371,6 +468,7 @@ PLB_DLL_FUNC void LoadBsp(
 	LoadMaterials( level_data.materials, level_data.textures );
 
 	LoadPolygons(
+		level_data.materials,
 		level_data.vertices, level_data.polygons, level_data.polygons_indeces,
 		level_data.sky_polygons, level_data.sky_polygons_indeces );
 
@@ -380,5 +478,5 @@ PLB_DLL_FUNC void LoadBsp(
 		level_data.polygons_indeces,
 		level_data.sky_polygons_indeces );
 
-	GetBSPLights( level_data.point_lights, level_data.cone_lights );
+	GetBSPLights( level_data.point_lights, level_data.cone_lights, level_data.directional_lights );
 }

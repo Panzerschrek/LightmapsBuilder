@@ -159,6 +159,7 @@ struct plb_Config
 		Quake1BSP,
 		Quake2BSP,
 		Quake3BSP,
+		HalfLifeBSP,
 	};
 
 	SourceDataType source_data_type= SourceDataType::Quake3BSP;

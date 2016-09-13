@@ -34,6 +34,63 @@ static void GetAverageColor(
 		out_color[j]= color_sum[j] / pixel_count;
 }
 
+static ILuint CorrectHLTexture( ILuint handle )
+{
+	ilBindImage( handle );
+
+	const unsigned int width = ilGetInteger( IL_IMAGE_WIDTH  );
+	const unsigned int height= ilGetInteger( IL_IMAGE_HEIGHT );
+
+	/* Half-life stores images like this:
+	+-------------+-------+
+	|             |       |
+	|             |   2   |
+	|      1      |       |
+	|             +---+-+-+
+	|             | 4 +-+
+	|             +-+-+
+	+-------------+
+	We cut here mip levels and flip.
+	*/
+
+	if( (width % 3u) == 0 && (height % 2) == 0 )
+	{
+		const unsigned int new_width= width / 3u * 2u;
+
+		ilConvertImage( IL_RGBA, IL_UNSIGNED_BYTE );
+
+		const unsigned char* const data= ilGetData();
+		std::vector<unsigned char> new_data( 4u * new_width * height );
+		for( unsigned int y= 0; y < height; y++ )
+		for( unsigned int x= 0; x < new_width; x++ )
+		{
+			const unsigned char* const src= data + ( ( x + ( height - 1u - y ) * width ) << 2 );
+			unsigned char* const dst= new_data.data() + ( ( x + y * new_width ) << 2 );
+
+			for( unsigned int j= 0; j < 4; j++ )
+				dst[j]= src[j];
+
+			if( src[0] == 0 && src[1] == 0 && src[2] == 255 )
+				dst[3]= 0; // Key color "blue" is transparent
+			else
+				dst[3]= 255;
+		}
+
+		const ILuint img_transformed= ilGenImage();
+		ilBindImage( img_transformed );
+
+		ilTexImage(
+			new_width, height, 1,
+			4, IL_RGBA, IL_UNSIGNED_BYTE, new_data.data() );
+
+		ilDeleteImage( handle );
+
+		return img_transformed;
+	}
+
+	return handle;
+}
+
 #if 0
 static void GenStubTexture( unsigned char* dst, unsigned int width, unsigned char height )
 {
@@ -141,6 +198,9 @@ plb_TexturesManager::plb_TexturesManager(
 
 			if( img_loaded )
 			{
+				if( config.source_data_type == plb_Config::SourceDataType::HalfLifeBSP )
+					il_textures_handles[i]= CorrectHLTexture( il_textures_handles[i] );
+
 				img.original_size[0]= ilGetInteger( IL_IMAGE_WIDTH  );
 				img.original_size[1]= ilGetInteger( IL_IMAGE_HEIGHT );
 
