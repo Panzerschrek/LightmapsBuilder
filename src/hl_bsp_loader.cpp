@@ -25,8 +25,6 @@ extern "C"
 
 }
 
-typedef std::array<byte, 768> Palette;
-
 static const bool IsSky( const std::string& name )
 {
 	return
@@ -53,19 +51,6 @@ static const bool SkipSurfaceWithTexture( const std::string& name )
 			return true;
 
 	return false;
-}
-
-static void LoadPalette( const char* file_name, Palette& out_palette )
-{
-	FILE* f= std::fopen( file_name, "rb" );
-	if( f == 0 )
-	{
-		std::cout << "Can not open file: " << file_name << std::endl;
-		return;
-	}
-
-	fread( out_palette.data(), 1, out_palette.size(), f );
-	fclose(f);
 }
 
 static void LoadMaterials(
@@ -117,41 +102,6 @@ static void LoadMaterials(
 				material.luminosity= 80.0f;
 			if( material.albedo_texture_file_name[0] == '{' )
 				material.cast_alpha_shadow= true;
-		}
-	}
-}
-
-static void LoadBuildInImages(
-	plb_BuildInImages& out_images,
-	const Palette& palette )
-{
-	const dmiptexlump_t* const miptexlump= (const dmiptexlump_t*)dtexdata;
-
-	for( unsigned int i= 0; i < (unsigned int)miptexlump->nummiptex; i++ )
-	{
-		if( miptexlump->dataofs[i] == -1 )
-			continue;
-
-		out_images.emplace_back();
-		plb_BuildInImage& img= out_images.back();
-
-		const miptex_t* const miptex= (miptex_t*)( ((byte*)miptexlump) + miptexlump->dataofs[i] );
-
-		img.name= miptex->name;
-		img.size[0]= miptex->width ;
-		img.size[1]= miptex->height;
-
-		const unsigned int img_area= img.size[0] * img.size[1];
-		img.data_rgba.resize( img_area * 4 );
-
-		const byte* const src_tex_data= ((byte*)miptex) + miptex->offsets[0];
-		for( unsigned int c= 0; c < img_area; c++ )
-		{
-			const byte color_index= src_tex_data[c];
-			img.data_rgba[ c * 4     ]= palette[ color_index * 3 + 0 ];
-			img.data_rgba[ c * 4 + 1 ]= palette[ color_index * 3 + 1 ];
-			img.data_rgba[ c * 4 + 2 ]= palette[ color_index * 3 + 2 ];
-			img.data_rgba[ c * 4 + 3 ]= 255;
 		}
 	}
 }
@@ -512,14 +462,10 @@ PLB_DLL_FUNC void LoadBsp(
 	const plb_Config& config,
 	plb_LevelData& level_data )
 {
-	Palette palette;
-	LoadPalette( ( config.textures_path + "palette.lmp" ).c_str(), palette );
-
 	LoadBSPFile( const_cast<char*>(file_name) );
 	ParseEntities();
 
 	LoadMaterials( level_data.materials, level_data.textures );
-	//LoadBuildInImages( level_data.build_in_images, palette );
 
 	LoadPolygons(
 		level_data.materials,
