@@ -55,6 +55,25 @@ static void LoadMaterials(
 	}
 }
 
+static void GetOriginForModel( unsigned int model_number, float* origin )
+{
+	origin[0]= origin[1]= origin[2]= 0.0f;
+
+	char model_name[16];
+	std::snprintf( model_name, sizeof(model_name), "*%d", model_number );
+
+	for( const entity_t* entity= entities; entity < entities + num_entities; entity++ )
+	{
+		if( std::strcmp(
+			ValueForKey( const_cast<entity_t*>(entity), "model" ),
+			model_name ) == 0 )
+		{
+			GetVectorForKey( const_cast<entity_t*>(entity), "origin", origin );
+			return;
+		}
+	}
+}
+
 static void LoadPolygons(
 	plb_Vertices& out_vertices,
 	plb_Polygons& out_polygons,
@@ -62,122 +81,131 @@ static void LoadPolygons(
 	plb_Polygons& out_sky_polygons,
 	std::vector<unsigned int>& out_sky_indeces )
 {
-	for( const dface_t* face= dfaces; face < dfaces + numfaces; face++ )
+	for( const dmodel_t* model= dmodels; model < dmodels + nummodels; model++ )
 	{
-		const texinfo_t& tex= texinfo[ face->texinfo ];
+		float origin[3];
+		GetOriginForModel( model - dmodels, origin );
 
-		const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
-
-		if( !is_sky && ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
-			continue;
-
-		plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
-		std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
-
-		current_polygons.emplace_back();
-		plb_Polygon& poly= current_polygons.back();
-
-		const float side= face->side == 0 ? 1.0f : -1.0f;
-		poly.normal[0]= dplanes[ face->planenum ].normal[0] * side;
-		poly.normal[1]= dplanes[ face->planenum ].normal[1] * side;
-		poly.normal[2]= dplanes[ face->planenum ].normal[2] * side;
-
-		const float normal_length= m_Vec3( poly.normal ).Length();
-		poly.normal[0]/= normal_length;
-		poly.normal[1]/= normal_length;
-		poly.normal[2]/= normal_length;
-
-		// Calculate lightmap basis.
-		// Lightmap basis is projection of texture basis to surface plane.
-		for( unsigned int j= 0; j < 2; j++ )
+		for(
+			const dface_t* face= dfaces + model->firstface;
+			face < dfaces + model->firstface + model->numfaces;
+			face++ )
 		{
-			const m_Vec3 scaled_tex_basis= m_Vec3( tex.vecs[j] ) / 16.0f;
+			const texinfo_t& tex= texinfo[ face->texinfo ];
 
-			const m_Vec3 projected=
-				plbProjectVectorToPlane(
-					scaled_tex_basis,
-					m_Vec3( poly.normal ) );
+			const bool is_sky= ( tex.flags & SURF_SKY ) != 0;
 
-			const float square_length= projected.SquareLength();
-			poly.lightmap_basis[j][0]= projected.x / square_length;
-			poly.lightmap_basis[j][1]= projected.y / square_length;
-			poly.lightmap_basis[j][2]= projected.z / square_length;
-		}
+			if( !is_sky && ( tex.flags & (SURF_NODRAW | SURF_SKIP) ) != 0 )
+				continue;
 
-		m_Mat3 inverse_lightmap_basis;
-		plbGetInvLightmapBasisMatrix(
-			m_Vec3( poly.lightmap_basis[0] ),
-			m_Vec3( poly.lightmap_basis[1] ),
-			inverse_lightmap_basis );
+			plb_Polygons& current_polygons= is_sky ? out_sky_polygons : out_polygons;
+			std::vector<unsigned int>& current_indeces= is_sky ? out_sky_indeces : out_indeces;
 
-		float lm_min[2]= { 1e32f, 1e32f };
+			current_polygons.emplace_back();
+			plb_Polygon& poly= current_polygons.back();
 
-		const unsigned int first_vertex= out_vertices.size();
-		out_vertices.resize( out_vertices.size() + face->numedges );
-		for( unsigned int i= 0; i < (unsigned int)face->numedges; i++ )
-		{
-			const int e= dsurfedges[ face->firstedge + i ];
+			const float side= face->side == 0 ? 1.0f : -1.0f;
+			poly.normal[0]= dplanes[ face->planenum ].normal[0] * side;
+			poly.normal[1]= dplanes[ face->planenum ].normal[1] * side;
+			poly.normal[2]= dplanes[ face->planenum ].normal[2] * side;
 
-			const dvertex_t& in_vertex=
-				e >= 0
-					? dvertexes[ dedges[+e].v[0] ]
-					: dvertexes[ dedges[-e].v[1] ];
+			const float normal_length= m_Vec3( poly.normal ).Length();
+			poly.normal[0]/= normal_length;
+			poly.normal[1]/= normal_length;
+			poly.normal[2]/= normal_length;
 
-			plb_Vertex& out_vertex= out_vertices[ first_vertex +  i ];
-
-			out_vertex.pos[0]= in_vertex.point[0];
-			out_vertex.pos[1]= in_vertex.point[1];
-			out_vertex.pos[2]= in_vertex.point[2];
-
+			// Calculate lightmap basis.
+			// Lightmap basis is projection of texture basis to surface plane.
 			for( unsigned int j= 0; j < 2; j++ )
 			{
-				out_vertex.tex_coord[j]=
-					tex.vecs[j][0] * in_vertex.point[0] +
-					tex.vecs[j][1] * in_vertex.point[1] +
-					tex.vecs[j][2] * in_vertex.point[2] +
-					tex.vecs[j][3];
+				const m_Vec3 scaled_tex_basis= m_Vec3( tex.vecs[j] ) / 16.0f;
+
+				const m_Vec3 projected=
+					plbProjectVectorToPlane(
+						scaled_tex_basis,
+						m_Vec3( poly.normal ) );
+
+				const float square_length= projected.SquareLength();
+				poly.lightmap_basis[j][0]= projected.x / square_length;
+				poly.lightmap_basis[j][1]= projected.y / square_length;
+				poly.lightmap_basis[j][2]= projected.z / square_length;
 			}
 
-			m_Vec2 lm= ( m_Vec3(in_vertex.point) * inverse_lightmap_basis ).xy();
-			for( unsigned int j= 0; j < 2; j++ )
-				if( lm.ToArr()[j] < lm_min[j] )
-					lm_min[j]= lm.ToArr()[j];
-		}
+			m_Mat3 inverse_lightmap_basis;
+			plbGetInvLightmapBasisMatrix(
+				m_Vec3( poly.lightmap_basis[0] ),
+				m_Vec3( poly.lightmap_basis[1] ),
+				inverse_lightmap_basis );
 
-		const m_Vec3 center_projected=
-				plbProjectPointToPlane(
-					m_Vec3( 0.0f, 0.0f, 0.0f ),
-					m_Vec3( out_vertices[ first_vertex ].pos ),
-					m_Vec3( poly.normal ) );
+			float lm_min[2]= { 1e32f, 1e32f };
 
-		const m_Vec3 lightmap_pos=
-			center_projected +
-			m_Vec3(poly.lightmap_basis[0]) * lm_min[0] +
-			m_Vec3(poly.lightmap_basis[1]) * lm_min[1];
+			const unsigned int first_vertex= out_vertices.size();
+			out_vertices.resize( out_vertices.size() + face->numedges );
+			for( unsigned int i= 0; i < (unsigned int)face->numedges; i++ )
+			{
+				const int e= dsurfedges[ face->firstedge + i ];
 
-		poly.lightmap_pos[0]= lightmap_pos.x;
-		poly.lightmap_pos[1]= lightmap_pos.y;
-		poly.lightmap_pos[2]= lightmap_pos.z;
+				const dvertex_t& in_vertex=
+					e >= 0
+						? dvertexes[ dedges[+e].v[0] ]
+						: dvertexes[ dedges[-e].v[1] ];
 
-		poly.material_id= face->texinfo;
-		poly.first_vertex_number= first_vertex;
-		poly.vertex_count= static_cast<unsigned int>( face->numedges );
+				plb_Vertex& out_vertex= out_vertices[ first_vertex +  i ];
 
-		const unsigned int first_index= current_indeces.size();
-		const unsigned int triangle_count= static_cast<unsigned int>( face->numedges - 2 );
-		current_indeces.resize( current_indeces.size() + triangle_count * 3u );
+				out_vertex.pos[0]= in_vertex.point[0] + origin[0];
+				out_vertex.pos[1]= in_vertex.point[1] + origin[1];
+				out_vertex.pos[2]= in_vertex.point[2] + origin[2];
 
-		for( unsigned int i= 0; i < triangle_count; i++ )
-		{
-			current_indeces[ first_index + i*3     ]= first_vertex;
-			current_indeces[ first_index + i*3 + 1 ]= first_vertex + i + 1;
-			current_indeces[ first_index + i*3 + 2 ]= first_vertex + i + 2;
-		}
+				for( unsigned int j= 0; j < 2; j++ )
+				{
+					out_vertex.tex_coord[j]=
+						tex.vecs[j][0] * in_vertex.point[0] +
+						tex.vecs[j][1] * in_vertex.point[1] +
+						tex.vecs[j][2] * in_vertex.point[2] +
+						tex.vecs[j][3];
+				}
 
-		poly.first_index= first_index;
-		poly.index_count= triangle_count * 3;
+				m_Vec2 lm= ( m_Vec3(out_vertex.pos) * inverse_lightmap_basis ).xy();
+				for( unsigned int j= 0; j < 2; j++ )
+					if( lm.ToArr()[j] < lm_min[j] )
+						lm_min[j]= lm.ToArr()[j];
+			}
 
-	} // for faces
+			const m_Vec3 center_projected=
+					plbProjectPointToPlane(
+						m_Vec3( 0.0f, 0.0f, 0.0f ),
+						m_Vec3( out_vertices[ first_vertex ].pos ),
+						m_Vec3( poly.normal ) );
+
+			const m_Vec3 lightmap_pos=
+				center_projected +
+				m_Vec3(poly.lightmap_basis[0]) * lm_min[0] +
+				m_Vec3(poly.lightmap_basis[1]) * lm_min[1];
+
+			poly.lightmap_pos[0]= lightmap_pos.x;
+			poly.lightmap_pos[1]= lightmap_pos.y;
+			poly.lightmap_pos[2]= lightmap_pos.z;
+
+			poly.material_id= face->texinfo;
+			poly.first_vertex_number= first_vertex;
+			poly.vertex_count= static_cast<unsigned int>( face->numedges );
+
+			const unsigned int first_index= current_indeces.size();
+			const unsigned int triangle_count= static_cast<unsigned int>( face->numedges - 2 );
+			current_indeces.resize( current_indeces.size() + triangle_count * 3u );
+
+			for( unsigned int i= 0; i < triangle_count; i++ )
+			{
+				current_indeces[ first_index + i*3     ]= first_vertex;
+				current_indeces[ first_index + i*3 + 1 ]= first_vertex + i + 1;
+				current_indeces[ first_index + i*3 + 2 ]= first_vertex + i + 2;
+			}
+
+			poly.first_index= first_index;
+			poly.index_count= triangle_count * 3;
+
+		} // for faces
+	} // for models
 }
 
 static void ParseColor( const char* str, unsigned char* out_color )
