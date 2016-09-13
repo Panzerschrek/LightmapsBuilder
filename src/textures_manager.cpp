@@ -44,13 +44,13 @@ static ILuint CorrectHLTexture( ILuint handle )
 	/* Half-life stores images like this:
 	+-------------+-------+
 	|             |       |
-	|             |       |
-	|             |       |
-	|             +---+---+
-	|             |   |
+	|             |   2   |
+	|      1      |       |
+	|             +---+-+-+
+	|             | 4 +-+
 	|             +-+-+
-	+-------------+-+
-	We cut here mip levels
+	+-------------+
+	We cut here mip levels and flip.
 	*/
 
 	if( (width % 3u) == 0 && (height % 2) == 0 )
@@ -64,7 +64,7 @@ static ILuint CorrectHLTexture( ILuint handle )
 		for( unsigned int y= 0; y < height; y++ )
 		for( unsigned int x= 0; x < new_width; x++ )
 		{
-			const unsigned char* const src= data + ( ( x + y * width ) << 2 );
+			const unsigned char* const src= data + ( ( x + ( height - 1u - y ) * width ) << 2 );
 			unsigned char* const dst= new_data.data() + ( ( x + y * new_width ) << 2 );
 
 			for( unsigned int j= 0; j < 4; j++ )
