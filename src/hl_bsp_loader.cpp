@@ -424,6 +424,15 @@ static void GetBSPLights(
 						light.direction[2]= 0.0f;
 					}
 				}
+				else if( std::strcmp( epair->key, "angles" ) == 0 )
+				{
+					float angles[3];
+					std::sscanf( epair->value, "%f %f %f", &angles[0], &angles[1], &angles[2] );
+
+					light.direction[0]= std::cos( angles[1] * plb_Constants::to_rad );
+					light.direction[1]= std::sin( angles[1] * plb_Constants::to_rad );
+					light.direction[2]= 0.0f;
+				}
 
 				epair= epair->next;
 			}
@@ -433,7 +442,7 @@ static void GetBSPLights(
 				pitch= FloatForKey( const_cast<entity_t*>(&ent), "angles" );
 			if( pitch != 0.0f )
 			{
-				const float pitch_rad= pitch / plb_Constants::to_rad;
+				const float pitch_rad= pitch * plb_Constants::to_rad;
 				const float c= std::cos( pitch_rad );
 				light.direction[0]*= c;
 				light.direction[1]*= c;
