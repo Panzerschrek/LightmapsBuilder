@@ -323,6 +323,7 @@ static void ParseLightAndColor( const char* str, float& out_light, unsigned char
 	{
 		out_light= val[0];
 		out_color[0]= out_color[1]= out_color[2]= 255;
+		return;
 	}
 
 	out_light= 0.0f;
@@ -341,7 +342,7 @@ static void ParseLightAndColor( const char* str, float& out_light, unsigned char
 		out_color[i]= static_cast<unsigned char>( c );
 	}
 
-	if( count == 4 )
+	if( count == 4 && val[3] > 0.0f )
 		out_light= val[3];
 }
 
