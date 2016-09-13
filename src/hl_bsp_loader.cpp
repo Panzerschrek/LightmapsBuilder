@@ -109,7 +109,7 @@ static void LoadMaterials(
 		material.light_texture_number= get_texture( texure_file_name );
 
 		if( IsSky( material.albedo_texture_file_name ) )
-			material.luminosity= 5.0f;
+			material.luminosity= 2.5f;
 
 		if( !material.albedo_texture_file_name.empty() )
 		{
