@@ -128,38 +128,6 @@ plb_Tracer::~plb_Tracer()
 {
 }
 
-/*
-unsigned int plb_Tracer::Trace(
-	const m_Vec3& from, const m_Vec3& to,
-	TraceResult* out_result,
-	unsigned int max_result_count ) const
-{
-	unsigned int intersection_count= 0;
-
-	const m_Vec3 dir= to - from;
-	const float dir_length= dir.Length();
-
-	const m_Vec3 dir_normalized= dir / dir_length;
-
-	for( const Surface& surface : surfaces_ )
-	{
-		TraceResult* const surface_collision_result=
-			intersection_count < max_result_count
-				? ( out_result + intersection_count )
-				: nullptr;
-
-		if( CheckSurfaceCollision(
-			from, to,
-			dir_normalized,
-			surface,
-			surface_collision_result ) )
-			intersection_count++;
-
-	} // for surfaces
-
-	return intersection_count;
-}*/
-
 unsigned int plb_Tracer::Trace(
 	const m_Vec3& from, const m_Vec3& to,
 	TraceResult* out_result,
