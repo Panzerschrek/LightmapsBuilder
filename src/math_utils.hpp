@@ -17,7 +17,7 @@ const float two_pi= 2.0f * pi;
 const float to_rad= pi / 180.0f;
 const float to_deg= 180.0f / pi;
 
-const float min_float= std::numeric_limits<float>::min();
+const float min_float= std::numeric_limits<float>::lowest();
 const float max_float= std::numeric_limits<float>::max();
 
 const m_Vec3 min_vec( min_float, min_float, min_float );
