@@ -178,6 +178,32 @@ unsigned int plb_Tracer::Trace(
 	return trace_request_data.result_count;
 }
 
+unsigned int plb_Tracer::Trace(
+	const SurfacesList& surfaces_to_trace,
+	const m_Vec3& from,
+	const m_Vec3& to,
+	TraceResult* out_result,
+	unsigned int max_result_count ) const
+{
+	const m_Vec3 dir= to - from;
+	const float dir_length= dir.Length();
+
+	TraceRequestData trace_request_data;
+	trace_request_data.from= from;
+	trace_request_data.to= to;
+	trace_request_data.normalized_dir= dir / dir_length;
+	trace_request_data.max_result_count= max_result_count;
+	trace_request_data.result_count= 0;
+	trace_request_data.out_result= out_result;
+
+	for( const unsigned int surface_number : surfaces_to_trace )
+	{
+		CheckSurfaceCollision(
+			trace_request_data,
+			surfaces_[ surface_number ] );
+	}
+}
+
 plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(
 	const plb_Polygon& polygon,
 	const plb_Vertices& polygon_vertices,

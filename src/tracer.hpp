@@ -29,6 +29,13 @@ public:
 		TraceResult* out_result= nullptr,
 		unsigned int max_result_count= 0 ) const;
 
+	unsigned int Trace(
+		const SurfacesList& surfaces_to_trace,
+		const m_Vec3& from,
+		const m_Vec3& to,
+		TraceResult* out_result= nullptr,
+		unsigned int max_result_count= 0 ) const;
+
 	SurfacesList GetPolygonNeighbors(
 		const plb_Polygon& polygon,
 		const plb_Vertices& polygon_vertices,
