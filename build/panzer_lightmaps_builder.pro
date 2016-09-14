@@ -60,4 +60,5 @@ HEADERS += \
 	../../panzer_ogl_lib/framebuffer.hpp \
 	../../panzer_ogl_lib/func_declarations.hpp \
 	../../panzer_ogl_lib/glsl_program.hpp \
-	../../panzer_ogl_lib/matrix.hpp
+	../../panzer_ogl_lib/matrix.hpp \
+	../../panzer_ogl_lib/bbox.hpp \

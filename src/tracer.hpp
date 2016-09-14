@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 
+#include <bbox.hpp>
 #include <vec.hpp>
 
 #include "formats.hpp"
@@ -51,12 +52,6 @@ private:
 		Indeces indeces;
 	};
 
-	struct BoundingBox
-	{
-		m_Vec3 min;
-		m_Vec3 max;
-	};
-
 	struct TreeNode
 	{
 		enum class PlaneOrientation
@@ -100,7 +95,7 @@ private:
 
 	void BuildTreeNode_r(
 		unsigned int node_index,
-		const BoundingBox& node_bounding_box,
+		const m_BBox3& node_bounding_box,
 		const GeometrySet& in_geometry,
 		std::vector<unsigned int>& used_surfaces_indeces,
 		TreeNode::PlaneOrientation plane_orientation,

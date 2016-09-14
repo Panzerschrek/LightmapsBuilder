@@ -1,6 +1,7 @@
 #include <cmath>
 
 #include "curves.hpp"
+#include "math_utils.hpp"
 
 #include "tracer.hpp"
 
@@ -284,20 +285,10 @@ void plb_Tracer::BuildTree()
 	tree_.emplace_back();
 
 	// Calculate bounding box
-	BoundingBox bounding_box;
-	bounding_box.min=
-	bounding_box.max= m_Vec3( 0.0f, 0.0f, 0.0f );
+	m_BBox3 bounding_box( plb_Constants::max_vec, plb_Constants::min_vec );
 
 	for( const Vertex& vertex : geometry.vertices )
-	{
-		for( unsigned int j= 0; j < 3; j++ )
-		{
-			if( vertex.ToArr()[j] < bounding_box.min.ToArr()[j] )
-				bounding_box.min.ToArr()[j]= vertex.ToArr()[j];
-			if( vertex.ToArr()[j] > bounding_box.max.ToArr()[j] )
-				bounding_box.max.ToArr()[j]= vertex.ToArr()[j];
-		}
-	}
+		bounding_box+= vertex;
 
 	// round bounding box coordinates
 	for( unsigned int i= 0; i < 3; i++ )
@@ -328,7 +319,7 @@ void plb_Tracer::BuildTree()
 
 void plb_Tracer::BuildTreeNode_r(
 	unsigned int node_index,
-	const BoundingBox& node_bounding_box,
+	const m_BBox3& node_bounding_box,
 	const GeometrySet& in_geometry,
 	std::vector<unsigned int>& used_surfaces_indeces,
 	TreeNode::PlaneOrientation plane_orientation,
@@ -371,9 +362,7 @@ void plb_Tracer::BuildTreeNode_r(
 	const m_Vec3& node_plane_normal= g_axis_normals[ size_t(plane_orientation) ];
 
 	node->plane_orientation= plane_orientation;
-	node->dist=
-		node_plane_normal *
-		( ( node_bounding_box.min + node_bounding_box.max ) * 0.5f );
+	node->dist= node_plane_normal * node_bounding_box.Center();
 
 	// Leaf
 	if( used_surfaces_indeces.size() < c_min_surfaces_for_node )
@@ -437,7 +426,7 @@ void plb_Tracer::BuildTreeNode_r(
 
 		for( unsigned int i= 0; i < 2; i++ )
 		{
-			BoundingBox child_box= node_bounding_box;
+			m_BBox3 child_box= node_bounding_box;
 			( i == 0 ? child_box.max : child_box.min )
 				.ToArr()[ size_t(plane_orientation) ]= node->dist;
 
