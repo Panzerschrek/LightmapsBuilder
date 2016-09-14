@@ -178,6 +178,56 @@ unsigned int plb_Tracer::Trace(
 	return trace_request_data.result_count;
 }
 
+plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(
+	const plb_Polygon& polygon,
+	const plb_Vertices& polygon_vertices,
+	const float threshold ) const
+{
+	SurfacesList result;
+
+	m_BBox3 polygon_bounding_box( plb_Constants::max_vec, plb_Constants::min_vec );
+
+	for( unsigned int v= 0; v < polygon.vertex_count; v++ )
+		polygon_bounding_box+= m_Vec3( polygon_vertices[ polygon.first_vertex_number + v ].pos );
+
+	const m_Vec3 threshold_vec( threshold, threshold, threshold );
+
+	polygon_bounding_box.max+= threshold_vec;
+	polygon_bounding_box.min-= threshold_vec;
+
+	const TreeNode* node= &tree_.front();
+	while(1)
+	{
+		// No childs - return
+		if(
+			node->childs[0] == TreeNode::c_no_child &&
+			node->childs[1] == TreeNode::c_no_child )
+			break;
+
+		const m_Vec3& node_normal= g_axis_normals[ size_t(node->plane_orientation) ];
+		const float min_pos= node_normal * polygon_bounding_box.min - node->dist;
+		const float max_pos= node_normal * polygon_bounding_box.max - node->dist;
+
+		if( min_pos < 0.0f && max_pos < 0.0f )
+			node= tree_.data() + node->childs[0];
+		else if( min_pos >= 0.0f && max_pos >= 0.0f )
+			node= tree_.data() + node->childs[1];
+		else
+			break;
+
+		// Check this node surfaces if not last node
+		for( unsigned int i= node->first_surface; i < node->first_surface + node->surface_count; i++ )
+		{
+			if( BBoxIntersectSurface( polygon_bounding_box, surfaces_[i] ) )
+				result.push_back(i);
+		}
+	}
+
+	AddIntersectedSurfacesToList_r( *node, polygon_bounding_box, result );
+
+	return result;
+}
+
 void plb_Tracer::CheckSurfaceCollision(
 	TraceRequestData& data,
 	const Surface& surface ) const
@@ -241,6 +291,47 @@ void plb_Tracer::CheckCollision_r( TraceRequestData& data, const TreeNode& node 
 	for( unsigned int c= 0; c < 2; c++ )
 		if( node.childs[c] != TreeNode::c_no_child )
 			CheckCollision_r( data, tree_[ node.childs[c] ] );
+}
+
+m_BBox3 plb_Tracer::GetSurfaceBBox( const Surface& surface ) const
+{
+	m_BBox3 box( plb_Constants::max_vec, plb_Constants::min_vec );
+
+	for( unsigned int i= 0; i < surface.vertex_count; i++ )
+		box+= vertices_[ surface.first_vertex + i ];
+
+	return box;
+}
+
+bool plb_Tracer::BBoxIntersectSurface( const m_BBox3& bbox, const Surface& surface ) const
+{
+	const m_BBox3 surface_bbox= GetSurfaceBBox( surface );
+
+	for( unsigned int i= 0; i < 3; i++ )
+	{
+		if(
+			surface_bbox.max.ToArr()[i] < bbox.min.ToArr()[i] ||
+			bbox.max.ToArr()[i] < surface_bbox.min.ToArr()[i] )
+			return false;
+	}
+
+	return true;
+}
+
+void plb_Tracer::AddIntersectedSurfacesToList_r(
+	const TreeNode& node,
+	const m_BBox3& bbox,
+	SurfacesList& list ) const
+{
+	for( unsigned int i= node.first_surface; i < node.first_surface + node.surface_count; i++ )
+	{
+		if( BBoxIntersectSurface( bbox, surfaces_[i] ) )
+			list.push_back(i);
+	}
+
+	for( unsigned int c= 0; c < 2; c++ )
+		if( node.childs[c] != TreeNode::c_no_child )
+			AddIntersectedSurfacesToList_r( tree_[ node.childs[c] ], bbox, list );
 }
 
 void plb_Tracer::BuildTree()
