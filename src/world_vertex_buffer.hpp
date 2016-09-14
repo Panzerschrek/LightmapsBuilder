@@ -3,6 +3,7 @@
 
 #include <glsl_program.hpp>
 #include <polygon_buffer.hpp>
+#include <tracer.hpp>
 
 #include "formats.hpp"
 
@@ -30,7 +31,7 @@ public:
 		NumTypes
 	};
 
-	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon& )> SampleCorrectionFunc;
+	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon&, const plb_Tracer::SurfacesList& )> SampleCorrectionFunc;
 
 public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
@@ -38,6 +39,7 @@ public:
 	plb_WorldVertexBuffer(
 		const plb_LevelData& level_data,
 		const unsigned int* lightmap_atlas_size,
+		const plb_Tracer& tracer,
 		const SampleCorrectionFunc& sample_correction_finc );
 
 	~plb_WorldVertexBuffer();
@@ -59,6 +61,7 @@ private:
 	void PrepareLightTexelsPoints(
 		const plb_LevelData& level_data,
 		const unsigned int* lightmap_atlas_size,
+		const plb_Tracer& tracer,
 		const SampleCorrectionFunc& sample_correction_finc );
 
 	void PrepareWorldCommonPolygons(

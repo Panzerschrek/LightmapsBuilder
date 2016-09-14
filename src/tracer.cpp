@@ -202,6 +202,8 @@ unsigned int plb_Tracer::Trace(
 			trace_request_data,
 			surfaces_[ surface_number ] );
 	}
+
+	return trace_request_data.result_count;
 }
 
 plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(

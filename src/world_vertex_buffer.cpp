@@ -46,6 +46,7 @@ void plb_WorldVertexBuffer::SetupLevelVertexAttributes( r_GLSLProgram& shader )
 plb_WorldVertexBuffer::plb_WorldVertexBuffer(
 	const plb_LevelData& level_data,
 	const unsigned int* lightmap_atlas_size,
+	const plb_Tracer& tracer,
 	const SampleCorrectionFunc& sample_correction_finc )
 {
 	plb_Vertices combined_vertices;
@@ -81,7 +82,7 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer(
 	glEnableVertexAttribArray( Attrib::Normal );
 	glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
 
-	PrepareLightTexelsPoints( level_data, lightmap_atlas_size, sample_correction_finc );
+	PrepareLightTexelsPoints( level_data, lightmap_atlas_size, tracer, sample_correction_finc );
 }
 
 plb_WorldVertexBuffer::~plb_WorldVertexBuffer()
@@ -129,12 +130,16 @@ void plb_WorldVertexBuffer::Draw( const unsigned int polygon_types_flags ) const
 void plb_WorldVertexBuffer::PrepareLightTexelsPoints(
 	const plb_LevelData& level_data,
 	const unsigned int* lightmap_atlas_size,
+	const plb_Tracer& tracer,
 	const SampleCorrectionFunc& sample_correction_finc )
 {
 	std::vector<LightTexelVertex> vertices;
 
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
+		const plb_Tracer::SurfacesList polygon_neighbors=
+			tracer.GetPolygonNeighbors( poly, level_data.vertices, 0.1f );
+
 		unsigned int first_vertex= vertices.size();
 		vertices.resize( vertices.size() + poly.lightmap_data.size[0] * poly.lightmap_data.size[1] );
 
@@ -146,7 +151,7 @@ void plb_WorldVertexBuffer::PrepareLightTexelsPoints(
 				( float(x) + 0.5f ) * m_Vec3( poly.lightmap_basis[0] ) +
 				( float(y) + 0.5f ) * m_Vec3( poly.lightmap_basis[1] );
 
-			const m_Vec3 pos_corrected= sample_correction_finc( pos, poly );
+			const m_Vec3 pos_corrected= sample_correction_finc( pos, poly, polygon_neighbors );
 
 			LightTexelVertex& v= vertices[ first_vertex + x + y * poly.lightmap_data.size[0] ];
 

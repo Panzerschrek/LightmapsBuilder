@@ -71,7 +71,10 @@ private:
 
 	void CalculateLevelBoundingBox();
 
-	m_Vec3 CorrectSecondaryLightSample( const m_Vec3& pos, const plb_Polygon& poly );
+	m_Vec3 CorrectSecondaryLightSample(
+		const m_Vec3& pos,
+		const plb_Polygon& poly,
+		const plb_Tracer::SurfacesList& neighbors_surfaces );
 
 private:
 	plb_LevelData level_data_;

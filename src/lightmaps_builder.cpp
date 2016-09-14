@@ -251,9 +251,13 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		new plb_WorldVertexBuffer(
 			level_data_,
 			lightmap_atlas_texture_.size,
-			[this]( const m_Vec3& pos, const plb_Polygon& poly )
+			*tracer_,
+			[this](
+				const m_Vec3& pos,
+				const plb_Polygon& poly,
+				const plb_Tracer::SurfacesList& neighbors_surfaces )
 			{
-				return CorrectSecondaryLightSample( pos, poly );
+				return CorrectSecondaryLightSample( pos, poly, neighbors_surfaces );
 			}) );
 
 	polygons_preview_shader_.ShaderSource(
@@ -371,6 +375,9 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
+		const plb_Tracer::SurfacesList polygon_neighbors=
+			tracer_->GetPolygonNeighbors( poly, level_data_.vertices, 0.1f );
+
 		const m_Vec3 normal(poly.normal);
 
 		const unsigned int sx=
@@ -390,7 +397,7 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				( float(y) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[1]) +
 				m_Vec3( poly.lightmap_pos );
 
-			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly );
+			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly, polygon_neighbors );
 			SecondaryLightPass( pos_corrected, normal );
 
 			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
@@ -1925,7 +1932,10 @@ void plb_LightmapsBuilder::CalculateLevelBoundingBox()
 	level_bounding_box_.max= l_max;
 }
 
-m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample( const m_Vec3& pos, const plb_Polygon& poly )
+m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample(
+	const m_Vec3& pos,
+	const plb_Polygon& poly,
+	const plb_Tracer::SurfacesList& neighbors_surfaces )
 {
 	const float c_up_eps= 1.0f / 16.0f;
 	const float nudge_world_space_eps= 1.0f / 128.0f;
@@ -1976,6 +1986,7 @@ m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample( const m_Vec3& pos, con
 			std::min(
 				c_max_intersections,
 				tracer_->Trace(
+					neighbors_surfaces,
 					pos_up_shifted - nudge_vec,
 					pos_up_shifted + ray_world_space,
 					trace_result, c_max_intersections ) );
