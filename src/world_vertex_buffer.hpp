@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 
 #include <glsl_program.hpp>
 #include <polygon_buffer.hpp>
@@ -28,20 +29,20 @@ public:
 		Luminous,
 		NumTypes
 	};
-/*
-private:
-	// Transform enum values to bitmask
-	template<class Arg0, class... Args>
-	static unsigned int GetFlags( PolygonType arg0, Args... args )
-	{
-		return ( 1 << static_cast<unsigned int>(arg0) ) | GetFlags( args... );
-	}
-*/
+
+	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon& )> SampleCorrectionFunc;
+
 public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
 
-	explicit plb_WorldVertexBuffer( const plb_LevelData& level_data );
+	plb_WorldVertexBuffer(
+		const plb_LevelData& level_data,
+		const unsigned int* lightmap_atlas_size,
+		const SampleCorrectionFunc& sample_correction_finc );
+
 	~plb_WorldVertexBuffer();
+
+	void DrawLightmapTexels() const;
 
 	void Draw( PolygonType type ) const;
 	void Draw( const std::initializer_list<PolygonType>& types ) const;
@@ -55,6 +56,11 @@ private:
 	};
 
 private:
+	void PrepareLightTexelsPoints(
+		const plb_LevelData& level_data,
+		const unsigned int* lightmap_atlas_size,
+		const SampleCorrectionFunc& sample_correction_finc );
+
 	void PrepareWorldCommonPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
@@ -84,5 +90,7 @@ private:
 	GLuint normals_buffer_id_;
 
 	PolygonGroup polygon_groups_[ static_cast<size_t>(PolygonType::NumTypes) ];
+
+	r_PolygonBuffer light_texels_points_;
 
 };
