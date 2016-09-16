@@ -17,6 +17,14 @@ public:
 
 	typedef std::vector<unsigned int> SurfacesList;
 
+	struct LineSegment
+	{
+		m_Vec3 v[2];
+		m_Vec3 normal;
+	};
+
+	typedef std::vector<LineSegment> LineSegments;
+
 	explicit plb_Tracer( const plb_LevelData& level_data );
 	~plb_Tracer();
 
@@ -40,6 +48,11 @@ public:
 		const plb_Polygon& polygon,
 		const plb_Vertices& polygon_vertices,
 		const float threshold ) const;
+
+	LineSegments GetPlaneIntersections(
+		const SurfacesList& surfaces,
+		const m_Vec3& plane_normal,
+		const m_Vec3& plane_point ) const;
 
 private:
 	struct Surface

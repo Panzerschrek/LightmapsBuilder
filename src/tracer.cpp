@@ -256,6 +256,63 @@ plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(
 	return result;
 }
 
+plb_Tracer::LineSegments plb_Tracer::GetPlaneIntersections(
+	const SurfacesList& surfaces,
+	const m_Vec3& plane_normal,
+	const m_Vec3& plane_point ) const
+{
+	LineSegments result;
+
+	const float plane_dist= plane_normal * plane_point;
+
+	for( const unsigned int surface_number : surfaces )
+	{
+		const Surface& surface= surfaces_[ surface_number ];
+
+		for( unsigned int t= 0u; t < surface.index_count; t+= 3u )
+		{
+			const m_Vec3* vertices[3];
+			bool vertex_pos[3]; // true - front or on plane, false - back
+			unsigned int front_vertex_count= 0u;
+
+			for( unsigned int j= 0; j < 3u; j++ )
+			{
+				vertices[j]= &vertices_[ indeces_[ surface.first_index + t + j ] ];
+				vertex_pos[j]= *vertices[j] * plane_normal >= plane_dist;
+				if( vertex_pos[j] ) front_vertex_count++;
+			} // for triangle vertices
+
+			if( front_vertex_count == 0u || front_vertex_count == 3u )
+				continue; // no intersections between triangle and plane
+
+			result.emplace_back();
+			LineSegment& segment= result.back();
+
+			unsigned int segment_vertex= 0;
+			for( unsigned int v= 0; v < 3u; v++ )
+			{
+				const unsigned int next_v= ( v + 1u ) % 3u;
+				if( vertex_pos[v] != vertex_pos[next_v] )
+				{
+					const float dist0= std::abs( *vertices[     v] * plane_normal - plane_dist );
+					const float dist1= std::abs( *vertices[next_v] * plane_normal - plane_dist );
+					const float dist_inv_sum= 1.0f / ( dist0 + dist1 );
+
+					segment.v[ segment_vertex ]=
+						*vertices[     v] * ( dist1 * dist_inv_sum ) +
+						*vertices[next_v] * ( dist0 * dist_inv_sum );
+					segment_vertex++;
+
+					segment.normal= plbProjectVectorToPlane( surface.normal, plane_normal );
+					segment.normal.Normalize();
+				}
+			} // for triangle vertices
+		} // for triangles
+	} // for surfaces
+
+	return result;
+}
+
 void plb_Tracer::CheckSurfaceCollision(
 	TraceRequestData& data,
 	const Surface& surface ) const
