@@ -74,7 +74,7 @@ private:
 	m_Vec3 CorrectSecondaryLightSample(
 		const m_Vec3& pos,
 		const plb_Polygon& poly,
-		const plb_Tracer::SurfacesList& neighbors_surfaces );
+		const plb_Tracer::LineSegments& neighbors_segments );
 
 private:
 	plb_LevelData level_data_;

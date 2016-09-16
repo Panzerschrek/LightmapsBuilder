@@ -255,9 +255,9 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 			[this](
 				const m_Vec3& pos,
 				const plb_Polygon& poly,
-				const plb_Tracer::SurfacesList& neighbors_surfaces )
+				const plb_Tracer::LineSegments& neighbors_segments )
 			{
-				return CorrectSecondaryLightSample( pos, poly, neighbors_surfaces );
+				return CorrectSecondaryLightSample( pos, poly, neighbors_segments );
 			}) );
 
 	polygons_preview_shader_.ShaderSource(
@@ -377,6 +377,11 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 	{
 		const plb_Tracer::SurfacesList polygon_neighbors=
 			tracer_->GetPolygonNeighbors( poly, level_data_.vertices, 0.1f );
+		const plb_Tracer::LineSegments segments=
+			tracer_->GetPlaneIntersections(
+				polygon_neighbors,
+				m_Vec3( poly.normal ),
+				m_Vec3(level_data_.vertices[ poly.first_vertex_number ].pos ) );
 
 		const m_Vec3 normal(poly.normal);
 
@@ -397,7 +402,7 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				( float(y) + 0.5f ) * basis_scale * m_Vec3(poly.lightmap_basis[1]) +
 				m_Vec3( poly.lightmap_pos );
 
-			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly, polygon_neighbors );
+			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly, segments );
 			SecondaryLightPass( pos_corrected, normal );
 
 			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
@@ -1935,109 +1940,73 @@ void plb_LightmapsBuilder::CalculateLevelBoundingBox()
 m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample(
 	const m_Vec3& pos,
 	const plb_Polygon& poly,
-	const plb_Tracer::SurfacesList& neighbors_surfaces )
+	const plb_Tracer::LineSegments& neighbors_segments )
 {
-	const float c_up_eps= 1.0f / 16.0f;
-	const float nudge_world_space_eps= 1.0f / 128.0f;
+	const float texel_clip_distance=
+		plb_Constants::sqrt_2 *
+		float( config_.secondary_lightmap_scaler ) *
+		std::sqrt(
+			std::max(
+				m_Vec3(poly.lightmap_basis[0]).SquareLength(),
+				m_Vec3(poly.lightmap_basis[1]).SquareLength() ) );
 
-	const m_Vec2 c_check_rays[8]=
+	float nearest_segment_square_distance= plb_Constants::max_float;
+	const plb_Tracer::LineSegment* nearest_segment= nullptr;
+
+	for( const plb_Tracer::LineSegment& segment : neighbors_segments )
 	{
-		m_Vec2(  0.0f, 1.0f ), m_Vec2(  0.0f, -1.0f ),
-		m_Vec2(  1.0f, 0.0f ), m_Vec2( -1.0f,  0.0f ),
-		m_Vec2(  1.0f, 1.0f ), m_Vec2(  1.0f, -1.0f ),
-		m_Vec2( -1.0f, 1.0f ), m_Vec2( -1.0f, -1.0f ),
-	};
+		const m_Vec3 projection_to_segment=
+			plbProjectPointToPlane( pos, segment.v[0], segment.normal );
 
-	m_Vec3 result_pos= pos;
-	float max_move_square_distance= 0.0f;
-
-	const auto set_result_candidate=
-		[&]( const m_Vec3& moved_pos )
+		const m_Vec3 dir_to_segment_vertices[2]=
 		{
-			const float square_distance= ( moved_pos - pos ).SquareLength();
-			if( square_distance > max_move_square_distance )
-			{
-				max_move_square_distance= square_distance;
-				result_pos= moved_pos;
-			}
+			segment.v[0] - projection_to_segment,
+			segment.v[1] - projection_to_segment,
 		};
 
-	const m_Vec3 up_shift= c_up_eps * m_Vec3( poly.normal );
-	const m_Vec3 pos_up_shifted= pos + up_shift;
+		m_Vec3 nearest_point;
+		if( dir_to_segment_vertices[0] * dir_to_segment_vertices[1] <= 0.0f )
+		{
+			// Projection is on segment
+			nearest_point= projection_to_segment;
+		}
+		else
+		{
+			nearest_point=
+				dir_to_segment_vertices[0].SquareLength() < dir_to_segment_vertices[1].SquareLength()
+					? segment.v[0]
+					: segment.v[1];
+		}
 
-	const float lightmap_scale= float(config_.secondary_lightmap_scaler);
+		const float square_distance= ( nearest_point - pos ).SquareLength();
+		if( square_distance < nearest_segment_square_distance )
+		{
+			nearest_segment_square_distance= square_distance;
+			nearest_segment= &segment;
+		}
+	} // for segments
 
-	for( const m_Vec2& ray : c_check_rays )
+	if( nearest_segment == nullptr )
+		return pos; // No near segment
+	if( nearest_segment_square_distance > texel_clip_distance )
+		return pos; // Too far from any segment
+
+	const m_Vec3 projection=
+		plbProjectPointToPlane( pos, nearest_segment->v[0], nearest_segment->normal );
+
+	const float signed_distance_to_projection= ( pos - projection ) * nearest_segment->normal;
+
+	if( signed_distance_to_projection >= 0.0f )
 	{
-		constexpr unsigned int c_max_intersections= 8;
-		plb_Tracer::TraceResult trace_result[ c_max_intersections ];
+		// front
+		if( signed_distance_to_projection < g_cubemaps_min_clip_distance )
+			return projection + nearest_segment->normal * g_cubemaps_min_clip_distance;
+	}
+	else
+	{
+		// back
+		return projection + nearest_segment->normal * g_cubemaps_min_clip_distance;
+	}
 
-		const m_Vec3 ray_world_space=
-			lightmap_scale * ray.x * m_Vec3(poly.lightmap_basis[0]) +
-			lightmap_scale * ray.y * m_Vec3(poly.lightmap_basis[1]);
-
-		const m_Vec3 normalized_ray_world_space= ray_world_space / ray_world_space.Length();
-
-		// Move sample point just a bit, because we need prevent cases,
-		// when sample point is exactly on polygon plane.
-		const m_Vec3 nudge_vec= normalized_ray_world_space * nudge_world_space_eps;
-
-		const unsigned int intersection_count=
-			std::min(
-				c_max_intersections,
-				tracer_->Trace(
-					neighbors_surfaces,
-					pos_up_shifted - nudge_vec,
-					pos_up_shifted + ray_world_space,
-					trace_result, c_max_intersections ) );
-
-		if( intersection_count == 0 )
-			continue;
-
-		// Sort from near to far
-		std::sort(
-			trace_result, trace_result + intersection_count,
-			[&]( const plb_Tracer::TraceResult& l, const plb_Tracer::TraceResult& r )
-			{
-				return
-					( l.pos - pos_up_shifted ).SquareLength() <=
-					( r.pos - pos_up_shifted ).SquareLength();
-			} );
-
-		// First intersection is back face
-		if( trace_result[0].normal * ray_world_space > 0.0f )
-		{
-			// Search first front face after back face
-			unsigned int i= 0;
-			while(
-				i < intersection_count &&
-				trace_result[i].normal * ray_world_space > 0.0f )
-			{
-				i++;
-			}
-			i--;
-
-			// Move sample point beyound intersection plane.
-			const m_Vec3 moved_pos=
-				plbProjectPointToPlane( pos, trace_result[i].pos, trace_result[i].normal ) +
-				trace_result[i].normal * g_cubemaps_min_clip_distance;
-			set_result_candidate( moved_pos );
-		}
-		else // Front face
-		{
-			const m_Vec3 projected_pos= plbProjectPointToPlane( pos, trace_result[0].pos, trace_result[0].normal );
-
-			// Try move sample point from intersection plane just a bit.
-			const float dist= ( pos - projected_pos ) * trace_result[0].normal;
-			if( dist < g_cubemaps_min_clip_distance )
-			{
-				const m_Vec3 moved_pos=
-					projected_pos +
-					trace_result[0].normal * g_cubemaps_min_clip_distance;
-				set_result_candidate( moved_pos );
-			}
-		}
-	} // for rays
-
-	return result_pos;
+	return pos;
 }

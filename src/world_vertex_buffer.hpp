@@ -31,7 +31,7 @@ public:
 		NumTypes
 	};
 
-	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon&, const plb_Tracer::SurfacesList& )> SampleCorrectionFunc;
+	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon&, const plb_Tracer::LineSegments& )> SampleCorrectionFunc;
 
 public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
