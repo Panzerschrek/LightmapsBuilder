@@ -78,6 +78,11 @@ private:
 		const plb_Polygon& poly,
 		const plb_Tracer::LineSegments& neighbors_segments );
 
+	void GetPolygonNeighborsSegments(
+		const plb_Polygon& polygon,
+		plb_Tracer::SurfacesList& tmp_surfaces_container,
+		plb_Tracer::LineSegments& out_segments );
+
 private:
 	plb_LevelData level_data_;
 	struct

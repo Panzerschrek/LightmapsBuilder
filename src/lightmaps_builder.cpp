@@ -375,15 +375,12 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 	secondary_light_pass_cubemap_.write_shader.Uniform(
 		"normalizer", secondary_light_pass_cubemap_.direction_multiplier_normalizer );
 
+	plb_Tracer::SurfacesList surfaces_list;
+	plb_Tracer::LineSegments segments;
+
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
-		const plb_Tracer::SurfacesList polygon_neighbors=
-			tracer_->GetPolygonNeighbors( poly, level_data_.vertices, 0.1f );
-		const plb_Tracer::LineSegments segments=
-			tracer_->GetPlaneIntersections(
-				polygon_neighbors,
-				m_Vec3( poly.normal ),
-				m_Vec3(level_data_.vertices[ poly.first_vertex_number ].pos ) );
+		GetPolygonNeighborsSegments( poly, surfaces_list, segments );
 
 		const m_Vec3 normal(poly.normal);
 
@@ -1829,39 +1826,12 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 {
 	std::vector<LightTexelVertex> vertices;
 
+	plb_Tracer::SurfacesList surfaces_list;
+	plb_Tracer::LineSegments segments;
+
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
-		const float c_up_eps= 1.0f / 16.0f;
-		const float c_segment_cut_eps= 1.0f / 64.0f;
-		const float c_segment_shift_eps= 1.0f / 64.0f;
-
-		const m_Vec3 poly_normal( poly.normal );
-
-		const plb_Tracer::SurfacesList polygon_neighbors=
-			tracer_->GetPolygonNeighbors( poly, level_data_.vertices, 0.5f );
-
-		plb_Tracer::LineSegments segments=
-			tracer_->GetPlaneIntersections(
-				polygon_neighbors,
-				poly_normal,
-				m_Vec3(level_data_.vertices[ poly.first_vertex_number ].pos ) + poly_normal * c_up_eps );
-
-		// Cut c_segment_shift_eps from segments ends and shift segment forward.
-		for( plb_Tracer::LineSegment& segment : segments )
-		{
-			/*const m_Vec3 vec= segment.v[0] - segment.v[1];
-			const float vec_len= vec.Length();
-			const float len_corrected= vec_len - 2.0f * c_segment_cut_eps;
-			const m_Vec3 vec_corrected= vec * ( len_corrected / vec_len );
-
-			const m_Vec3 v0_before= segment.v[0];
-			segment.v[0]= segment.v[1] + vec_corrected;
-			segment.v[1]= v0_before    - vec_corrected;*/
-
-			const m_Vec3 shift_vec= segment.normal * c_segment_shift_eps;
-			segment.v[0]+= shift_vec;
-			segment.v[1]+= shift_vec;
-		}
+		GetPolygonNeighborsSegments( poly, surfaces_list, segments );
 
 		const unsigned int first_vertex= vertices.size();
 		vertices.resize( vertices.size() + poly.lightmap_data.size[0] * poly.lightmap_data.size[1] );
@@ -2167,4 +2137,51 @@ m_Vec3 plb_LightmapsBuilder::CorrectSecondaryLightSample(
 	}
 
 	return pos;
+}
+
+void plb_LightmapsBuilder::GetPolygonNeighborsSegments(
+	const plb_Polygon& polygon,
+	plb_Tracer::SurfacesList& tmp_surfaces_container,
+	plb_Tracer::LineSegments& out_segments )
+{
+	out_segments.clear();
+	tmp_surfaces_container.clear();
+
+	const float c_up_eps= 1.0f / 16.0f;
+	//const float c_segment_cut_eps= 1.0f / 64.0f;
+	const float c_segment_shift_eps= 1.0f / 64.0f;
+
+	const m_Vec3 polygon_normal( polygon.normal );
+	const m_Vec3 plane_point=
+		m_Vec3(level_data_.vertices[ polygon.first_vertex_number ].pos ) +
+		polygon_normal * c_up_eps;
+
+	tracer_->GetPolygonNeighbors(
+		polygon,
+		level_data_.vertices,
+		0.5f, // TODO - tune this
+		tmp_surfaces_container );
+
+	tracer_->GetPlaneIntersections(
+		tmp_surfaces_container,
+		polygon_normal,
+		plane_point,
+		out_segments );
+
+	// Cut c_segment_shift_eps from segments ends and shift segment forward.
+	for( plb_Tracer::LineSegment& segment : out_segments )
+	{
+		/*const m_Vec3 vec= segment.v[0] - segment.v[1];
+		const float vec_len= vec.Length();
+		const float len_corrected= vec_len - 2.0f * c_segment_cut_eps;
+		const m_Vec3 vec_corrected= vec * ( len_corrected / vec_len );
+
+		const m_Vec3 v0_before= segment.v[0];
+		segment.v[0]= segment.v[1] + vec_corrected;
+		segment.v[1]= v0_before    - vec_corrected;*/
+
+		const m_Vec3 shift_vec= segment.normal * c_segment_shift_eps;
+		segment.v[0]+= shift_vec;
+		segment.v[1]+= shift_vec;
+	}
 }

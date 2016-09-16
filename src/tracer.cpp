@@ -206,13 +206,12 @@ unsigned int plb_Tracer::Trace(
 	return trace_request_data.result_count;
 }
 
-plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(
+void plb_Tracer::GetPolygonNeighbors(
 	const plb_Polygon& polygon,
 	const plb_Vertices& polygon_vertices,
-	const float threshold ) const
+	const float threshold,
+	SurfacesList& out_surfaces_list ) const
 {
-	SurfacesList result;
-
 	m_BBox3 polygon_bounding_box( plb_Constants::max_vec, plb_Constants::min_vec );
 
 	for( unsigned int v= 0; v < polygon.vertex_count; v++ )
@@ -247,22 +246,19 @@ plb_Tracer::SurfacesList plb_Tracer::GetPolygonNeighbors(
 		for( unsigned int i= node->first_surface; i < node->first_surface + node->surface_count; i++ )
 		{
 			if( BBoxIntersectSurface( polygon_bounding_box, surfaces_[i] ) )
-				result.push_back(i);
+				out_surfaces_list.push_back(i);
 		}
 	}
 
-	AddIntersectedSurfacesToList_r( *node, polygon_bounding_box, result );
-
-	return result;
+	AddIntersectedSurfacesToList_r( *node, polygon_bounding_box, out_surfaces_list );
 }
 
-plb_Tracer::LineSegments plb_Tracer::GetPlaneIntersections(
+void plb_Tracer::GetPlaneIntersections(
 	const SurfacesList& surfaces,
 	const m_Vec3& plane_normal,
-	const m_Vec3& plane_point ) const
+	const m_Vec3& plane_point,
+	LineSegments& out_segments ) const
 {
-	LineSegments result;
-
 	const float plane_dist= plane_normal * plane_point;
 
 	for( const unsigned int surface_number : surfaces )
@@ -285,8 +281,8 @@ plb_Tracer::LineSegments plb_Tracer::GetPlaneIntersections(
 			if( front_vertex_count == 0u || front_vertex_count == 3u )
 				continue; // no intersections between triangle and plane
 
-			result.emplace_back();
-			LineSegment& segment= result.back();
+			out_segments.emplace_back();
+			LineSegment& segment= out_segments.back();
 
 			unsigned int segment_vertex= 0;
 			for( unsigned int v= 0; v < 3u; v++ )
@@ -309,8 +305,6 @@ plb_Tracer::LineSegments plb_Tracer::GetPlaneIntersections(
 			} // for triangle vertices
 		} // for triangles
 	} // for surfaces
-
-	return result;
 }
 
 void plb_Tracer::CheckSurfaceCollision(

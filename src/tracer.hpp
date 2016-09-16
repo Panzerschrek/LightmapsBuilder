@@ -44,15 +44,17 @@ public:
 		TraceResult* out_result= nullptr,
 		unsigned int max_result_count= 0 ) const;
 
-	SurfacesList GetPolygonNeighbors(
+	void GetPolygonNeighbors(
 		const plb_Polygon& polygon,
 		const plb_Vertices& polygon_vertices,
-		const float threshold ) const;
+		const float threshold,
+		SurfacesList& out_surfaces_list ) const;
 
-	LineSegments GetPlaneIntersections(
+	void GetPlaneIntersections(
 		const SurfacesList& surfaces,
 		const m_Vec3& plane_normal,
-		const m_Vec3& plane_point ) const;
+		const m_Vec3& plane_point,
+		LineSegments& out_segments ) const;
 
 private:
 	struct Surface
