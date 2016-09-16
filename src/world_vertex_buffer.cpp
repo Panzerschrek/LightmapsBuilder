@@ -138,17 +138,23 @@ void plb_WorldVertexBuffer::PrepareLightTexelsPoints(
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
 		const float c_up_eps= 1.0f / 16.0f;
+		const float c_segment_shift_eps= 1.0f / 64.0f;
 
 		const m_Vec3 poly_normal( poly.normal );
 
 		const plb_Tracer::SurfacesList polygon_neighbors=
 			tracer.GetPolygonNeighbors( poly, level_data.vertices, 0.5f );
 
-		const plb_Tracer::LineSegments segments=
+		plb_Tracer::LineSegments segments=
 			tracer.GetPlaneIntersections(
 				polygon_neighbors,
 				poly_normal,
 				m_Vec3(level_data.vertices[ poly.first_vertex_number ].pos ) + poly_normal * c_up_eps );
+		for( plb_Tracer::LineSegment& segment : segments )
+		{
+			segment.v[0]+= c_segment_shift_eps * segment.normal;
+			segment.v[1]+= c_segment_shift_eps * segment.normal;
+		}
 
 		unsigned int first_vertex= vertices.size();
 		vertices.resize( vertices.size() + poly.lightmap_data.size[0] * poly.lightmap_data.size[1] );
