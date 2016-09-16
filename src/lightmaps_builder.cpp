@@ -21,6 +21,17 @@ struct CubemapGeometryVertex
 	float tex_coord[2];
 };
 
+struct LightTexelVertex
+{
+	float pos[3];
+	float lightmap_pos[2];
+
+	char normal[3];
+	unsigned char reserved;
+
+	unsigned char tex_maps[4];
+};
+
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
 
 static const float g_cubemaps_znear= 1.0f / 32.0f;
@@ -247,18 +258,9 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 
 	tracer_.reset( new plb_Tracer( level_data_ ) );
 
-	world_vertex_buffer_.reset(
-		new plb_WorldVertexBuffer(
-			level_data_,
-			lightmap_atlas_texture_.size,
-			*tracer_,
-			[this](
-				const m_Vec3& pos,
-				const plb_Polygon& poly,
-				const plb_Tracer::LineSegments& neighbors_segments )
-			{
-				return CorrectSecondaryLightSample( pos, poly, neighbors_segments );
-			}) );
+	world_vertex_buffer_.reset( new plb_WorldVertexBuffer( level_data_ ) );
+
+	PrepareLightTexelsPoints();
 
 	polygons_preview_shader_.ShaderSource(
 		rLoadShader( "preview_f.glsl", g_glsl_version),
@@ -801,7 +803,7 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 	point_light_pass_shader_.Uniform( "cubemap", int(0) );
 	point_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
-	world_vertex_buffer_->DrawLightmapTexels();
+	light_texels_points_.Draw();
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
@@ -831,7 +833,7 @@ void plb_LightmapsBuilder::SurfaceSampleLightPass(
 	surface_sample_light_pass_shader_.Uniform( "cubemap", int(0) );
 	surface_sample_light_pass_shader_.Uniform( "inv_max_light_dst", 1.0f / point_light_shadowmap_cubemap_.max_light_distance );
 
-	world_vertex_buffer_->DrawLightmapTexels();
+	light_texels_points_.Draw();
 
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
@@ -1180,7 +1182,7 @@ void plb_LightmapsBuilder::DirectionalLightPass(
 	directional_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	directional_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->DrawLightmapTexels();
+	light_texels_points_.Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -1238,7 +1240,7 @@ void plb_LightmapsBuilder::ConeLightPass( const plb_ConeLight& light, const m_Ma
 	cone_light_pass_shader_.Uniform( "shadowmap", int(0) );
 	cone_light_pass_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->DrawLightmapTexels();
+	light_texels_points_.Draw();
 
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -1823,6 +1825,162 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	}
 }
 
+void plb_LightmapsBuilder::PrepareLightTexelsPoints()
+{
+	std::vector<LightTexelVertex> vertices;
+
+	for( const plb_Polygon& poly : level_data_.polygons )
+	{
+		const float c_up_eps= 1.0f / 16.0f;
+		const float c_segment_cut_eps= 1.0f / 64.0f;
+		const float c_segment_shift_eps= 1.0f / 64.0f;
+
+		const m_Vec3 poly_normal( poly.normal );
+
+		const plb_Tracer::SurfacesList polygon_neighbors=
+			tracer_->GetPolygonNeighbors( poly, level_data_.vertices, 0.5f );
+
+		plb_Tracer::LineSegments segments=
+			tracer_->GetPlaneIntersections(
+				polygon_neighbors,
+				poly_normal,
+				m_Vec3(level_data_.vertices[ poly.first_vertex_number ].pos ) + poly_normal * c_up_eps );
+
+		// Cut c_segment_shift_eps from segments ends and shift segment forward.
+		for( plb_Tracer::LineSegment& segment : segments )
+		{
+			/*const m_Vec3 vec= segment.v[0] - segment.v[1];
+			const float vec_len= vec.Length();
+			const float len_corrected= vec_len - 2.0f * c_segment_cut_eps;
+			const m_Vec3 vec_corrected= vec * ( len_corrected / vec_len );
+
+			const m_Vec3 v0_before= segment.v[0];
+			segment.v[0]= segment.v[1] + vec_corrected;
+			segment.v[1]= v0_before    - vec_corrected;*/
+
+			const m_Vec3 shift_vec= segment.normal * c_segment_shift_eps;
+			segment.v[0]+= shift_vec;
+			segment.v[1]+= shift_vec;
+		}
+
+		const unsigned int first_vertex= vertices.size();
+		vertices.resize( vertices.size() + poly.lightmap_data.size[0] * poly.lightmap_data.size[1] );
+
+		for( unsigned int y= 0; y < poly.lightmap_data.size[1]; y++ )
+		for( unsigned int x= 0; x < poly.lightmap_data.size[0]; x++ )
+		{
+			const m_Vec3 pos=
+				m_Vec3( poly.lightmap_pos ) +
+				( float(x) + 0.5f ) * m_Vec3( poly.lightmap_basis[0] ) +
+				( float(y) + 0.5f ) * m_Vec3( poly.lightmap_basis[1] );
+
+			const m_Vec3 pos_corrected= CorrectSecondaryLightSample( pos, poly, segments );
+
+			LightTexelVertex& v= vertices[ first_vertex + x + y * poly.lightmap_data.size[0] ];
+
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				v.pos[i]= pos_corrected.ToArr()[i];
+				v.normal[i]= static_cast<char>( 127.0f * poly.normal[i] );
+			}
+
+			v.lightmap_pos[0]= float( poly.lightmap_data.coord[0] + x ) + 0.5f;
+			v.lightmap_pos[1]= float( poly.lightmap_data.coord[1] + y ) + 0.5f;
+			for( unsigned int i= 0; i < 2; i++ )
+				v.lightmap_pos[i]/= float(lightmap_atlas_texture_.size[i]);
+
+			v.tex_maps[2]= poly.lightmap_data.atlas_id;
+		}
+	} // for polygons
+
+	std::vector<PositionAndNormal> curve_coords;
+	for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
+	{
+		curve_coords.resize( curve.lightmap_data.size[0] * curve.lightmap_data.size[1] );
+
+		const m_Vec2 lightmap_coord_scaler{
+			float(lightmap_atlas_texture_.size[0]),
+			float(lightmap_atlas_texture_.size[1]) };
+
+		const m_Vec2 lightmap_coord_shift{
+			-float(curve.lightmap_data.coord[0]) ,
+			-float(curve.lightmap_data.coord[1]) };
+
+		const unsigned int curve_lightmap_size[2]=
+			{ curve.lightmap_data.size[0], curve.lightmap_data.size[1] };
+
+		CalculateCurveCoordinatesForLightTexels(
+			curve,
+			lightmap_coord_scaler, lightmap_coord_shift,
+			curve_lightmap_size,
+			level_data_.curved_surfaces_vertices,
+			curve_coords.data() );
+
+		for( unsigned int y= 0; y < curve.lightmap_data.size[1]; y++ )
+		for( unsigned int x= 0; x < curve.lightmap_data.size[0]; x++ )
+		{
+			const PositionAndNormal& position_and_normal=
+				curve_coords[ x + y * curve.lightmap_data.size[0] ];
+
+			if( position_and_normal.normal.Length() < 0.01f )
+				continue; // Bad texel
+
+			vertices.emplace_back();
+			LightTexelVertex& v= vertices.back();
+
+			for( unsigned int i= 0; i < 3; i++ )
+			{
+				v.pos[i]= position_and_normal.pos.ToArr()[i];
+				v.normal[i]= static_cast<char>( 127.0f * position_and_normal.normal.ToArr()[i] );
+			}
+
+			v.lightmap_pos[0]= float( curve.lightmap_data.coord[0] + x ) + 0.5f;
+			v.lightmap_pos[1]= float( curve.lightmap_data.coord[1] + y ) + 0.5f;
+			for( unsigned int i= 0; i < 2; i++ )
+				v.lightmap_pos[i]/= float(lightmap_atlas_texture_.size[i]);
+
+			v.tex_maps[2]= curve.lightmap_data.atlas_id;
+
+		} // for xy
+	} // for curves
+
+	std::cout << "Primary lightmap texels: " << vertices.size() << std::endl;
+
+	light_texels_points_.VertexData(
+		vertices.data(),
+		vertices.size() * sizeof(LightTexelVertex),
+		sizeof(LightTexelVertex) );
+
+	LightTexelVertex v;
+
+	light_texels_points_.VertexAttribPointer(
+		plb_WorldVertexBuffer::Attrib::Pos,
+		3, GL_FLOAT, false,
+		((char*)v.pos) - ((char*)&v) );
+
+	// May pos be tex_coord too
+	light_texels_points_.VertexAttribPointer(
+		plb_WorldVertexBuffer::Attrib::TexCoord,
+		3, GL_FLOAT, false,
+		((char*)v.pos) - ((char*)&v) );
+
+	light_texels_points_.VertexAttribPointer(
+		plb_WorldVertexBuffer::Attrib::LightmapCoord,
+		2, GL_FLOAT, false,
+		((char*)v.lightmap_pos) - ((char*)&v) );
+
+	light_texels_points_.VertexAttribPointer(
+		plb_WorldVertexBuffer::Attrib::Normal,
+		3, GL_BYTE, false,
+		((char*)v.normal) - ((char*)&v) );
+
+	light_texels_points_.VertexAttribPointerInt(
+		plb_WorldVertexBuffer::Attrib::TexMaps,
+		4, GL_UNSIGNED_BYTE,
+		((char*)v.tex_maps) - ((char*)&v) );
+
+	light_texels_points_.SetPrimitiveType( GL_POINTS );
+}
 
 void plb_LightmapsBuilder::FillBorderLightmapTexels()
 {

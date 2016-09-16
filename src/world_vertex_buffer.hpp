@@ -31,20 +31,12 @@ public:
 		NumTypes
 	};
 
-	typedef std::function<m_Vec3( const m_Vec3&, const plb_Polygon&, const plb_Tracer::LineSegments& )> SampleCorrectionFunc;
-
 public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
 
-	plb_WorldVertexBuffer(
-		const plb_LevelData& level_data,
-		const unsigned int* lightmap_atlas_size,
-		const plb_Tracer& tracer,
-		const SampleCorrectionFunc& sample_correction_finc );
+	explicit plb_WorldVertexBuffer( const plb_LevelData& level_data );
 
 	~plb_WorldVertexBuffer();
-
-	void DrawLightmapTexels() const;
 
 	void Draw( PolygonType type ) const;
 	void Draw( const std::initializer_list<PolygonType>& types ) const;
@@ -58,11 +50,6 @@ private:
 	};
 
 private:
-	void PrepareLightTexelsPoints(
-		const plb_LevelData& level_data,
-		const unsigned int* lightmap_atlas_size,
-		const plb_Tracer& tracer,
-		const SampleCorrectionFunc& sample_correction_finc );
 
 	void PrepareWorldCommonPolygons(
 		const plb_LevelData& level_data,
@@ -93,7 +80,4 @@ private:
 	GLuint normals_buffer_id_;
 
 	PolygonGroup polygon_groups_[ static_cast<size_t>(PolygonType::NumTypes) ];
-
-	r_PolygonBuffer light_texels_points_;
-
 };

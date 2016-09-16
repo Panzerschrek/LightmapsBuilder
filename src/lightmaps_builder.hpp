@@ -67,6 +67,8 @@ private:
 	void ClalulateLightmapAtlasCoordinates();
 	void CreateLightmapBuffers();
 
+	void PrepareLightTexelsPoints();
+
 	void FillBorderLightmapTexels();
 
 	void CalculateLevelBoundingBox();
@@ -104,6 +106,8 @@ private:
 		GLuint secondary_tex_id[ PLB_MAX_LIGHT_PASSES ];
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
+
+	r_PolygonBuffer light_texels_points_;
 
 	struct
 	{
