@@ -9,10 +9,11 @@ in vec3 f_normal;
 
 out vec4 color;
 
+const float c_min_length= 1.0 / 1024.0;
 void main()
 {
 	vec3 vec_to_light= light_pos - f_pos;
-	float vec_to_light_len = length(vec_to_light);
+	float vec_to_light_len = max( c_min_length, length(vec_to_light) );
 	vec3 normalized_vec_to_light= vec_to_light / vec_to_light_len;
 
 	float angle_scaler= max( 0.0, dot( normalized_vec_to_light, normalize(f_normal) ) );
