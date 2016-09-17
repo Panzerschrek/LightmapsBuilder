@@ -255,6 +255,10 @@ static void LoadPolygons(
 		poly.first_index= first_index;
 		poly.index_count= triangle_count * 3;
 
+		poly.flags= 0;
+		if( tex.flags == TEX_SPECIAL )
+			poly.flags|= plb_SurfaceFlags::NoLightmap;
+
 	} // for faces
 }
 

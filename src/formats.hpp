@@ -36,6 +36,14 @@ struct plb_SurfaceLightmapData
 	unsigned short size[2]; // width and hight of lightmap
 };
 
+namespace plb_SurfaceFlags
+{
+	enum : unsigned int
+	{
+		NoLightmap= 1u << 0u,
+	};
+}
+
 struct plb_Polygon
 {
 	float texture_basis[2][4];
@@ -66,6 +74,8 @@ struct plb_CurvedSurface
 	float bb_min[3];
 	float bb_max[3];
 	unsigned int first_vertex_number;
+
+	unsigned int flags;
 
 	unsigned int material_id;// number of material in input materials vector
 

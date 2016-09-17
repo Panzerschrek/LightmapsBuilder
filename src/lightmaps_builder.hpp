@@ -109,6 +109,9 @@ private:
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
 
+	// Stub lightmap patch with zero light for surfaces without lightmap.
+	plb_SurfaceLightmapData stub_lightmap_;
+
 	r_PolygonBuffer light_texels_points_;
 
 	struct

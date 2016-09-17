@@ -322,6 +322,17 @@ static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
 	}
 }
 
+static unsigned int SurfaceFlagsForBSPSurface( const dsurface_t& surf )
+{
+	unsigned int flags= 0;
+	if( ( dshaders[ surf.shaderNum ].surfaceFlags & SURF_NOLIGHTMAP ) != 0 )
+	{
+		flags|= plb_SurfaceFlags::NoLightmap;
+	}
+
+	return flags;
+}
+
 static void BuildPolygons(
 	const std::vector<unsigned short>& shader_num_to_material_index,
 	std::vector<plb_Polygon>& out_polygons, std::vector<plb_Polygon>& out_sky_polygons,
@@ -370,6 +381,8 @@ static void BuildPolygons(
 			polygon.lightmap_pos[1]= p->lightmapOrigin[1];
 			polygon.lightmap_pos[2]= p->lightmapOrigin[2];
 
+			polygon.flags= SurfaceFlagsForBSPSurface( *p );
+
 			(is_sky ? out_sky_polygons : out_polygons).push_back(polygon);
 		}// if normal polygon
 		else if( p->surfaceType == 2 )// curve 
@@ -410,6 +423,8 @@ static void BuildPolygons(
 
 				out_curves_vertices.push_back(vert);
 			}// for patch control vertices
+
+			surf.flags= SurfaceFlagsForBSPSurface( *p );
 
 			out_curves.push_back(surf);
 		}// of curve

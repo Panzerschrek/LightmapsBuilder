@@ -443,6 +443,9 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
+		if( ( poly.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
 		GetPolygonNeighborsSegments( poly, surfaces_list, segments );
 
 		const m_Vec3 normal(poly.normal);
@@ -503,6 +506,9 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 	std::vector<PositionAndNormal> curve_coords;
 	for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 	{
+		if( ( curve.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
 		const unsigned int lightmap_size[2]=
 		{
 			( curve.lightmap_data.size[0] + config_.secondary_lightmap_scaler - 1 ) /
@@ -1645,15 +1651,20 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		}
 	}
 
-	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps(
-		level_data_.polygons.size() + level_data_.curved_surfaces.size() );
+	stub_lightmap_.size[0]= stub_lightmap_.size[1]= config_.secondary_lightmap_scaler * 2u;
 
-	for( unsigned int i= 0; i< level_data_.polygons.size(); i++ )
-		sorted_lightmaps[i]= &level_data_.polygons[i].lightmap_data;
-	
-	for( unsigned int i= 0; i< level_data_.curved_surfaces.size(); i++ )
-		sorted_lightmaps[ i + level_data_.polygons.size() ]=
-			&level_data_.curved_surfaces[i].lightmap_data;
+	std::vector<plb_SurfaceLightmapData*> sorted_lightmaps;
+	sorted_lightmaps.reserve( 1u + level_data_.polygons.size() + level_data_.curved_surfaces.size() );
+
+	sorted_lightmaps.push_back( &stub_lightmap_ );
+
+	for( plb_Polygon& poly : level_data_.polygons )
+		if( ( poly.flags & plb_SurfaceFlags::NoLightmap ) == 0 )
+			sorted_lightmaps.push_back( &poly.lightmap_data );
+
+	for( plb_CurvedSurface& curve : level_data_.curved_surfaces )
+		if( ( curve.flags & plb_SurfaceFlags::NoLightmap ) == 0 )
+			sorted_lightmaps.push_back( &curve.lightmap_data );
 
 	std::sort(
 		sorted_lightmaps.begin(),
@@ -1777,38 +1788,66 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 			m_Vec3( poly.lightmap_basis[1] ),
 			inverse_lightmap_basis );
 
-		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
+		if( ( poly.flags & plb_SurfaceFlags::NoLightmap ) == 0 )
 		{
-			const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
+			for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
+			{
+				const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
+				const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
 
-			const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
-			v_p[v].lightmap_coord[0]= uv.x;
-			v_p[v].lightmap_coord[0]+= float(poly.lightmap_data.coord[0]);
-			v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
+				for( unsigned int j= 0; j < 2; j++ )
+				{
+					v_p[v].lightmap_coord[j]+= uv.ToArr()[j] + float(poly.lightmap_data.coord[j]);
+					v_p[v].lightmap_coord[j]*= inv_lightmap_size[j];
+				}
 
-			v_p[v].lightmap_coord[1]= uv.y;
-			v_p[v].lightmap_coord[1]+= float(poly.lightmap_data.coord[1]);
-			v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
+				v_p[v].tex_maps[2]= poly.lightmap_data.atlas_id;
+			}
+		} // if has lightmap
+		else
+		{
+			const float lightmap_coord_scale[2]=
+			{
+				float( stub_lightmap_.size[0] ) / float( poly.lightmap_data.size[0] ),
+				float( stub_lightmap_.size[1] ) / float( poly.lightmap_data.size[1] ),
+			};
 
-			v_p[v].tex_maps[2]= poly.lightmap_data.atlas_id;
-		}
+			for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
+			{
+				const m_Vec3 rel_pos= m_Vec3( v_p[v].pos ) - m_Vec3( poly.lightmap_pos );
+				const m_Vec2 uv= ( rel_pos * inverse_lightmap_basis ).xy();
+
+				for( unsigned int j= 0; j < 2; j++ )
+				{
+					v_p[v].lightmap_coord[j]= uv.ToArr()[j] * lightmap_coord_scale[j] + float(stub_lightmap_.coord[j]);
+					v_p[v].lightmap_coord[j]*= inv_lightmap_size[j];
+				}
+
+				v_p[v].tex_maps[2]= stub_lightmap_.atlas_id;
+			}
+		} // has no lightmap
 	}// for polygons
 
 	if( level_data_.curved_surfaces_vertices.size() > 0 )
 	{
+
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
+			const plb_SurfaceLightmapData& lightmap_data=
+				( curve.flags & plb_SurfaceFlags::NoLightmap ) == 0
+				? curve.lightmap_data : stub_lightmap_;
+
 			for( unsigned int v= curve.first_vertex_number;
 				v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[0] * float(curve.lightmap_data.size[0]) + float(curve.lightmap_data.coord[0]);
+				v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[0] * float(lightmap_data.size[0]) + float(lightmap_data.coord[0]);
 				v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
 
-				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(curve.lightmap_data.size[1]) + float(curve.lightmap_data.coord[1]);
+				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(lightmap_data.size[1]) + float(lightmap_data.coord[1]);
 				v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
 
-				v_p[v].tex_maps[2]= curve.lightmap_data.atlas_id;
+				v_p[v].tex_maps[2]= lightmap_data.atlas_id;
 			}
 		}// for curves
 	}
@@ -1823,6 +1862,9 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
+		if( ( poly.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
 		GetPolygonNeighborsSegments( poly, surfaces_list, segments );
 
 		const unsigned int first_vertex= vertices.size();
@@ -1858,6 +1900,9 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 	std::vector<PositionAndNormal> curve_coords;
 	for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 	{
+		if( ( curve.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
 		curve_coords.resize( curve.lightmap_data.size[0] * curve.lightmap_data.size[1] );
 
 		const m_Vec2 lightmap_coord_scaler{
