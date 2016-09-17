@@ -526,8 +526,6 @@ void plb_LightmapsBuilder::DrawPreview(
 	glActiveTexture( GL_TEXTURE0 + 1 );
 	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[0] );
 	glActiveTexture( GL_TEXTURE0 + 2 );
-	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.colored_test_tex_id );
-	glActiveTexture( GL_TEXTURE0 + 3 );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, point_light_shadowmap_cubemap_.depth_tex_id );
 
 	glActiveTexture( GL_TEXTURE0 + 0 );
@@ -539,8 +537,7 @@ void plb_LightmapsBuilder::DrawPreview(
 		shader.Uniform( "view_matrix", view_matrix );
 		shader.Uniform( "lightmap", int(0) );
 		shader.Uniform( "secondary_lightmap", int(1) );
-		shader.Uniform( "lightmap_test", int(2) );
-		shader.Uniform( "cubemap", int(3) );
+		shader.Uniform( "cubemap", int(2) );
 
 		shader.Uniform( "brightness", brightness );
 		shader.Uniform( "primary_lightmap_scaler", show_primary_lightmap ? 1.0f : 0.0f );
@@ -1656,8 +1653,6 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 {
 	unsigned int lightmap_size[2]= { config_.lightmaps_atlas_size[0], config_.lightmaps_atlas_size[1] };
 
-	unsigned char* lightmap_data= new unsigned char[ lightmap_size[0] * lightmap_size[1] * 4 ];
-
 	lightmap_atlas_texture_.secondary_lightmap_size[0]=
 		lightmap_size[0] / config_.secondary_lightmap_scaler;
 	lightmap_atlas_texture_.secondary_lightmap_size[1]=
@@ -1690,17 +1685,6 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 
-	// test 8-bit texture for separate colors for each polygon
-	glGenTextures( 1, &lightmap_atlas_texture_.colored_test_tex_id );
-	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.colored_test_tex_id );
-	glTexImage3D( GL_TEXTURE_2D_ARRAY, 0, GL_R3_G3_B2, lightmap_size[0], lightmap_size[1], lightmap_atlas_texture_.size[2],
-		0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-
 	{
 		glGenFramebuffers( 1, &lightmap_atlas_texture_.fbo_id );
 		glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.fbo_id );
@@ -1713,32 +1697,6 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 
 		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 	}
-
-	for( unsigned int i= 0; i< lightmap_atlas_texture_.size[2]; i++ )
-	{
-		memset(lightmap_data, 0, lightmap_size[0] * lightmap_size[1] * 4 );
-		for( unsigned int p= 0; p< level_data_.polygons.size(); p++ )
-		{
-			if( level_data_.polygons[p].lightmap_data.atlas_id == i )
-			{
-				unsigned char color[4]= { rand(), rand(), rand(), rand() };
-				int i_c= *((int*)color);
-
-				plb_Polygon* poly= &level_data_.polygons[p];
-				for( unsigned int y= poly->lightmap_data.coord[1];
-						y< poly->lightmap_data.coord[1] + poly->lightmap_data.size[1]; y++ )
-					for( unsigned int x= poly->lightmap_data.coord[0];
-						x< poly->lightmap_data.coord[0] + poly->lightmap_data.size[0]; x++ )
-						((int*)lightmap_data)[ x + y * lightmap_size[0] ] = i_c;
-			}
-		}
-		glTexSubImage3D( GL_TEXTURE_2D_ARRAY, 0,
-			0, 0, i,
-			lightmap_size[0], lightmap_size[1], 1,
-			GL_RGBA, GL_UNSIGNED_BYTE, lightmap_data );
-
-	}// for atlases
-	delete[] lightmap_data;
 
 	float inv_lightmap_size[2]= 
 	{

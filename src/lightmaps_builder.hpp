@@ -99,7 +99,6 @@ private:
 	struct
 	{
 		unsigned int size[3];
-		GLuint colored_test_tex_id;
 
 		// FBO for first pass
 		GLuint tex_id;
