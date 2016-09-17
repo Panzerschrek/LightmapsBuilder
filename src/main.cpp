@@ -210,8 +210,7 @@ extern "C" int main(int argc, char *argv[])
 
 	main_loop_iteration();
 
-	lightmaps_builder->MakeBrightLuminousSurfacesLight( main_loop_iteration );
-
+	lightmaps_builder->MakePrimaryLight( main_loop_iteration );
 	preview_allowed= true;
 	lightmaps_builder->MakeSecondaryLight( main_loop_iteration );
 

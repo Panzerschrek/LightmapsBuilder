@@ -328,11 +328,80 @@ plb_LightmapsBuilder::~plb_LightmapsBuilder()
 {
 }
 
-void plb_LightmapsBuilder::MakeBrightLuminousSurfacesLight(
+void plb_LightmapsBuilder::MakePrimaryLight(
 	const std::function<void()>& wake_up_callback )
 {
-	unsigned int count= 0;
+	unsigned int iteration= 0u;
+	const auto try_wake_up=
+	[&]( unsigned int iterations_per_wake_up ) -> void
+	{
+		iteration++;
+		if( iteration >= iterations_per_wake_up )
+		{
+			wake_up_callback();
+			iteration= 0u;
+		}
+	};
 
+	const unsigned int c_point_lights_per_wake_up= 60u;
+	const unsigned int c_directional_lights_per_wake_up= 20u;
+	const unsigned int c_cone_lights_per_wake_up= 80u;
+	const unsigned int c_suraface_sample_lights_per_wake_up= c_point_lights_per_wake_up;
+
+	// Point lights
+	iteration= 0u;
+	for( const plb_PointLight& light : level_data_.point_lights )
+	{
+		m_Vec3 light_color;
+		unsigned char max_color_component= 1;
+		for( int j= 0; j< 3; j++ )
+		{
+			unsigned char c= light.color[j];
+			light_color.ToArr()[j]= light.intensity * float(c) / 255.0f;
+			if( c > max_color_component ) max_color_component= c;
+		}
+		light_color/= float(max_color_component) / 255.0f;
+
+		const m_Vec3 light_pos( light.pos );
+
+		GenPointlightShadowmap( light_pos );
+		PointLightPass( light_pos, light_color );
+
+		try_wake_up( c_point_lights_per_wake_up );
+	}
+
+	// Directional lights
+	iteration= 0u;
+	for( const plb_DirectionalLight& light : level_data_.directional_lights )
+	{
+		m_Mat4 mat;
+		CreateDirectionalLightMatrix(
+			light,
+			level_bounding_box_.min,
+			level_bounding_box_.max,
+			mat );
+
+		GenDirectionalLightShadowmap( mat );
+		DirectionalLightPass( light, mat );
+
+		try_wake_up( c_directional_lights_per_wake_up );
+	}
+
+	// Cone lights
+	iteration= 0u;
+	for( const plb_ConeLight& cone_light : level_data_.cone_lights )
+	{
+		m_Mat4 mat;
+		CreateConeLightMatrix( cone_light, mat );
+
+		GenConeLightShadowmap( mat );
+		ConeLightPass( cone_light, mat );
+
+		try_wake_up( c_cone_lights_per_wake_up );
+	}
+
+	// Surface sample lights
+	iteration= 0u;
 	for( const plb_SurfaceSampleLight& light : bright_luminous_surfaces_lights_ )
 	{
 		m_Vec3 light_color;
@@ -346,12 +415,7 @@ void plb_LightmapsBuilder::MakeBrightLuminousSurfacesLight(
 			m_Vec3( light.normal ),
 			light_color );
 
-		count++;
-		if( count == 30 )
-		{
-			wake_up_callback();
-			count= 0;
-		}
+		try_wake_up( c_suraface_sample_lights_per_wake_up );
 	}
 }
 
