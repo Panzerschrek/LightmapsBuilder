@@ -1,3 +1,5 @@
+#include <iostream>
+
 #include "curves.hpp"
 
 #include "world_vertex_buffer.hpp"
@@ -101,6 +103,8 @@ void plb_WorldVertexBuffer::Draw( const unsigned int polygon_types_flags ) const
 		}
 	}
 }
+
+
 
 void plb_WorldVertexBuffer::PrepareWorldCommonPolygons(
 	const plb_LevelData& level_data,

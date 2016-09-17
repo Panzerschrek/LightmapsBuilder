@@ -1,7 +1,9 @@
 #pragma once
+#include <functional>
 
 #include <glsl_program.hpp>
 #include <polygon_buffer.hpp>
+#include <tracer.hpp>
 
 #include "formats.hpp"
 
@@ -28,19 +30,12 @@ public:
 		Luminous,
 		NumTypes
 	};
-/*
-private:
-	// Transform enum values to bitmask
-	template<class Arg0, class... Args>
-	static unsigned int GetFlags( PolygonType arg0, Args... args )
-	{
-		return ( 1 << static_cast<unsigned int>(arg0) ) | GetFlags( args... );
-	}
-*/
+
 public:
 	static void SetupLevelVertexAttributes( r_GLSLProgram& shader );
 
 	explicit plb_WorldVertexBuffer( const plb_LevelData& level_data );
+
 	~plb_WorldVertexBuffer();
 
 	void Draw( PolygonType type ) const;
@@ -55,6 +50,7 @@ private:
 	};
 
 private:
+
 	void PrepareWorldCommonPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
@@ -84,5 +80,4 @@ private:
 	GLuint normals_buffer_id_;
 
 	PolygonGroup polygon_groups_[ static_cast<size_t>(PolygonType::NumTypes) ];
-
 };

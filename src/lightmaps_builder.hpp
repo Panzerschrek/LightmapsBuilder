@@ -67,11 +67,21 @@ private:
 	void ClalulateLightmapAtlasCoordinates();
 	void CreateLightmapBuffers();
 
+	void PrepareLightTexelsPoints();
+
 	void FillBorderLightmapTexels();
 
 	void CalculateLevelBoundingBox();
 
-	m_Vec3 CorrectSecondaryLightSample( const m_Vec3& pos, const plb_Polygon& poly );
+	m_Vec3 CorrectSecondaryLightSample(
+		const m_Vec3& pos,
+		const plb_Polygon& poly,
+		const plb_Tracer::LineSegments& neighbors_segments );
+
+	void GetPolygonNeighborsSegments(
+		const plb_Polygon& polygon,
+		plb_Tracer::SurfacesList& tmp_surfaces_container,
+		plb_Tracer::LineSegments& out_segments );
 
 private:
 	plb_LevelData level_data_;
@@ -101,6 +111,8 @@ private:
 		GLuint secondary_tex_id[ PLB_MAX_LIGHT_PASSES ];
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
+
+	r_PolygonBuffer light_texels_points_;
 
 	struct
 	{

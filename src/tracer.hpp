@@ -15,6 +15,16 @@ public:
 		m_Vec3 normal;
 	};
 
+	typedef std::vector<unsigned int> SurfacesList;
+
+	struct LineSegment
+	{
+		m_Vec3 v[2];
+		m_Vec3 normal;
+	};
+
+	typedef std::vector<LineSegment> LineSegments;
+
 	explicit plb_Tracer( const plb_LevelData& level_data );
 	~plb_Tracer();
 
@@ -26,6 +36,25 @@ public:
 		const m_Vec3& to,
 		TraceResult* out_result= nullptr,
 		unsigned int max_result_count= 0 ) const;
+
+	unsigned int Trace(
+		const SurfacesList& surfaces_to_trace,
+		const m_Vec3& from,
+		const m_Vec3& to,
+		TraceResult* out_result= nullptr,
+		unsigned int max_result_count= 0 ) const;
+
+	void GetPolygonNeighbors(
+		const plb_Polygon& polygon,
+		const plb_Vertices& polygon_vertices,
+		const float threshold,
+		SurfacesList& out_surfaces_list ) const;
+
+	void GetPlaneIntersections(
+		const SurfacesList& surfaces,
+		const m_Vec3& plane_normal,
+		const m_Vec3& plane_point,
+		LineSegments& out_segments ) const;
 
 private:
 	struct Surface
@@ -90,6 +119,14 @@ private:
 		const Surface& surface ) const;
 
 	void CheckCollision_r( TraceRequestData& data, const TreeNode& node ) const;
+
+	m_BBox3 GetSurfaceBBox( const Surface& surface ) const;
+	bool BBoxIntersectSurface( const m_BBox3& bbox, const Surface& surface ) const;
+
+	void AddIntersectedSurfacesToList_r(
+		const TreeNode& node,
+		const m_BBox3& bbox,
+		SurfacesList& list ) const;
 
 	void BuildTree();
 
