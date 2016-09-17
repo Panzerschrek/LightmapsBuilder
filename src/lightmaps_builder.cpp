@@ -13,7 +13,6 @@
 
 #define VEC3_CPY(dst,src) (dst)[0]= (src)[0]; (dst)[1]= (src)[1]; (dst)[2]= (src)[2];
 #define ARR_VEC3_CPY(dst,vec) dst[0]= vec.x; dst[1]= vec.y; dst[2]= vec.z;
-#define REALLY_MAX_FLOAT 1e24f
 
 struct CubemapGeometryVertex
 {
@@ -1290,8 +1289,8 @@ void plb_LightmapsBuilder::BuildLuminousSurfacesLights()
 			inv_basis );
 
 		// Calculate size of poygon projection.
-		m_Vec2 proj_min( +REALLY_MAX_FLOAT, +REALLY_MAX_FLOAT );
-		m_Vec2 proj_max( -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT );
+		m_Vec2 proj_min= plb_Constants::max_vec.xy();
+		m_Vec2 proj_max= plb_Constants::min_vec.xy();
 		for( unsigned int v= poly.first_vertex_number; v < poly.first_vertex_number + poly.vertex_count; v++ )
 		{
 			const m_Vec3 relative_pos=
@@ -1429,7 +1428,7 @@ void plb_LightmapsBuilder::BuildLightmapBasises()
 	const plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& poly : level_data_.polygons )
 	{
-		float min_uv[2]= { REALLY_MAX_FLOAT, REALLY_MAX_FLOAT };
+		float min_uv[2]= { plb_Constants::max_float, plb_Constants::max_float };
 
 		for( unsigned int v= poly.first_vertex_number; v< poly.first_vertex_number + poly.vertex_count; v++ )
 		{
@@ -1559,7 +1558,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& polygon : level_data_.polygons )
 	{
-		float max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
+		float max_uv[2]= { plb_Constants::min_float, plb_Constants::min_float };
 
 		m_Mat3 inverse_lightmap_basis;
 		plbGetInvLightmapBasisMatrix(
