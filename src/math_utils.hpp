@@ -17,6 +17,8 @@ const float two_pi= 2.0f * pi;
 const float to_rad= pi / 180.0f;
 const float to_deg= 180.0f / pi;
 
+const float sqrt_2= std::sqrt( 2.0f );
+
 const float min_float= std::numeric_limits<float>::lowest();
 const float max_float= std::numeric_limits<float>::max();
 
