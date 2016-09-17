@@ -60,8 +60,6 @@ private:
 	// Needs only for input data without lightmap basises.
 	void BuildLightmapBasises();
 
-	void DevideLongPolygons();
-
 	void TransformTexturesCoordinates();
 
 	void ClalulateLightmapAtlasCoordinates();

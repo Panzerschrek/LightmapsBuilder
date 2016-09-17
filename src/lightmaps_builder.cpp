@@ -1452,35 +1452,6 @@ void plb_LightmapsBuilder::BuildLightmapBasises()
 	}// for polygons
 }
 
-/*
-UNFINISHED
-*/
-void plb_LightmapsBuilder::DevideLongPolygons()
-{
-#if 0
-	plb_Vertex* v_p= &*level_data_.vertices.begin();
-	unsigned int initial_polygons_count= level_data_.polygons.size();
-
-	for( unsigned int i= 0; i< initial_polygons_count; i++ )
-	{
-		plb_Polygon* polygon= &level_data_.polygons[i];
-
-		float min_uv[2]= {REALLY_MAX_FLOAT, REALLY_MAX_FLOAT }, max_uv[2]= { -REALLY_MAX_FLOAT, -REALLY_MAX_FLOAT };
-		for( unsigned int v= polygon->first_vertex_number; v< polygon->first_vertex_number + polygon->vertex_count; v++ )
-		{
-			float uv[2]= {
-				m_Vec3( polygon->lightmap_basis[0] ) * m_Vec3( v_p[v].pos ) + polygon->lightmap_basis[0][3],
-				m_Vec3( polygon->lightmap_basis[1] ) * m_Vec3( v_p[v].pos ) + polygon->lightmap_basis[1][3] };
-			if( uv[0] < min_uv[0] ) min_uv[0]= uv[0];
-			else if( uv[0] > max_uv[0] ) max_uv[0]= uv[0];
-			if( uv[1] < min_uv[1] ) min_uv[1]= uv[1];
-			else if( uv[1] > max_uv[1] ) max_uv[1]= uv[1];
-		}
-		//printf( "uv: min(%f:%f) max(%f:%f)\n", min_uv[0], min_uv[1], max_uv[0], max_uv[1] );
-	}// for polygons
-#endif
-}
-
 void plb_LightmapsBuilder::TransformTexturesCoordinates()
 {
 	plb_Vertex* v_p= level_data_.vertices.data();
