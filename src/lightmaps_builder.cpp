@@ -2151,6 +2151,14 @@ void plb_LightmapsBuilder::GetPolygonNeighborsSegments(
 	//const float c_segment_cut_eps= 1.0f / 64.0f;
 	const float c_segment_shift_eps= 1.0f / 64.0f;
 
+	const float texel_clip_distance=
+		plb_Constants::sqrt_2 *
+		float( config_.secondary_lightmap_scaler ) *
+		std::sqrt(
+			std::max(
+				m_Vec3(polygon.lightmap_basis[0]).SquareLength(),
+				m_Vec3(polygon.lightmap_basis[1]).SquareLength() ) );
+
 	const m_Vec3 polygon_normal( polygon.normal );
 	const m_Vec3 plane_point=
 		m_Vec3(level_data_.vertices[ polygon.first_vertex_number ].pos ) +
@@ -2159,7 +2167,7 @@ void plb_LightmapsBuilder::GetPolygonNeighborsSegments(
 	tracer_->GetPolygonNeighbors(
 		polygon,
 		level_data_.vertices,
-		0.5f, // TODO - tune this
+		texel_clip_distance,
 		tmp_surfaces_container );
 
 	tracer_->GetPlaneIntersections(
