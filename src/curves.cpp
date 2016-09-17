@@ -376,17 +376,17 @@ void CalculateCurveCoordinatesForLightTexels(
 			m_Vec2 vert[4];
 			PositionAndNormal attrib[4];
 
-			get_lightmap_coord_and_pos( kx, ky, vert[0], attrib[0].pos );
-			attrib[0].normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+			get_lightmap_coord_and_pos( kx, ky, vert[1], attrib[1].pos );
+			attrib[1].normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
 
-			get_lightmap_coord_and_pos( kx + step_x, ky, vert[1], attrib[1].pos );
-			attrib[1].normal= GenCurveNormal( base_vertices, kx + step_x, ky, kx1 - step_x, ky1 );
+			get_lightmap_coord_and_pos( kx + step_x, ky, vert[3], attrib[3].pos );
+			attrib[3].normal= GenCurveNormal( base_vertices, kx + step_x, ky, kx1 - step_x, ky1 );
 
-			get_lightmap_coord_and_pos( kx, ky + step_y, vert[2], attrib[2].pos );
-			attrib[2].normal= GenCurveNormal( base_vertices, kx, ky + step_y, kx1, ky1 - step_y );
+			get_lightmap_coord_and_pos( kx, ky + step_y, vert[0], attrib[0].pos );
+			attrib[0].normal= GenCurveNormal( base_vertices, kx, ky + step_y, kx1, ky1 - step_y );
 
-			get_lightmap_coord_and_pos( kx + step_x, ky + step_y, vert[3], attrib[3].pos );
-			attrib[3].normal= GenCurveNormal( base_vertices, kx + step_x, ky + step_y, kx1 - step_x, ky1 - step_y );
+			get_lightmap_coord_and_pos( kx + step_x, ky + step_y, vert[2], attrib[2].pos );
+			attrib[2].normal= GenCurveNormal( base_vertices, kx + step_x, ky + step_y, kx1 - step_x, ky1 - step_y );
 
 			rasterizer.DrawTriangle( vert, attrib );
 			rasterizer.DrawTriangle( vert + 1, attrib + 1 );
@@ -396,8 +396,8 @@ void CalculateCurveCoordinatesForLightTexels(
 	// Normalize normal after rasterization
 	for( unsigned int i= 0; i < lightmap_size[0] * lightmap_size[1]; i++ )
 	{
-		const float normal_length= out_coordinates->normal.Length();
+		const float normal_length= out_coordinates[i].normal.Length();
 		if( normal_length >= 0.01f )
-			out_coordinates->normal/= normal_length;
+			out_coordinates[i].normal/= normal_length;
 	}
 }
