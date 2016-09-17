@@ -702,7 +702,7 @@ void plb_LightmapsBuilder::CreateShadowmapCubemap()
 	GLuint da= GL_NONE;
 	glDrawBuffers( 1, &da );
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	texture_show_shader_.ShaderSource(
 		rLoadShader("texture_show_f.glsl", g_glsl_version),
@@ -798,7 +798,7 @@ void plb_LightmapsBuilder::PointLightPass(const m_Vec3& light_pos, const m_Vec3&
 
 	light_texels_points_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
@@ -828,7 +828,7 @@ void plb_LightmapsBuilder::SurfaceSampleLightPass(
 
 	light_texels_points_.Draw();
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 
 	glEnable( GL_CULL_FACE );
 	glDisable( GL_BLEND );
@@ -909,7 +909,7 @@ void plb_LightmapsBuilder::GenSecondaryLightPassCubemap()
 	GLuint color_attachment= GL_COLOR_ATTACHMENT0;
 	glDrawBuffers( 1, &color_attachment );
 
-	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	r_Framebuffer::BindScreenFramebuffer();
 }
 
 void plb_LightmapsBuilder::GenSecondaryLightPassUnwrapBuffer()
@@ -1695,7 +1695,7 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 		glClearColor( 0.0f, 0.0f, 0.0f, 0.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+		r_Framebuffer::BindScreenFramebuffer();
 	}
 
 	float inv_lightmap_size[2]= 
