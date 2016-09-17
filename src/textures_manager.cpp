@@ -219,7 +219,10 @@ plb_TexturesManager::plb_TexturesManager(
 					iluFlipImage();
 
 				ilConvertImage( IL_RGBA, IL_UNSIGNED_BYTE );
-				//iluBuildMipmaps();
+
+				if( config.textures_gamma < 0.999f || config.textures_gamma > 1.001f )
+					iluGammaCorrect( 1.0f / config.textures_gamma );
+
 				const unsigned int pix= (
 					img.original_size[0] / (1<<img.size_log2[0]) +
 					img.original_size[1] / (1<<img.size_log2[1]) ) / 2;

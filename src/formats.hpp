@@ -167,6 +167,10 @@ struct plb_Config
 	// Putj k teksturam na fajlovoj sisteme.
 	std::string textures_path;
 
+	// Gamma of laoded textures.
+	// Values above 1 - make textures darker, values less, then 1, makes textures brighter.
+	float textures_gamma= 1.0f;
+
 	// Razmery tekstur urovnä.
 	// Vse zagružennyje tekstury privodätsä k kvadratam stepeni dvojki i
 	// preobrazujutsä v bližajšij podhodäscij razmer.
