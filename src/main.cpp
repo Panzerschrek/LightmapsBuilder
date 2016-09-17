@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 
@@ -61,7 +62,7 @@ extern "C" int main(int argc, char *argv[])
 		const auto shaders_log_callback=
 			[]( const char* log_data )
 			{
-				std::cout << log_data;
+				std::cout << log_data << std::endl;
 			};
 
 		rSetShaderLoadingLogCallback( shaders_log_callback );
@@ -109,6 +110,7 @@ extern "C" int main(int argc, char *argv[])
 			{
 			case SDL_QUIT:
 				quited= true;
+				std::exit(0);
 				break;
 
 			case SDL_KEYDOWN:
@@ -217,7 +219,7 @@ extern "C" int main(int argc, char *argv[])
 	do
 	{
 		main_loop_iteration();
-	}while(!quited);
+	}while( !quited );
 
 	lightmaps_builder.reset();
 
