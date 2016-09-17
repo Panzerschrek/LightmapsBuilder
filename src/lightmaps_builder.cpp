@@ -278,20 +278,20 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.directional_light_shadowmap_size_log2 );
 	Setup2dShadowmap( cone_light_shadowmap_, 1 << config_.cone_light_shadowmap_size_log2 );
 
-	for( unsigned int i= 0; i< level_data_.point_lights.size(); i++ )
+	for( const plb_PointLight& light : level_data_.point_lights )
 	{
-		m_Vec3 light_pos;
 		m_Vec3 light_color;
 		unsigned char max_color_component= 1;
 		for( int j= 0; j< 3; j++ )
 		{
-			unsigned char c= level_data_.point_lights[i].color[j];
-			light_color.ToArr()[j]= level_data_.point_lights[i].intensity * float(c) / 255.0f;
+			unsigned char c= light.color[j];
+			light_color.ToArr()[j]= light.intensity * float(c) / 255.0f;
 			if( c > max_color_component ) max_color_component= c;
-			light_pos.ToArr()[j]= level_data_.point_lights[i].pos[j];
 		}
 		light_color/= float(max_color_component) / 255.0f;
 		
+		const m_Vec3 light_pos( light.pos );
+
 		GenPointlightShadowmap( light_pos );
 		PointLightPass( light_pos, light_color );
 	}
