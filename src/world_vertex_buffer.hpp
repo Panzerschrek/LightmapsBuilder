@@ -24,10 +24,19 @@ public:
 
 	enum class PolygonType : unsigned int
 	{
+		// Geometry with lightmap, and casted solid shadow.
 		WorldCommon= 0,
+		// Geometry without shadows and luminosity.
+		NoShadow,
+		// Geometry with or without lightmap, casted alpha-shadow.
 		AlphaShadow,
+		// Sky geometry. Directional lights goes from it. Also, sky geometry is lumonous and not cast shadow.
 		Sky,
+		// Geometry of luminous surfaces, duplicates some geometry from WorldCommon or AlphaShadow.
 		Luminous,
+		// Luminous geometry without shadows.
+		NoShadowLuminous,
+
 		NumTypes
 	};
 
@@ -57,6 +66,12 @@ private:
 		plb_Normals& normals,
 		std::vector<unsigned int>& indeces );
 
+	void PrepareNoShadowPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
 	void PrepareAlphaShadowPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
@@ -70,6 +85,12 @@ private:
 		std::vector<unsigned int>& indeces );
 
 	void PrepareLuminousPolygons(
+		 const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareNoShadowLuminousPolygons(
 		 const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,

@@ -649,24 +649,32 @@ void plb_LightmapsBuilder::DrawPreview(
 	};
 
 	setup_shader( polygons_preview_shader_ );
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::NoShadow } );
 
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
 	if( draw_luminous_surfaces )
 	{
+		setup_shader( polygons_preview_luminosity_shader_ );
+
+		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
+
 		glDepthFunc( GL_EQUAL );
 		glEnable( GL_BLEND );
 		glBlendFunc( GL_ONE, GL_ONE );
 
-		setup_shader( polygons_preview_luminosity_shader_ );
 		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Luminous );
 
-		glDisable( GL_BLEND );
 		glDepthFunc( GL_LESS );
+		glDepthMask( 0 );
 
-		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
+		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadowLuminous );
+
+		glDepthMask( 1 );
+		glDisable( GL_BLEND );
 	}
 
 	lights_visualizer_->Draw( view_matrix, cam_pos );
@@ -1148,23 +1156,29 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 	glEnable( GL_CULL_FACE );
 
-
 	// Luminocity polygons.
 	// Luminocity polygons already drawn, draw it again, but with different texture and shader.
 	// Add luminocity light to diffuse surface light.
+	bind_and_set_uniforms( secondary_light_pass_shader_luminocity_shader_ );
+
+	// Draw sky polygons as normal polygons, but with luminocity sahader
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
 
 	glEnable( GL_BLEND );
 	glBlendFunc( GL_ONE, GL_ONE );
 	glDepthFunc( GL_EQUAL );
 
-	bind_and_set_uniforms( secondary_light_pass_shader_luminocity_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Luminous );
 
-	glDisable( GL_BLEND );
 	glDepthFunc( GL_LESS );
 
-	// Draw sky polygons as normal polygons, but with luminocity sahader
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
+	// Draw luminous noshadow surfaces without depth-write and with additive blending.
+	glDepthMask( 0 );
+
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadowLuminous );
+
+	glDepthMask( 1 );
+	glDisable( GL_BLEND );
 
 	glDisable(GL_CLIP_DISTANCE0);
 

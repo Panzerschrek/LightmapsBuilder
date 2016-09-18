@@ -41,6 +41,7 @@ namespace plb_SurfaceFlags
 	enum : unsigned int
 	{
 		NoLightmap= 1u << 0u,
+		NoShadow= 1u << 1u,
 	};
 }
 

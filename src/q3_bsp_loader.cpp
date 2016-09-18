@@ -325,9 +325,17 @@ static void LoadVertices( std::vector<plb_Vertex>& out_vertices )
 static unsigned int SurfaceFlagsForBSPSurface( const dsurface_t& surf )
 {
 	unsigned int flags= 0;
-	if( ( dshaders[ surf.shaderNum ].surfaceFlags & SURF_NOLIGHTMAP ) != 0 )
+
+	const dshader_t& shader= dshaders[ surf.shaderNum ];
+
+	if( ( shader.surfaceFlags & SURF_NOLIGHTMAP ) != 0 )
 	{
 		flags|= plb_SurfaceFlags::NoLightmap;
+
+		// We assume, that in Quake-III format surfaces without lightmap no cast any shadow.
+		// But lava and slime is "solid" and cast shadows.
+		if( ( shader.contentFlags & ( CONTENTS_LAVA | CONTENTS_SLIME ) ) == 0 )
+			flags|= plb_SurfaceFlags::NoShadow;
 	}
 
 	return flags;
@@ -345,7 +353,7 @@ static void BuildPolygons(
 	{
 		if( p->surfaceType == 1 // polygon, no model or patch
 			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_NODRAW) ) == 0
-			&& (dshaders[p->shaderNum].contentFlags & (/*CONTENTS_LAVA|*/CONTENTS_SLIME|CONTENTS_FOG) ) == 0
+			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_FOG) ) == 0
 			)
 		{
 			bool is_sky= (dshaders[p->shaderNum].surfaceFlags & SURF_SKY) != 0;
