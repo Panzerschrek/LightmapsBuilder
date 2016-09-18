@@ -42,7 +42,7 @@ extern "C" int main(int argc, char *argv[])
 
 	SDL_Window* const window=
 		SDL_CreateWindow(
-			"Panzerschrek Lightmaps Builder",
+			"Panzerschrek's Lightmaps Builder",
 			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 			screen_width, screen_height,
 			SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN );
