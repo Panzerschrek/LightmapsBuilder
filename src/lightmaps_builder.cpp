@@ -273,6 +273,18 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_alphatested_shader_);
 	polygons_preview_alphatested_shader_.Create();
 
+	{
+		std::vector<std::string> defines;
+		if( config.use_average_texture_color_for_luminous_surfaces )
+			defines.emplace_back( "AVERAGE_LIGHT" );
+
+		polygons_preview_luminosity_shader_.ShaderSource(
+			rLoadShader( "luminosity_preview_f.glsl", g_glsl_version, defines ),
+			rLoadShader( "preview_v.glsl", g_glsl_version) );
+		plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_luminosity_shader_);
+		polygons_preview_luminosity_shader_.Create();
+	}
+
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
 	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.directional_light_shadowmap_size_log2 );
@@ -584,7 +596,8 @@ void plb_LightmapsBuilder::DrawPreview(
 	const m_Mat4& view_matrix, const m_Vec3& cam_pos,
 	const m_Vec3& cam_dir,
 	float brightness,
-	bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures )
+	bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
+	bool draw_luminous_surfaces )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -640,6 +653,21 @@ void plb_LightmapsBuilder::DrawPreview(
 
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
+
+	if( draw_luminous_surfaces )
+	{
+		glDepthFunc( GL_EQUAL );
+		glEnable( GL_BLEND );
+		glBlendFunc( GL_ONE, GL_ONE );
+
+		setup_shader( polygons_preview_luminosity_shader_ );
+		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Luminous );
+
+		glDisable( GL_BLEND );
+		glDepthFunc( GL_LESS );
+
+		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );
+	}
 
 	lights_visualizer_->Draw( view_matrix, cam_pos );
 	// Debug secondary light pass

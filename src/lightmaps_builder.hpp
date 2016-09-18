@@ -32,7 +32,8 @@ public:
 		const m_Mat4& view_matrix, const m_Vec3& cam_pos,
 		const m_Vec3& cam_dir,
 		float brightness,
-		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures );
+		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
+		bool draw_luminous_surfaces );
 
 private:
 	void LoadLightPassShaders();
@@ -95,6 +96,7 @@ private:
 
 	r_GLSLProgram polygons_preview_shader_;
 	r_GLSLProgram polygons_preview_alphatested_shader_;
+	r_GLSLProgram polygons_preview_luminosity_shader_;
 
 	struct
 	{

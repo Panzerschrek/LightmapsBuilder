@@ -94,6 +94,7 @@ extern "C" int main(int argc, char *argv[])
 	bool show_primary_lightmap= true;
 	bool show_secondary_lightmap= true;
 	bool use_textures_in_preview= true;
+	bool draw_luminous_surfaces_in_preview= true;
 	int brightness_log= 0;
 
 	bool quited= false;
@@ -156,6 +157,10 @@ extern "C" int main(int argc, char *argv[])
 					use_textures_in_preview= !use_textures_in_preview;
 					force_redraw= true;
 					break;
+				case SDLK_4:
+					draw_luminous_surfaces_in_preview= !draw_luminous_surfaces_in_preview;
+					force_redraw= true;
+					break;
 
 				case SDLK_0:
 					brightness_log= 0;
@@ -201,7 +206,8 @@ extern "C" int main(int argc, char *argv[])
 				std::pow( 2.0f, float(brightness_log) / 2.0f ),
 				show_primary_lightmap,
 				show_secondary_lightmap,
-				use_textures_in_preview );
+				use_textures_in_preview,
+				draw_luminous_surfaces_in_preview );
 
 			SDL_GL_SwapWindow(window);
 		}
