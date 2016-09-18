@@ -597,7 +597,7 @@ void plb_LightmapsBuilder::DrawPreview(
 	const m_Vec3& cam_dir,
 	float brightness,
 	bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
-	bool draw_luminous_surfaces )
+	bool draw_luminous_surfaces, bool draw_shadowless_surfaces )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
@@ -649,9 +649,9 @@ void plb_LightmapsBuilder::DrawPreview(
 	};
 
 	setup_shader( polygons_preview_shader_ );
-	world_vertex_buffer_->Draw( {
-		plb_WorldVertexBuffer::PolygonType::WorldCommon,
-		plb_WorldVertexBuffer::PolygonType::NoShadow } );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	if( draw_shadowless_surfaces  )
+		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadow  );
 
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
@@ -671,7 +671,8 @@ void plb_LightmapsBuilder::DrawPreview(
 		glDepthFunc( GL_LESS );
 		glDepthMask( 0 );
 
-		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadowLuminous );
+		if( draw_shadowless_surfaces  )
+			world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadowLuminous );
 
 		glDepthMask( 1 );
 		glDisable( GL_BLEND );

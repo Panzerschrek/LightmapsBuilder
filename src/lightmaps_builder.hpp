@@ -33,7 +33,7 @@ public:
 		const m_Vec3& cam_dir,
 		float brightness,
 		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
-		bool draw_luminous_surfaces );
+		bool draw_luminous_surfaces, bool draw_shadowless_surfaces );
 
 private:
 	void LoadLightPassShaders();
