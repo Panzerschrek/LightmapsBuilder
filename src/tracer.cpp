@@ -38,6 +38,9 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	surfaces_.reserve( level_data.polygons.size() );
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
+		if( ( poly.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
 		const plb_Material& material= level_data.materials[ poly.material_id ];
 		if( material.cast_alpha_shadow )
 			continue;
@@ -72,6 +75,9 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	plb_Normals curve_normals;
 	for( const plb_CurvedSurface& curve :level_data.curved_surfaces )
 	{
+		if( ( curve.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
 		const plb_Material& material= level_data.materials[ curve.material_id ];
 		if( material.cast_alpha_shadow )
 			continue;
