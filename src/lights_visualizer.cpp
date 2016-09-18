@@ -10,10 +10,11 @@ struct Vertex
 };
 
 static const r_GLSLVersion g_glsl_version( r_GLSLVersion::KnowmNumbers::v430 );
-
+static const float g_directional_lights_distance= 64.0f;
 
 plb_LightsVisualizer::plb_LightsVisualizer(
 	const plb_PointLights& point_lights,
+	const plb_DirectionalLights& directional_lights,
 	const plb_ConeLights& cone_lights,
 	const plb_SurfaceSampleLights& surface_sample_lights )
 {
@@ -34,12 +35,32 @@ plb_LightsVisualizer::plb_LightsVisualizer(
 			}
 		};
 
+	point_lights_.first_vertex= vertices.size();
+	point_lights_.vertex_count= point_lights.size();
 	for( const plb_PointLight& light : point_lights )
 		push_light( light );
 
+	directional_lights_.first_vertex= vertices.size();
+	directional_lights_.vertex_count= directional_lights.size();
+	for( const plb_DirectionalLight& light : directional_lights )
+	{
+		vertices.emplace_back();
+		Vertex& vertex= vertices.back();
+
+		for( unsigned int i= 0; i < 3; i++ )
+		{
+			vertex.pos[i]= light.direction[i] * g_directional_lights_distance;
+			vertex.color[i]= float(light.color[i]) / 255.0f * light.intensity;
+		}
+	}
+
+	cone_lights_.first_vertex= vertices.size();
+	cone_lights_.vertex_count= cone_lights.size();
 	for( const plb_ConeLight& light : cone_lights )
 		push_light( light );
 
+	surface_sample_lights_.first_vertex= vertices.size();
+	surface_sample_lights_.vertex_count= surface_sample_lights.size();
 	for( const plb_SurfaceSampleLight& light : surface_sample_lights )
 		push_light( light );
 
@@ -78,14 +99,23 @@ void plb_LightsVisualizer::Draw( const m_Mat4& view_matrix, const m_Vec3& cam_po
 {
 	glEnable( GL_PROGRAM_POINT_SIZE );
 
-	(void)cam_pos; // TODO - use this
-
 	shader_.Bind();
 	shader_.Uniform( "view_matrix", view_matrix );
 	shader_.Uniform( "sprite_size", 64.0f );
 
 	vertex_buffer_.Bind();
-	vertex_buffer_.Draw();
+
+	glDrawArrays( GL_POINTS, point_lights_.first_vertex, point_lights_.vertex_count );
+	glDrawArrays( GL_POINTS, cone_lights_.first_vertex, cone_lights_.vertex_count );
+	glDrawArrays( GL_POINTS, surface_sample_lights_.first_vertex, surface_sample_lights_.vertex_count );
+
+	m_Mat4 shift_mat;
+	shift_mat.Translate( cam_pos );
+
+	shader_.Uniform( "sprite_size", g_directional_lights_distance * 64.0f );
+	shader_.Uniform( "view_matrix", shift_mat * view_matrix );
+
+	glDrawArrays( GL_POINTS, directional_lights_.first_vertex, directional_lights_.vertex_count );
 
 	glDisable( GL_PROGRAM_POINT_SIZE );
 }

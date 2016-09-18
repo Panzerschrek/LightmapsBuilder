@@ -252,6 +252,7 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	lights_visualizer_.reset(
 		new plb_LightsVisualizer(
 			level_data_.point_lights,
+			level_data_.directional_lights,
 			level_data_.cone_lights,
 			bright_luminous_surfaces_lights_ ) );
 
