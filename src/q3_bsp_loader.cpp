@@ -18,7 +18,7 @@ extern "C"
 #include <vec.hpp>
 
 
-// HACK. Use windows-specific function for "listfiles"
+// HACK. Use system-specific functions for "listfiles"
 #ifdef _WIN32
 #include <windows.h>
 
@@ -46,6 +46,49 @@ static std::vector<std::string> ShaderInfoFiles( const std::string& shaders_path
 
 	return result;
 }
+
+#else
+#include <sys/types.h>
+#include <dirent.h>
+
+const bool EndsWith( const char* const str, const char* const end )
+{
+	const char* const substr= std::strstr( str, end );
+	if( substr == nullptr )
+		return false;
+
+	return std::strcmp( substr, end ) == 0;
+}
+
+static std::vector<std::string> ShaderInfoFiles( const std::string& shaders_path )
+{
+	std::vector<std::string> result;
+
+	DIR* const dir= opendir( shaders_path.c_str() );
+
+	if( dir == nullptr )
+	{
+		std::cout << "Failied to open shaders dir \"" << shaders_path << "\"" << std::endl;
+		return result;
+	}
+
+	while(1)
+	{
+		const dirent* const dir_entry= readdir( dir );
+		if( dir_entry == nullptr )
+			break;
+
+		if( dir_entry->d_type == DT_REG &&
+			EndsWith( dir_entry->d_name, ".shader" ) )
+			result.emplace_back( dir_entry->d_name );
+
+	}
+
+	closedir( dir );
+
+	return result;
+}
+
 #endif
 
 struct Q3Shader : public plb_Material
