@@ -7,7 +7,12 @@
 #define Q_LIGHT_UNITS_INV_SCALER (1.0f/64.0f)
 
 #ifdef PLB_DLL_BUILD
+
+#ifdef _WIN32
 #define PLB_DLL_FUNC extern "C" __declspec(dllexport)
+#else
+#define PLB_DLL_FUNC extern "C"
+#endif
 
 PLB_DLL_FUNC void LoadBsp(
 	const char* file_name,

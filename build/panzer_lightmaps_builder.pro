@@ -19,6 +19,12 @@ LIBS += $$DEVIL_LIBS_DIR/DevIL.lib
 LIBS += $$DEVIL_LIBS_DIR/ILU.lib
 LIBS+= libopengl32
 
+unix: {
+
+LIBS+= -ldl
+
+}
+
 SOURCES += \
 	../src/camera_controller.cpp \
 	../src/curves.cpp \

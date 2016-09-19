@@ -4,6 +4,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <dlfcn.h>
 #endif
 
 #include "loaders_common.hpp"
@@ -32,20 +33,39 @@ bool LoadLoaderLibrary( const char* const library_name )
 	}
 
 	LoadBsp= reinterpret_cast<decltype(LoadBsp)>( GetProcAddress( module, c_func_name ) );
+
 	if( LoadBsp == nullptr )
 	{
 		std::cout << "Failed to get \"" << c_func_name << "\" from \"" << library_file_name << "\"" << std::endl;
 		return false;
 	}
 
-#else // TODO - load dynamyc library, get file
+#else
+	library_file_name= "lib" + library_file_name + ".so";
+
+	void* const handle= dlopen( library_file_name.c_str(), RTLD_LAZY );
+	if( handle == nullptr )
+	{
+		std::cout << "Failed to load library \"" << library_file_name << "\"\n"
+			<< dlerror() << std::endl;
+		return false;
+	}
+
+	LoadBsp= reinterpret_cast<decltype(LoadBsp)>( dlsym( handle, c_func_name ) );
+
+	if( LoadBsp == nullptr )
+	{
+		std::cout << "Failed to get \"" << c_func_name << "\" from \"" << library_file_name << "\"\n"
+			<< dlerror() << std::endl;
+		return false;
+	}
+
 #endif
 
 	return true;
 }
 
 #endif//PLB_DLL_BUILD
-
 
 void plbTransformCoordinatesFromQuakeSystem(
 	plb_Polygons& polygons,
