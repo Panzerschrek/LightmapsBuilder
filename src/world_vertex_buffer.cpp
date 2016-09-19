@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 
 #include "curves.hpp"
@@ -187,6 +188,43 @@ void plb_WorldVertexBuffer::PrepareNoShadowPolygons(
 
 		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
 	} // for curves
+
+
+	for( const plb_LevelModel& model : level_data.models )
+	{
+		const unsigned int first_out_vertex= vertices.size();
+
+		for( unsigned int i= 0; i < model.index_count; i++ )
+		{
+			indeces.push_back(
+				level_data.models_indeces[ model.first_index + i ] +
+				first_out_vertex - model.first_vertex_number );
+		}
+
+		const plb_Material& material= level_data.materials[ model.material_id ];
+		const plb_ImageInfo& texture= level_data.textures[ material.albedo_texture_number ];
+
+		for( unsigned int v= 0; v < model.vertex_count; v++ )
+		{
+			vertices.emplace_back();
+			normals.emplace_back();
+
+			const plb_Vertex& in_vertex= level_data.models_vertices[ model.first_vertex_number + v ];
+			const plb_Normal& in_normal= level_data.models_normals[ model.first_vertex_number + v ];
+
+			plb_Vertex& out_vertex= vertices.back();
+			plb_Normal& out_normal= normals.back();
+
+			out_vertex= in_vertex;
+			out_normal= in_normal;
+
+			unsigned int material_id;
+			std::memcpy( &material_id, in_vertex.tex_maps, sizeof(unsigned int) );
+
+			out_vertex.tex_maps[0]= texture.texture_array_id;
+			out_vertex.tex_maps[1]= texture.texture_layer_id;
+		}
+	} // for models
 
 	polygon_groups_[ int(PolygonType::NoShadow) ].size= indeces.size() - index_cout_before;
 }

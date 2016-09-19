@@ -85,6 +85,20 @@ struct plb_CurvedSurface
 
 typedef std::vector<plb_CurvedSurface> plb_CurvedSurfaces;
 
+struct plb_LevelModel
+{
+	unsigned int first_vertex_number;
+	unsigned int first_index;
+
+	unsigned int vertex_count;
+	unsigned int index_count;
+
+	unsigned int flags;
+	unsigned int material_id; // number of material in input materials vector
+};
+
+typedef std::vector<plb_LevelModel> plb_LevelModels;
+
 struct plb_BuildInImage
 {
 	std::string name;
@@ -236,6 +250,11 @@ struct plb_LevelData
 
 	plb_Polygons sky_polygons;
 	std::vector<unsigned int> sky_polygons_indeces;
+
+	plb_Vertices models_vertices;
+	plb_Normals models_normals;
+	std::vector<unsigned int> models_indeces;
+	plb_LevelModels models;
 
 	plb_PointLights point_lights;
 	plb_DirectionalLights directional_lights;

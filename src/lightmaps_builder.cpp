@@ -1761,6 +1761,36 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		current_column_x+= width_in_atlas + lightmaps_offset;
 	}// for polygons
 
+
+	// Place models vertices
+	for( const plb_LevelModel& model : level_data_.models )
+	{
+		if( ( model.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
+		for( unsigned int v= 0; v < model.vertex_count; v++ )
+		{
+			if( current_column_x + lightmaps_offset * 2u >= lightmap_size[0] )
+			{
+				current_column_x= lightmaps_offset;
+				current_column_y+= lightmaps_offset;
+
+				if( current_column_height + lightmaps_offset * 2u >= lightmap_size[1] )
+				{
+					current_lightmap_atlas_id++;
+					current_column_y= lightmaps_offset;
+				}
+			}
+
+			plb_Vertex& vertex= level_data_.models_vertices[ model.first_vertex_number + v ];
+			vertex.lightmap_coord[0]= ( float( current_column_x ) + 0.5f ) / float( config_.lightmaps_atlas_size[0] );
+			vertex.lightmap_coord[1]= ( float( current_column_y ) + 0.5f ) / float( config_.lightmaps_atlas_size[1] );
+			vertex.tex_maps[2]= current_lightmap_atlas_id;
+
+			current_column_x+= lightmaps_offset;
+		}
+	} // for models
+
 	lightmap_atlas_texture_.size[0]= config_.lightmaps_atlas_size[0];
 	lightmap_atlas_texture_.size[1]= config_.lightmaps_atlas_size[1];
 	lightmap_atlas_texture_.size[2]= current_lightmap_atlas_id+1;
@@ -1993,6 +2023,33 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 
 		} // for xy
 	} // for curves
+
+	// Place models vertices
+	for( const plb_LevelModel& model : level_data_.models )
+	{
+		if( ( model.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
+		for( unsigned int v= 0; v < model.vertex_count; v++ )
+		{
+			const plb_Vertex& in_vertex= level_data_.models_vertices[ model.first_vertex_number + v ];
+			const plb_Normal& in_normal= level_data_.models_normals[ model.first_vertex_number + v ];
+
+			vertices.emplace_back();
+			LightTexelVertex& out_vertex= vertices.back();
+
+			for( unsigned int j= 0; j < 2; j++ )
+				out_vertex.lightmap_pos[j]= in_vertex.lightmap_coord[j];
+
+			for( unsigned int j= 0; j < 3; j++ )
+			{
+				out_vertex.pos[j]= in_vertex.pos[j];
+				out_vertex.normal[j]= in_normal.xyz[j];
+			}
+
+			std::memcpy( out_vertex.tex_maps, in_vertex.tex_maps, 4 );
+		} // for model vertice
+	} // for models
 
 	std::cout << "Primary lightmap texels: " << vertices.size() << std::endl;
 

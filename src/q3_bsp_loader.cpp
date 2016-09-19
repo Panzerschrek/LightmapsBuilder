@@ -345,13 +345,15 @@ static void BuildPolygons(
 	const std::vector<unsigned short>& shader_num_to_material_index,
 	std::vector<plb_Polygon>& out_polygons, std::vector<plb_Polygon>& out_sky_polygons,
 	std::vector<unsigned int>& out_indeces, std::vector<unsigned int>& out_sky_indeces,
-	std::vector<plb_CurvedSurface>& out_curves, std::vector<plb_Vertex>& out_curves_vertices )
+	std::vector<plb_CurvedSurface>& out_curves, std::vector<plb_Vertex>& out_curves_vertices,
+	plb_LevelModels& out_models,
+	plb_Vertices& out_models_vertices, plb_Normals& out_models_normals, std::vector<unsigned int>& out_models_indeces )
 {
 	out_polygons.reserve( numDrawSurfaces );
 
 	for( const dsurface_t* p= drawSurfaces; p < drawSurfaces + numDrawSurfaces; p++ )
 	{
-		if( p->surfaceType == 1 // polygon, no model or patch
+		if( p->surfaceType == MST_PLANAR
 			&& (dshaders[p->shaderNum].surfaceFlags & (SURF_NODRAW) ) == 0
 			&& (dshaders[p->shaderNum].contentFlags & (CONTENTS_FOG) ) == 0
 			)
@@ -393,7 +395,7 @@ static void BuildPolygons(
 
 			(is_sky ? out_sky_polygons : out_polygons).push_back(polygon);
 		}// if normal polygon
-		else if( p->surfaceType == 2 )// curve 
+		else if( p->surfaceType == MST_PATCH )// curve
 		{
 			plb_CurvedSurface surf;
 			surf.grid_size[0]= p->patchWidth;
@@ -435,7 +437,53 @@ static void BuildPolygons(
 			surf.flags= SurfaceFlagsForBSPSurface( *p );
 
 			out_curves.push_back(surf);
-		}// of curve
+		}// if curve
+		else if( p->surfaceType == MST_TRIANGLE_SOUP )
+		{
+			out_models.emplace_back();
+			plb_LevelModel& model= out_models.back();
+
+			const unsigned int first_vertex= out_models_vertices.size();
+			const unsigned int first_index= out_models_indeces.size();
+
+			out_models_vertices.resize( out_models_vertices.size() + p->numVerts );
+			out_models_normals.resize( out_models_normals.size() + p->numVerts );
+			out_models_indeces.resize( out_models_indeces.size() + p->numIndexes );
+
+			for( unsigned int i= 0; i < (unsigned int) p->numIndexes; i++ )
+			{
+				out_models_indeces[ first_index + i ]=
+					drawIndexes[ p->firstIndex + i ] + first_vertex;
+			}
+
+			for( unsigned int v= 0; v < (unsigned int) p->numVerts; v++ )
+			{
+				const drawVert_t& in_vert= drawVerts[ p->firstVert + v ];
+				plb_Vertex& vert= out_models_vertices[ first_vertex + v ];
+				plb_Normal& out_normal= out_models_normals[ first_vertex + v ];
+
+				vert.pos[0]= in_vert.xyz[0];
+				vert.pos[1]= in_vert.xyz[1];
+				vert.pos[2]= in_vert.xyz[2];
+				vert.tex_coord[0]= in_vert.st[0];
+				vert.tex_coord[1]= in_vert.st[1];
+
+				m_Vec3 normal( in_vert.normal );
+				normal.Normalize();
+				for( unsigned int j= 0; j < 3; j++ )
+					out_normal.xyz[j]= static_cast<char>( 127.0f * normal.ToArr()[j] );
+
+			} // for model vertices
+
+			model.first_vertex_number= first_vertex;
+			model.first_index= first_index;
+			model.vertex_count= p->numVerts;
+			model.index_count= p->numIndexes;
+
+			model.flags= 0;
+			model.material_id= shader_num_to_material_index[ p->shaderNum ];
+
+		} // if model
 	}// for polygons
 }
 
@@ -462,6 +510,27 @@ static void TransformCurves(
 			curve.bb_max[i]*= INV_Q_UNITS_IN_METER;
 		}
 	}
+}
+
+static void TransformModels(
+	plb_Vertices& models_vertices,
+	plb_Normals& models_normals,
+	std::vector<unsigned int>& models_indeces )
+{
+	for( plb_Vertex& v : models_vertices )
+	{
+		std::swap(v.pos[1], v.pos[2]);
+		v.pos[0]*= INV_Q_UNITS_IN_METER;
+		v.pos[1]*= INV_Q_UNITS_IN_METER;
+		v.pos[2]*= INV_Q_UNITS_IN_METER;
+	}
+
+	for( plb_Normal& n : models_normals )
+		std::swap( n.xyz[1], n.xyz[2] );
+
+
+	for( unsigned int i= 0; i < models_indeces.size(); i+= 3 )
+		std::swap( models_indeces[i], models_indeces[i+1] );
 }
 
 static void GenCurvesNormalizedLightmapCoords(
@@ -673,13 +742,16 @@ PLB_DLL_FUNC void LoadBsp(
 		shader_num_to_material_index,
 		level_data.polygons, level_data.sky_polygons,
 		level_data.polygons_indeces, level_data.sky_polygons_indeces,
-		level_data.curved_surfaces , level_data.curved_surfaces_vertices );
+		level_data.curved_surfaces , level_data.curved_surfaces_vertices,
+		level_data.models,
+		level_data.models_vertices, level_data.models_normals, level_data.models_indeces );
 
 	plbTransformCoordinatesFromQuakeSystem(
 		level_data.polygons, level_data.vertices,
 		level_data.polygons_indeces, level_data.sky_polygons_indeces );
 
 	TransformCurves( level_data.curved_surfaces , level_data.curved_surfaces_vertices );
+	TransformModels( level_data.models_vertices, level_data.models_normals, level_data.models_indeces );
 
 	GenCurvesNormalizedLightmapCoords( level_data.curved_surfaces , level_data.curved_surfaces_vertices );
 
