@@ -862,7 +862,9 @@ void plb_LightmapsBuilder::GenPointlightShadowmap( const m_Vec3& light_pos )
 	point_light_shadowmap_shader_.Uniform( "view_matrices", final_matrices, 6 );
 	point_light_shadowmap_shader_.Uniform( "inv_max_light_dst", inv_max_light_dst );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::VertexLighted } );
 
 	// Alpha-tested geometry
 	glDisable( GL_CULL_FACE );
@@ -1246,7 +1248,9 @@ void plb_LightmapsBuilder::GenDirectionalLightShadowmap( const m_Mat4& shadow_ma
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::VertexLighted } );
 
 	// Alpha-tested geometry
 	shadowmap_alphatested_shader_.Bind();
@@ -1307,7 +1311,9 @@ void plb_LightmapsBuilder::GenConeLightShadowmap( const m_Mat4& shadow_mat )
 	shadowmap_shader_.Bind();
 	shadowmap_shader_.Uniform( "view_matrix", shadow_mat );
 
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
+	world_vertex_buffer_->Draw( {
+		plb_WorldVertexBuffer::PolygonType::WorldCommon,
+		plb_WorldVertexBuffer::PolygonType::VertexLighted } );
 
 	// Alpha-tested geometry
 	shadowmap_alphatested_shader_.Bind();
