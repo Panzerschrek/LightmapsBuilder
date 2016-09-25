@@ -40,6 +40,7 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 	std::vector<unsigned int> index_buffer;
 
 	PrepareWorldCommonPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareVertexLightedPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareNoShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareAlphaShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareSkyPolygons( level_data, combined_vertices, normals, index_buffer );
@@ -152,6 +153,30 @@ void plb_WorldVertexBuffer::PrepareWorldCommonPolygons(
 	polygon_groups_[ int(PolygonType::WorldCommon) ].size= indeces.size() - index_cout_before;
 }
 
+void plb_WorldVertexBuffer::PrepareVertexLightedPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::VertexLighted) ].offset= indeces.size();
+
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this]( const plb_LevelModel& model ) -> bool
+		{
+			return
+				( model.flags & plb_SurfaceFlags::NoShadow ) == 0 &&
+				( model.flags & plb_SurfaceFlags::NoLightmap ) == 0;
+		} );
+
+	polygon_groups_[ int(PolygonType::VertexLighted) ].size= indeces.size() - index_cout_before;
+}
+
 void plb_WorldVertexBuffer::PrepareNoShadowPolygons(
 	const plb_LevelData& level_data,
 	plb_Vertices& vertices,
@@ -189,42 +214,19 @@ void plb_WorldVertexBuffer::PrepareNoShadowPolygons(
 		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
 	} // for curves
 
-
-	for( const plb_LevelModel& model : level_data.models )
-	{
-		const unsigned int first_out_vertex= vertices.size();
-
-		for( unsigned int i= 0; i < model.index_count; i++ )
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
 		{
-			indeces.push_back(
-				level_data.models_indeces[ model.first_index + i ] +
-				first_out_vertex - model.first_vertex_number );
-		}
+			if( ( model.flags & plb_SurfaceFlags::NoShadow ) == 0 )
+				return false;
 
-		const plb_Material& material= level_data.materials[ model.material_id ];
-		const plb_ImageInfo& texture= level_data.textures[ material.albedo_texture_number ];
-
-		for( unsigned int v= 0; v < model.vertex_count; v++ )
-		{
-			vertices.emplace_back();
-			normals.emplace_back();
-
-			const plb_Vertex& in_vertex= level_data.models_vertices[ model.first_vertex_number + v ];
-			const plb_Normal& in_normal= level_data.models_normals[ model.first_vertex_number + v ];
-
-			plb_Vertex& out_vertex= vertices.back();
-			plb_Normal& out_normal= normals.back();
-
-			out_vertex= in_vertex;
-			out_normal= in_normal;
-
-			unsigned int material_id;
-			std::memcpy( &material_id, in_vertex.tex_maps, sizeof(unsigned int) );
-
-			out_vertex.tex_maps[0]= texture.texture_array_id;
-			out_vertex.tex_maps[1]= texture.texture_layer_id;
-		}
-	} // for models
+			const plb_Material& material= level_data.materials[ model.material_id ];
+			return material.luminosity <= 0.0f;
+		} );
 
 	polygon_groups_[ int(PolygonType::NoShadow) ].size= indeces.size() - index_cout_before;
 }
@@ -258,6 +260,17 @@ void plb_WorldVertexBuffer::PrepareAlphaShadowPolygons(
 
 		GenCurveMesh( curve, level_data.curved_surfaces_vertices, vertices, indeces, normals );
 	} // for curves
+
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
+		{
+			const plb_Material& material= level_data.materials[ model.material_id ];
+			return material.cast_alpha_shadow;
+		} );
 
 	polygon_groups_[ int(PolygonType::AlphaShadow) ].size= indeces.size() - index_cout_before;
 }
@@ -375,6 +388,20 @@ void plb_WorldVertexBuffer::PrepareLuminousPolygons(
 		}
 	} // for curves
 
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
+		{
+			if( ( model.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+				return false;
+
+			const plb_Material& material= level_data.materials[ model.material_id ];
+			return material.luminosity > 0.0f;
+		} );
+
 	polygon_groups_[ int(PolygonType::Luminous) ].size= indeces.size() - index_cout_before;
 }
 
@@ -458,5 +485,66 @@ void plb_WorldVertexBuffer::PrepareNoShadowLuminousPolygons(
 		}
 	} // for curves
 
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
+		{
+			if( ( model.flags & plb_SurfaceFlags::NoShadow ) == 0 )
+				return false;
+
+			const plb_Material& material= level_data.materials[ model.material_id ];
+			return material.luminosity > 0.0f;
+		} );
+
 	polygon_groups_[ int(PolygonType::NoShadowLuminous) ].size= indeces.size() - index_cout_before;
+}
+
+void plb_WorldVertexBuffer::PrepareModelsPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces,
+	const ModelAcceptFunction& model_accept_function )
+{
+	for( const plb_LevelModel& model : level_data.models )
+	{
+		if( !model_accept_function( model ) )
+			continue;
+
+		const unsigned int first_out_vertex= vertices.size();
+
+		for( unsigned int i= 0; i < model.index_count; i++ )
+		{
+			indeces.push_back(
+				level_data.models_indeces[ model.first_index + i ] +
+				first_out_vertex - model.first_vertex_number );
+		}
+
+		const plb_Material& material= level_data.materials[ model.material_id ];
+		const plb_ImageInfo& texture= level_data.textures[ material.albedo_texture_number ];
+
+		for( unsigned int v= 0; v < model.vertex_count; v++ )
+		{
+			vertices.emplace_back();
+			normals.emplace_back();
+
+			const plb_Vertex& in_vertex= level_data.models_vertices[ model.first_vertex_number + v ];
+			const plb_Normal& in_normal= level_data.models_normals[ model.first_vertex_number + v ];
+
+			plb_Vertex& out_vertex= vertices.back();
+			plb_Normal& out_normal= normals.back();
+
+			out_vertex= in_vertex;
+			out_normal= in_normal;
+
+			unsigned int material_id;
+			std::memcpy( &material_id, in_vertex.tex_maps, sizeof(unsigned int) );
+
+			out_vertex.tex_maps[0]= texture.texture_array_id;
+			out_vertex.tex_maps[1]= texture.texture_layer_id;
+		}
+	} // for models
 }

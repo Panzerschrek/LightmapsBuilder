@@ -26,6 +26,8 @@ public:
 	{
 		// Geometry with lightmap, and casted solid shadow.
 		WorldCommon= 0,
+		// Geometry with per-vertex light and casted solid shadow.
+		VertexLighted,
 		// Geometry without shadows and luminosity.
 		NoShadow,
 		// Geometry with or without lightmap, casted alpha-shadow.
@@ -58,9 +60,17 @@ private:
 		unsigned int size;
 	};
 
+	typedef std::function<bool( const plb_LevelModel& model )> ModelAcceptFunction;
+
 private:
 
 	void PrepareWorldCommonPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareVertexLightedPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,
@@ -79,22 +89,29 @@ private:
 		std::vector<unsigned int>& indeces );
 
 	void PrepareSkyPolygons(
-		 const plb_LevelData& level_data,
+		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,
 		std::vector<unsigned int>& indeces );
 
 	void PrepareLuminousPolygons(
-		 const plb_LevelData& level_data,
+		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,
 		std::vector<unsigned int>& indeces );
 
 	void PrepareNoShadowLuminousPolygons(
-		 const plb_LevelData& level_data,
+		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,
 		std::vector<unsigned int>& indeces );
+
+	void PrepareModelsPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces,
+		const ModelAcceptFunction& model_accept_function );
 
 private:
 	r_PolygonBuffer polygon_buffer_;
