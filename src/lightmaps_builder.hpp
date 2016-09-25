@@ -97,6 +97,7 @@ private:
 	r_GLSLProgram polygons_preview_shader_;
 	r_GLSLProgram polygons_preview_alphatested_shader_;
 	r_GLSLProgram polygons_preview_luminosity_shader_;
+	r_GLSLProgram polygons_preview_vertex_lighted_shader_;
 
 	struct
 	{

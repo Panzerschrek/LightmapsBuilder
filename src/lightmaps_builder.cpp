@@ -285,6 +285,12 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 		polygons_preview_luminosity_shader_.Create();
 	}
 
+	polygons_preview_vertex_lighted_shader_.ShaderSource(
+		rLoadShader( "vertex_lighted_preview_f.glsl", g_glsl_version),
+		rLoadShader( "vertex_lighted_preview_v.glsl", g_glsl_version) );
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_vertex_lighted_shader_);
+	polygons_preview_vertex_lighted_shader_.Create();
+
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
 	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.directional_light_shadowmap_size_log2 );
@@ -652,6 +658,9 @@ void plb_LightmapsBuilder::DrawPreview(
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
 	if( draw_shadowless_surfaces  )
 		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadow  );
+
+	setup_shader( polygons_preview_vertex_lighted_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLighted );
 
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
