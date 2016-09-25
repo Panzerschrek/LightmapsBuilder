@@ -745,20 +745,20 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		if( config_.use_average_texture_color_for_luminous_surfaces )
 			frag_defines.emplace_back( "AVERAGE_LIGHT" );
 
-		secondary_light_pass_shader_luminocity_shader_.ShaderSource(
+		secondary_light_pass_luminocity_shader_.ShaderSource(
 			rLoadShader( "secondary_light_pass_luminosity_f.glsl", g_glsl_version, frag_defines ),
 			rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version ),
 			rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version ) );
-		plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_luminocity_shader_);
-		secondary_light_pass_shader_luminocity_shader_.Create();
+		plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_luminocity_shader_);
+		secondary_light_pass_luminocity_shader_.Create();
 	}
 
-	secondary_light_pass_shader_alphatested_shader_.ShaderSource(
+	secondary_light_pass_alphatested_shader_.ShaderSource(
 		rLoadShader( "secondary_light_pass_f.glsl", g_glsl_version, alpha_test_defines ),
 		rLoadShader( "secondary_light_pass_v.glsl", g_glsl_version ),
 		rLoadShader( "secondary_light_pass_g.glsl", g_glsl_version ));
-	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_shader_alphatested_shader_);
-	secondary_light_pass_shader_alphatested_shader_.Create();
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_alphatested_shader_);
+	secondary_light_pass_alphatested_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
@@ -1164,14 +1164,14 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 
 	// Alpha-tested polygons (include alpha-tested luminocity polygons
 	glDisable( GL_CULL_FACE );
-	bind_and_set_uniforms( secondary_light_pass_shader_alphatested_shader_ );
+	bind_and_set_uniforms( secondary_light_pass_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 	glEnable( GL_CULL_FACE );
 
 	// Luminocity polygons.
 	// Luminocity polygons already drawn, draw it again, but with different texture and shader.
 	// Add luminocity light to diffuse surface light.
-	bind_and_set_uniforms( secondary_light_pass_shader_luminocity_shader_ );
+	bind_and_set_uniforms( secondary_light_pass_luminocity_shader_ );
 
 	// Draw sky polygons as normal polygons, but with luminocity sahader
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::Sky );

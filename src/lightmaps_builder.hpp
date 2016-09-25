@@ -148,8 +148,8 @@ private:
 
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
-	r_GLSLProgram secondary_light_pass_shader_luminocity_shader_;
-	r_GLSLProgram secondary_light_pass_shader_alphatested_shader_;
+	r_GLSLProgram secondary_light_pass_luminocity_shader_;
+	r_GLSLProgram secondary_light_pass_alphatested_shader_;
 
 	r_Framebuffer directional_light_shadowmap_;
 
