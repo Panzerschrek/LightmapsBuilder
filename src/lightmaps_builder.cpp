@@ -291,6 +291,12 @@ plb_LightmapsBuilder::plb_LightmapsBuilder( const char* file_name, const plb_Con
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_vertex_lighted_shader_);
 	polygons_preview_vertex_lighted_shader_.Create();
 
+	polygons_preview_vertex_lighted_alphatested_shader_.ShaderSource(
+		rLoadShader( "vertex_lighted_preview_f.glsl", g_glsl_version, { "ALPHA_TEST" } ),
+		rLoadShader( "vertex_lighted_preview_v.glsl", g_glsl_version) );
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(polygons_preview_vertex_lighted_alphatested_shader_);
+	polygons_preview_vertex_lighted_alphatested_shader_.Create();
+
 	LoadLightPassShaders();
 	CreateShadowmapCubemap();
 	Setup2dShadowmap( directional_light_shadowmap_, 1 << config_.directional_light_shadowmap_size_log2 );
@@ -659,11 +665,15 @@ void plb_LightmapsBuilder::DrawPreview(
 	if( draw_shadowless_surfaces  )
 		world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::NoShadow  );
 
+	setup_shader( polygons_preview_alphatested_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
+
 	setup_shader( polygons_preview_vertex_lighted_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLighted );
 
-	setup_shader( polygons_preview_alphatested_shader_ );
-	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
+	setup_shader( polygons_preview_vertex_lighted_alphatested_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLightedAlphaShadow );
+
 
 	if( draw_luminous_surfaces )
 	{
@@ -766,6 +776,13 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 		rLoadShader( "secondary_light_pass_vertex_lighted_g.glsl", g_glsl_version ));
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_vertex_lighted_shader_);
 	secondary_light_pass_vertex_lighted_shader_.Create();
+
+	secondary_light_pass_vertex_lighted_alphatested_shader_.ShaderSource(
+		rLoadShader( "secondary_light_pass_vertex_lighted_f.glsl", g_glsl_version, alpha_test_defines ),
+		rLoadShader( "secondary_light_pass_vertex_lighted_v.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_vertex_lighted_g.glsl", g_glsl_version ));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_vertex_lighted_alphatested_shader_);
+	secondary_light_pass_vertex_lighted_alphatested_shader_.Create();
 
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
@@ -1169,7 +1186,7 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	bind_and_set_uniforms( secondary_light_pass_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::WorldCommon );
 
-	// Alpha-tested polygons (include alpha-tested luminocity polygons
+	// Alpha-tested polygons (include alpha-tested luminocity polygons )
 	glDisable( GL_CULL_FACE );
 	bind_and_set_uniforms( secondary_light_pass_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
@@ -1178,6 +1195,12 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	// Polygons with lights in vertices
 	bind_and_set_uniforms( secondary_light_pass_vertex_lighted_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLighted );
+
+	// Alpha-tested polygons (include alpha-tested luminocity polygons ) with light in vertices
+	glDisable( GL_CULL_FACE );
+	bind_and_set_uniforms( secondary_light_pass_vertex_lighted_alphatested_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLightedAlphaShadow );
+	glEnable( GL_CULL_FACE );
 
 	// Luminocity polygons.
 	// Luminocity polygons already drawn, draw it again, but with different texture and shader.

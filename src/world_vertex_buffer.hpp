@@ -28,6 +28,8 @@ public:
 		WorldCommon= 0,
 		// Geometry with per-vertex light and casted solid shadow.
 		VertexLighted,
+		// Geometry with per-vertex light and casted alpha-shadow.
+		VertexLightedAlphaShadow,
 		// Geometry without shadows and luminosity.
 		NoShadow,
 		// Geometry with or without lightmap, casted alpha-shadow.
@@ -71,6 +73,12 @@ private:
 		std::vector<unsigned int>& indeces );
 
 	void PrepareVertexLightedPolygons(
+		const plb_LevelData& level_data,
+		plb_Vertices& vertices,
+		plb_Normals& normals,
+		std::vector<unsigned int>& indeces );
+
+	void PrepareVertexLightedAlphaShadowPolygons(
 		const plb_LevelData& level_data,
 		plb_Vertices& vertices,
 		plb_Normals& normals,

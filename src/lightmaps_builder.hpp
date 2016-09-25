@@ -98,6 +98,7 @@ private:
 	r_GLSLProgram polygons_preview_alphatested_shader_;
 	r_GLSLProgram polygons_preview_luminosity_shader_;
 	r_GLSLProgram polygons_preview_vertex_lighted_shader_;
+	r_GLSLProgram polygons_preview_vertex_lighted_alphatested_shader_;
 
 	struct
 	{
@@ -151,6 +152,7 @@ private:
 	r_GLSLProgram secondary_light_pass_luminocity_shader_;
 	r_GLSLProgram secondary_light_pass_alphatested_shader_;
 	r_GLSLProgram secondary_light_pass_vertex_lighted_shader_;
+	r_GLSLProgram secondary_light_pass_vertex_lighted_alphatested_shader_;
 
 	r_Framebuffer directional_light_shadowmap_;
 

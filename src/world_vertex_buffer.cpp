@@ -41,6 +41,7 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 
 	PrepareWorldCommonPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareVertexLightedPolygons( level_data, combined_vertices, normals, index_buffer );
+	PrepareVertexLightedAlphaShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareNoShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareAlphaShadowPolygons( level_data, combined_vertices, normals, index_buffer );
 	PrepareSkyPolygons( level_data, combined_vertices, normals, index_buffer );
@@ -167,14 +168,44 @@ void plb_WorldVertexBuffer::PrepareVertexLightedPolygons(
 		vertices,
 		normals,
 		indeces,
-		[this]( const plb_LevelModel& model ) -> bool
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
 		{
+			const plb_Material& material= level_data.materials[ model.material_id ];
+
 			return
+				!material.cast_alpha_shadow &&
 				( model.flags & plb_SurfaceFlags::NoShadow ) == 0 &&
 				( model.flags & plb_SurfaceFlags::NoLightmap ) == 0;
 		} );
 
 	polygon_groups_[ int(PolygonType::VertexLighted) ].size= indeces.size() - index_cout_before;
+}
+
+void plb_WorldVertexBuffer::PrepareVertexLightedAlphaShadowPolygons(
+	const plb_LevelData& level_data,
+	plb_Vertices& vertices,
+	plb_Normals& normals,
+	std::vector<unsigned int>& indeces )
+{
+	const unsigned int index_cout_before= indeces.size();
+	polygon_groups_[ int(PolygonType::VertexLightedAlphaShadow) ].offset= indeces.size();
+
+	PrepareModelsPolygons(
+		level_data,
+		vertices,
+		normals,
+		indeces,
+		[this, &level_data]( const plb_LevelModel& model ) -> bool
+		{
+			const plb_Material& material= level_data.materials[ model.material_id ];
+
+			return
+				material.cast_alpha_shadow &&
+				( model.flags & plb_SurfaceFlags::NoShadow ) == 0 &&
+				( model.flags & plb_SurfaceFlags::NoLightmap ) == 0;
+		} );
+
+	polygon_groups_[ int(PolygonType::VertexLightedAlphaShadow) ].size= indeces.size() - index_cout_before;
 }
 
 void plb_WorldVertexBuffer::PrepareNoShadowPolygons(
