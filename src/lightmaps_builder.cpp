@@ -601,6 +601,61 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 		}
 	}
 
+	// Correct lightmap coordinates for secondary lightmaps,
+	// because size % scaler != 0, sometimes.
+	const float tex_scale_x=
+		float(lightmap_atlas_texture_.size[0]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[0] * config_.secondary_lightmap_scaler );
+	const float tex_scale_y=
+		float(lightmap_atlas_texture_.size[1]) /
+		float( lightmap_atlas_texture_.secondary_lightmap_size[1] * config_.secondary_lightmap_scaler );
+
+	for( const plb_LevelModel& model : level_data_.models )
+	{
+		if( ( model.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
+			continue;
+
+		for( unsigned int v= 0; v < model.vertex_count; v++ )
+		{
+			const plb_Vertex& vertex= level_data_.models_vertices[ model.first_vertex_number + v ];
+			const plb_Normal& src_normal= level_data_.models_normals[ model.first_vertex_number + v ];
+
+			m_Vec3 normal(
+				float(src_normal.xyz[0]),
+				float(src_normal.xyz[1]),
+				float(src_normal.xyz[2]) );
+			normal.Normalize();
+
+			SecondaryLightPass( m_Vec3( vertex.pos ), normal );
+
+			glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
+			glViewport(
+				0, 0,
+				lightmap_atlas_texture_.secondary_lightmap_size[0],
+				lightmap_atlas_texture_.secondary_lightmap_size[1] );
+
+			const float tc_x= vertex.lightmap_coord[0] * tex_scale_x;
+			const float tc_y= vertex.lightmap_coord[1] * tex_scale_y;
+
+			secondary_light_pass_cubemap_.unwrap_framebuffer.GetTextures().front().Bind(0);
+
+			secondary_light_pass_cubemap_.write_shader.Bind();
+			secondary_light_pass_cubemap_.write_shader.Uniform(
+				"tex_coord",
+				m_Vec3( tc_x, tc_y, float(vertex.tex_maps[2]) + 0.01f ) );
+
+			glDrawArrays( GL_POINTS, 0, 1 );
+
+			counter++;
+			if( counter >= 100 )
+			{
+				counter= 0;
+				r_Framebuffer::BindScreenFramebuffer();
+				wake_up_callback();
+			}
+		} // for model vertices
+	} // for models
+
 	r_Framebuffer::BindScreenFramebuffer();
 }
 
