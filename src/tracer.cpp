@@ -14,6 +14,7 @@ static const m_Vec3 g_axis_normals[3]=
 
 const float g_length_eps= 1.0f / 8192.0f;
 const float g_square_length_eps= g_length_eps * g_length_eps;
+const float g_min_normal_length= 1.0f / ( 128.0f * 128.0f );
 
 static bool IsPointInTriangle(
 	const m_Vec3& v0, const m_Vec3& v1, const m_Vec3& v2,
@@ -38,6 +39,9 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	surfaces_.reserve( level_data.polygons.size() );
 	for( const plb_Polygon& poly : level_data.polygons )
 	{
+		if( ( poly.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
 		const plb_Material& material= level_data.materials[ poly.material_id ];
 		if( material.cast_alpha_shadow )
 			continue;
@@ -72,6 +76,9 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 	plb_Normals curve_normals;
 	for( const plb_CurvedSurface& curve :level_data.curved_surfaces )
 	{
+		if( ( curve.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
 		const plb_Material& material= level_data.materials[ curve.material_id ];
 		if( material.cast_alpha_shadow )
 			continue;
@@ -93,7 +100,7 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 
 			const m_Vec3 normal= mVec3Cross( side1, side0 );
 			const float normal_length= normal.Length();
-			if( normal_length < 1.0f / (128.0f * 128.0f) )
+			if( normal_length < g_min_normal_length )
 				continue; // Degenerate triangle - skip it
 
 			surfaces_.emplace_back();
@@ -120,6 +127,46 @@ plb_Tracer::plb_Tracer( const plb_LevelData& level_data )
 			}
 		} // for curve triangles
 	} // for curves
+
+	for( const plb_LevelModel& model : level_data.models )
+	{
+		if( (model.flags & plb_SurfaceFlags::NoShadow ) != 0 )
+			continue;
+
+		const unsigned int first_vertex= vertices_.size();
+		const unsigned int first_index= indeces_.size();
+
+		vertices_.resize( vertices_.size() + model.index_count );
+		indeces_.resize( indeces_.size() + model.index_count );
+
+		for( unsigned int t= 0; t < model.index_count; t+= 3 )
+		{
+			// Make unique vertices for model triangle
+			for( unsigned int i= t; i < t + 3; i++ )
+			{
+				const unsigned int in_index= level_data.models_indeces[ model.first_index + i ];
+				vertices_[ first_vertex + i ]= m_Vec3( level_data.models_vertices[ in_index ].pos );
+				indeces_[ first_index + i ]= first_vertex + i;
+			}
+
+			const m_Vec3 side0= vertices_[ first_vertex + t + 1 ] - vertices_[ first_vertex + t + 0 ];
+			const m_Vec3 side1= vertices_[ first_vertex + t + 2 ] - vertices_[ first_vertex + t + 1 ];
+
+			const m_Vec3 normal= mVec3Cross( side1, side0 );
+			const float normal_length= normal.Length();
+			if( normal_length < g_min_normal_length )
+				continue; // Degenerate triangle - skip it
+
+			surfaces_.emplace_back();
+			Surface& surface= surfaces_.back();
+			surface.first_vertex= first_vertex + t;
+			surface.first_index= first_index + t;
+			surface.vertex_count= 3u;
+			surface.index_count= 3u;
+			surface.normal= normal / normal_length;
+		} // for model triangles
+
+	} // for models
 
 	BuildTree();
 }

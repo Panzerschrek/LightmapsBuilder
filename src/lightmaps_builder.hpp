@@ -32,7 +32,8 @@ public:
 		const m_Mat4& view_matrix, const m_Vec3& cam_pos,
 		const m_Vec3& cam_dir,
 		float brightness,
-		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures );
+		bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
+		bool draw_luminous_surfaces, bool draw_shadowless_surfaces );
 
 private:
 	void LoadLightPassShaders();
@@ -95,6 +96,9 @@ private:
 
 	r_GLSLProgram polygons_preview_shader_;
 	r_GLSLProgram polygons_preview_alphatested_shader_;
+	r_GLSLProgram polygons_preview_luminosity_shader_;
+	r_GLSLProgram polygons_preview_vertex_lighted_shader_;
+	r_GLSLProgram polygons_preview_vertex_lighted_alphatested_shader_;
 
 	struct
 	{
@@ -108,6 +112,9 @@ private:
 		GLuint secondary_tex_id[ PLB_MAX_LIGHT_PASSES ];
 		GLuint secondary_tex_fbo; // use 1 FBO and switch between them
 	} lightmap_atlas_texture_;
+
+	// Stub lightmap patch with zero light for surfaces without lightmap.
+	plb_SurfaceLightmapData stub_lightmap_;
 
 	r_PolygonBuffer light_texels_points_;
 
@@ -142,8 +149,10 @@ private:
 
 	} secondary_light_pass_cubemap_;
 	r_GLSLProgram secondary_light_pass_shader_;
-	r_GLSLProgram secondary_light_pass_shader_luminocity_shader_;
-	r_GLSLProgram secondary_light_pass_shader_alphatested_shader_;
+	r_GLSLProgram secondary_light_pass_luminocity_shader_;
+	r_GLSLProgram secondary_light_pass_alphatested_shader_;
+	r_GLSLProgram secondary_light_pass_vertex_lighted_shader_;
+	r_GLSLProgram secondary_light_pass_vertex_lighted_alphatested_shader_;
 
 	r_Framebuffer directional_light_shadowmap_;
 

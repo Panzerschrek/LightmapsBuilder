@@ -135,8 +135,10 @@ static void LoadPolygons(
 {
 	for( const dmodel_t* model= dmodels; model < dmodels + nummodels; model++ )
 	{
+		const unsigned int model_number= model - dmodels;
+
 		float origin[3];
-		GetOriginForModel( model - dmodels, origin );
+		GetOriginForModel( model_number, origin );
 
 		for(
 			const dface_t* face= dfaces + model->firstface;
@@ -257,6 +259,12 @@ static void LoadPolygons(
 
 			poly.first_index= first_index;
 			poly.index_count= triangle_count * 3;
+
+			if( tex.flags == TEX_SPECIAL )
+				poly.flags|= plb_SurfaceFlags::NoLightmap;
+
+			if( model_number != 0u )
+				poly.flags|= plb_SurfaceFlags::NoShadow;
 
 		} // for faces
 	} // for models

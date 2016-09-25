@@ -36,6 +36,15 @@ struct plb_SurfaceLightmapData
 	unsigned short size[2]; // width and hight of lightmap
 };
 
+namespace plb_SurfaceFlags
+{
+	enum : unsigned int
+	{
+		NoLightmap= 1u << 0u,
+		NoShadow= 1u << 1u,
+	};
+}
+
 struct plb_Polygon
 {
 	float texture_basis[2][4];
@@ -67,12 +76,28 @@ struct plb_CurvedSurface
 	float bb_max[3];
 	unsigned int first_vertex_number;
 
+	unsigned int flags;
+
 	unsigned int material_id;// number of material in input materials vector
 
 	plb_SurfaceLightmapData lightmap_data;
 };
 
 typedef std::vector<plb_CurvedSurface> plb_CurvedSurfaces;
+
+struct plb_LevelModel
+{
+	unsigned int first_vertex_number;
+	unsigned int first_index;
+
+	unsigned int vertex_count;
+	unsigned int index_count;
+
+	unsigned int flags;
+	unsigned int material_id; // number of material in input materials vector
+};
+
+typedef std::vector<plb_LevelModel> plb_LevelModels;
 
 struct plb_BuildInImage
 {
@@ -225,6 +250,11 @@ struct plb_LevelData
 
 	plb_Polygons sky_polygons;
 	std::vector<unsigned int> sky_polygons_indeces;
+
+	plb_Vertices models_vertices;
+	plb_Normals models_normals;
+	std::vector<unsigned int> models_indeces;
+	plb_LevelModels models;
 
 	plb_PointLights point_lights;
 	plb_DirectionalLights directional_lights;
