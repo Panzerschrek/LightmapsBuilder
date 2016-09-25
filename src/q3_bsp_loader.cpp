@@ -480,7 +480,7 @@ static void BuildPolygons(
 			model.vertex_count= p->numVerts;
 			model.index_count= p->numIndexes;
 
-			model.flags= 0;
+			model.flags= SurfaceFlagsForBSPSurface( *p );
 			model.material_id= shader_num_to_material_index[ p->shaderNum ];
 
 		} // if model
