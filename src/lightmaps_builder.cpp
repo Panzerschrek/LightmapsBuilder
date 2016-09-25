@@ -760,6 +760,13 @@ void plb_LightmapsBuilder::LoadLightPassShaders()
 	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_alphatested_shader_);
 	secondary_light_pass_alphatested_shader_.Create();
 
+	secondary_light_pass_vertex_lighted_shader_.ShaderSource(
+		rLoadShader( "secondary_light_pass_vertex_lighted_f.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_vertex_lighted_v.glsl", g_glsl_version ),
+		rLoadShader( "secondary_light_pass_vertex_lighted_g.glsl", g_glsl_version ));
+	plb_WorldVertexBuffer::SetupLevelVertexAttributes(secondary_light_pass_vertex_lighted_shader_);
+	secondary_light_pass_vertex_lighted_shader_.Create();
+
 	shadowmap_shader_.ShaderSource(
 		"", // No fragment shader
 		rLoadShader( "shadowmap_v.glsl", g_glsl_version));
@@ -1167,6 +1174,10 @@ void plb_LightmapsBuilder::SecondaryLightPass( const m_Vec3& pos, const m_Vec3& 
 	bind_and_set_uniforms( secondary_light_pass_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 	glEnable( GL_CULL_FACE );
+
+	// Polygons with lights in vertices
+	bind_and_set_uniforms( secondary_light_pass_vertex_lighted_shader_ );
+	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLighted );
 
 	// Luminocity polygons.
 	// Luminocity polygons already drawn, draw it again, but with different texture and shader.
