@@ -1886,8 +1886,12 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		current_column_x+= width_in_atlas + lightmaps_offset;
 	}// for polygons
 
-
 	// Place models vertices
+
+	// start models with new row
+	current_column_y+= current_column_height;
+	current_column_x+= lightmap_size[0];
+
 	for( const plb_LevelModel& model : level_data_.models )
 	{
 		if( ( model.flags & plb_SurfaceFlags::NoShadow ) != 0 )
@@ -1900,7 +1904,7 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 				current_column_x= lightmaps_offset;
 				current_column_y+= lightmaps_offset;
 
-				if( current_column_height + lightmaps_offset * 2u >= lightmap_size[1] )
+				if( lightmaps_offset * 3u >= lightmap_size[1] )
 				{
 					current_lightmap_atlas_id++;
 					current_column_y= lightmaps_offset;
@@ -1971,7 +1975,7 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 		r_Framebuffer::BindScreenFramebuffer();
 	}
 
-	float inv_lightmap_size[2]= 
+	const float inv_lightmap_size[2]=
 	{
 		1.0f / float(lightmap_size[0]),
 		1.0f / float(lightmap_size[1]),
