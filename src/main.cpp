@@ -96,6 +96,7 @@ extern "C" int main(int argc, char *argv[])
 	bool use_textures_in_preview= true;
 	bool draw_luminous_surfaces_in_preview= true;
 	bool draw_shadowless_surfaces_in_preview= true;
+	bool draw_smooth_lightmaps_in_preview= true;
 
 	int brightness_log= 0;
 
@@ -167,6 +168,10 @@ extern "C" int main(int argc, char *argv[])
 					draw_shadowless_surfaces_in_preview= !draw_shadowless_surfaces_in_preview;
 					force_redraw= true;
 					break;
+				case SDLK_6:
+					draw_smooth_lightmaps_in_preview= !draw_smooth_lightmaps_in_preview;
+					force_redraw= true;
+					break;
 
 				case SDLK_0:
 					brightness_log= 0;
@@ -214,7 +219,8 @@ extern "C" int main(int argc, char *argv[])
 				show_secondary_lightmap,
 				use_textures_in_preview,
 				draw_luminous_surfaces_in_preview,
-				draw_shadowless_surfaces_in_preview );
+				draw_shadowless_surfaces_in_preview,
+				draw_smooth_lightmaps_in_preview );
 
 			SDL_GL_SwapWindow(window);
 		}
