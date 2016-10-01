@@ -356,13 +356,16 @@ plb_LightmapsBuilder::~plb_LightmapsBuilder()
 void plb_LightmapsBuilder::MakePrimaryLight(
 	const std::function<void()>& wake_up_callback )
 {
+	char wake_up_message[ 256 ];
+
 	unsigned int iteration= 0u;
 	const auto try_wake_up=
-	[&]( unsigned int iterations_per_wake_up ) -> void
+	[&]( unsigned int iterations_per_wake_up, bool force ) -> void
 	{
 		iteration++;
-		if( iteration >= iterations_per_wake_up )
+		if( force || iteration >= iterations_per_wake_up )
 		{
+			std::cout << wake_up_message << std::endl;
 			wake_up_callback();
 			iteration= 0u;
 		}
@@ -392,7 +395,15 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 		GenPointlightShadowmap( light_pos );
 		PointLightPass( light_pos, light_color );
 
-		try_wake_up( c_point_lights_per_wake_up );
+		std::snprintf(
+			wake_up_message, sizeof(wake_up_message),
+			"Point lights: %u/%u",
+			1u + ( &light - level_data_.point_lights.data() ),
+			level_data_.point_lights.size() );
+
+		try_wake_up(
+			c_point_lights_per_wake_up,
+			&light == &level_data_.point_lights.back() );
 	}
 
 	// Directional lights
@@ -409,7 +420,15 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 		GenDirectionalLightShadowmap( mat );
 		DirectionalLightPass( light, mat );
 
-		try_wake_up( c_directional_lights_per_wake_up );
+		std::snprintf(
+			wake_up_message, sizeof(wake_up_message),
+			"Directional lights: %u/%u",
+			1u + ( &light - level_data_.directional_lights.data() ),
+			level_data_.directional_lights.size() );
+
+		try_wake_up(
+			c_directional_lights_per_wake_up,
+			&light == &level_data_.directional_lights.back() );
 	}
 
 	// Cone lights
@@ -422,7 +441,15 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 		GenConeLightShadowmap( mat );
 		ConeLightPass( cone_light, mat );
 
-		try_wake_up( c_cone_lights_per_wake_up );
+		std::snprintf(
+			wake_up_message, sizeof(wake_up_message),
+			"Cone lights: %u/%u",
+			1u + ( &cone_light - level_data_.cone_lights.data() ),
+			level_data_.cone_lights.size() );
+
+		try_wake_up(
+			c_cone_lights_per_wake_up,
+			&cone_light == &level_data_.cone_lights.back() );
 	}
 
 	// Surface sample lights
@@ -440,7 +467,15 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 			m_Vec3( light.normal ),
 			light_color );
 
-		try_wake_up( c_suraface_sample_lights_per_wake_up );
+		std::snprintf(
+			wake_up_message, sizeof(wake_up_message),
+			"Surface sample lights: %u/%u",
+			1u + ( &light - bright_luminous_surfaces_lights_.data() ),
+			bright_luminous_surfaces_lights_.size() );
+
+		try_wake_up(
+			c_suraface_sample_lights_per_wake_up,
+			&light == &bright_luminous_surfaces_lights_.back() );
 	}
 }
 
