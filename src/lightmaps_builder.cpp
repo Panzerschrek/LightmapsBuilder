@@ -1776,10 +1776,14 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		}
 	}
 
+	const float secondary_lightmap_scaler( config_.secondary_lightmap_scaler );
+	const float inv_secondary_lightmap_scaler= 1.0f / secondary_lightmap_scaler;
+	const float half_secondary_lightmap_scaler= 0.5f * secondary_lightmap_scaler;
+
 	plb_Vertex* v_p= level_data_.vertices.data();
 	for( plb_Polygon& polygon : level_data_.polygons )
 	{
-		float max_uv[2]= { plb_Constants::min_float, plb_Constants::min_float };
+		float max_uv[2]= { 1.0f, 1.0f };
 
 		m_Mat3 inverse_lightmap_basis;
 		plbGetInvLightmapBasisMatrix(
@@ -1794,13 +1798,22 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 			if( uv.x > max_uv[0] ) max_uv[0]= uv.x;
 			if( uv.y > max_uv[1] ) max_uv[1]= uv.y;
 		}
-		if( max_uv[0] < 1.0f )
-			max_uv[0]= 1.0f;
-		if( max_uv[1] < 1.0f )
-			max_uv[1]= 1.0f;
 
-		polygon.lightmap_data.size[0]= ((unsigned int)std::ceil( max_uv[0] ) ) + 1;
-		polygon.lightmap_data.size[1]= ((unsigned int)std::ceil( max_uv[1] ) ) + 1;
+		for( unsigned int j= 0; j < 2; j++ )
+		{
+			unsigned int size= ( (unsigned int) std::ceil( max_uv[j] * inv_secondary_lightmap_scaler + 0.5f ) ) + 1u;
+			size= std::max( size, 2u );
+			polygon.lightmap_data.size[j]=
+				size * config_.secondary_lightmap_scaler;
+		}
+
+		const m_Vec3 basis_vec_u( polygon.lightmap_basis[0] );
+		const m_Vec3 basis_vec_v( polygon.lightmap_basis[1] );
+		const m_Vec3 moved_basis=
+			m_Vec3( polygon.lightmap_pos ) -
+			( basis_vec_u + basis_vec_v ) * half_secondary_lightmap_scaler;
+
+		VEC3_CPY( polygon.lightmap_pos, moved_basis.ToArr() );
 
 		// pereveracivajem bazis karty osvescenija, tak nado
 		if( polygon.lightmap_data.size[0] < polygon.lightmap_data.size[1] )
@@ -1819,11 +1832,18 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
+			for( unsigned int j= 0; j < 2; j++ )
+			{
+				curve.lightmap_data.size[j]=
+					( curve.lightmap_data.size[j]	 + config_.secondary_lightmap_scaler - 1 ) /
+					config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
+				if( curve.lightmap_data.size[j] < 2u )
+					curve.lightmap_data.size[j]= 2u;
+			}
+
 			if( curve.lightmap_data.size[0] < curve.lightmap_data.size[1] )
 			{
-				unsigned short tmp= curve.lightmap_data.size[0];
-				curve.lightmap_data.size[0]= curve.lightmap_data.size[1];
-				curve.lightmap_data.size[1]= tmp;
+				std::swap( curve.lightmap_data.size[0], curve.lightmap_data.size[1] );
 
 				for( unsigned int v= curve.first_vertex_number;
 					v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
@@ -1958,8 +1978,8 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	}
 
 	// main lightmaps atlas
@@ -1970,8 +1990,8 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 
 	{
 		glGenFramebuffers( 1, &lightmap_atlas_texture_.fbo_id );
