@@ -665,17 +665,29 @@ void plb_LightmapsBuilder::DrawPreview(
 	const m_Vec3& cam_dir,
 	float brightness,
 	bool show_primary_lightmap, bool show_secondary_lightmap, bool show_textures,
-	bool draw_luminous_surfaces, bool draw_shadowless_surfaces )
+	bool draw_luminous_surfaces, bool draw_shadowless_surfaces, bool smooth_lightmaps )
 {
 	r_Framebuffer::BindScreenFramebuffer();
 
 	glClearColor ( 0.1f, 0.05f, 0.1f, 0.0f );
 	glClear ( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-	glActiveTexture( GL_TEXTURE0 + 0 );
-	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.tex_id );
-	glActiveTexture( GL_TEXTURE0 + 1 );
-	glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[0] );
+	const auto bind_lightmaps=
+		[this]( const GLenum filtration )
+		{
+			glActiveTexture( GL_TEXTURE0 + 0 );
+			glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.tex_id );
+			glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, filtration );
+			glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, filtration );
+
+			glActiveTexture( GL_TEXTURE0 + 1 );
+			glBindTexture( GL_TEXTURE_2D_ARRAY, lightmap_atlas_texture_.secondary_tex_id[0] );
+			glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, filtration );
+			glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, filtration );
+		};
+
+	bind_lightmaps( smooth_lightmaps ? GL_LINEAR : GL_NEAREST );
+
 	glActiveTexture( GL_TEXTURE0 + 2 );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, point_light_shadowmap_cubemap_.depth_tex_id );
 
@@ -724,12 +736,13 @@ void plb_LightmapsBuilder::DrawPreview(
 	setup_shader( polygons_preview_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::AlphaShadow );
 
+	bind_lightmaps( GL_NEAREST );
+
 	setup_shader( polygons_preview_vertex_lighted_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLighted );
 
 	setup_shader( polygons_preview_vertex_lighted_alphatested_shader_ );
 	world_vertex_buffer_->Draw( plb_WorldVertexBuffer::PolygonType::VertexLightedAlphaShadow );
-
 
 	if( draw_luminous_surfaces )
 	{
@@ -1947,8 +1960,8 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+		glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 	}
 
 	// main lightmaps atlas
@@ -1959,8 +1972,8 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+	glTexParameteri( GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 
 	{
 		glGenFramebuffers( 1, &lightmap_atlas_texture_.fbo_id );
