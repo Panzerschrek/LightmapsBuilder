@@ -450,9 +450,10 @@ static void GetBSPLights(
 				for( unsigned int i= 0; i < 3; i++ )
 				{
 					dl.color[i]= light.color[i];
-					dl.direction[i]= light.direction[i];
+					dl.direction[i]= -light.direction[i];
 				}
-				dl.intensity= light.intensity;
+				// Hack scale sun lights
+				dl.intensity= light.intensity / 8.0f;
 
 				directional_lights.push_back(dl);
 			}
