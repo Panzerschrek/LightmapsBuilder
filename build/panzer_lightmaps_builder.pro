@@ -36,14 +36,14 @@ SOURCES += \
 	../src/textures_manager.cpp \
 	../src/tracer.cpp \
 	../src/world_vertex_buffer.cpp \
-	../../panzer_ogl_lib/polygon_buffer.cpp \
-	../../panzer_ogl_lib/shaders_loading.cpp \
-	../../panzer_ogl_lib/texture.cpp \
-	../../panzer_ogl_lib/framebuffer.cpp \
-	../../panzer_ogl_lib/func_addresses.cpp \
-	../../panzer_ogl_lib/glsl_program.cpp \
-	../../panzer_ogl_lib/matrix.cpp \
-	../../panzer_ogl_lib/ogl_state_manager.cpp
+	../panzer_ogl_lib/polygon_buffer.cpp \
+	../panzer_ogl_lib/shaders_loading.cpp \
+	../panzer_ogl_lib/texture.cpp \
+	../panzer_ogl_lib/framebuffer.cpp \
+	../panzer_ogl_lib/func_addresses.cpp \
+	../panzer_ogl_lib/glsl_program.cpp \
+	../panzer_ogl_lib/matrix.cpp \
+	../panzer_ogl_lib/ogl_state_manager.cpp
 
 HEADERS += \
 	../src/camera_controller.hpp \
@@ -57,14 +57,14 @@ HEADERS += \
 	../src/textures_manager.hpp \
 	../src/tracer.hpp \
 	../src/world_vertex_buffer.hpp \
-	../../panzer_ogl_lib/ogl_state_manager.hpp \
-	../../panzer_ogl_lib/panzer_ogl_lib.hpp \
-	../../panzer_ogl_lib/polygon_buffer.hpp \
-	../../panzer_ogl_lib/shaders_loading.hpp \
-	../../panzer_ogl_lib/texture.hpp \
-	../../panzer_ogl_lib/vec.hpp \
-	../../panzer_ogl_lib/framebuffer.hpp \
-	../../panzer_ogl_lib/func_declarations.hpp \
-	../../panzer_ogl_lib/glsl_program.hpp \
-	../../panzer_ogl_lib/matrix.hpp \
-	../../panzer_ogl_lib/bbox.hpp \
+	../panzer_ogl_lib/ogl_state_manager.hpp \
+	../panzer_ogl_lib/panzer_ogl_lib.hpp \
+	../panzer_ogl_lib/polygon_buffer.hpp \
+	../panzer_ogl_lib/shaders_loading.hpp \
+	../panzer_ogl_lib/texture.hpp \
+	../panzer_ogl_lib/vec.hpp \
+	../panzer_ogl_lib/framebuffer.hpp \
+	../panzer_ogl_lib/func_declarations.hpp \
+	../panzer_ogl_lib/glsl_program.hpp \
+	../panzer_ogl_lib/matrix.hpp \
+	../panzer_ogl_lib/bbox.hpp \
