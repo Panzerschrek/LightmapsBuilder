@@ -14,7 +14,7 @@ SOURCES += \
 	../src/math_utils.cpp \
 	../src/loaders_common.cpp \
 	../src/q1_bsp_loader.cpp \
-	../../panzer_ogl_lib/matrix.cpp \
+	../panzer_ogl_lib/matrix.cpp \
 	$$Q1_SRC_DIR/COMMON/BSPFILE.c \
 	$$Q1_SRC_DIR/COMMON/CMDLIB.c \
 	$$Q1_SRC_DIR/COMMON/SCRIPLIB.c \
@@ -25,7 +25,7 @@ HEADERS += \
 	../src/loaders_common.hpp \
 	../src/math_utils.hpp \
 	../src/q3_bsp_loader.hpp \
-	../../panzer_ogl_lib/matrix.hpp \
-	../../panzer_ogl_lib/vec.hpp \
+	../panzer_ogl_lib/matrix.hpp \
+	../panzer_ogl_lib/vec.hpp \
 
 DEFINES += PLB_DLL_BUILD

@@ -9,7 +9,7 @@ CONFIG( debug, debug|release ) {
 	CONFIG+= PLB_DUBUG
 }
 
-INCLUDEPATH += ../../panzer_ogl_lib
+INCLUDEPATH += ../panzer_ogl_lib
 INCLUDEPATH += ../src
 
 PLB_DUBUG {
