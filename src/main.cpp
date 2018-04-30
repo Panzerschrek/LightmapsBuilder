@@ -1,5 +1,6 @@
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <memory>
 
@@ -22,11 +23,109 @@ static void FatalError(const char* message)
 
 extern "C" int main(int argc, char *argv[])
 {
-	// TODO - work with parameters
-	(void)argc;
-	(void)argv;
+	// TODO - parse more parameters
 
-	LoadLoaderLibrary( "q3_loader" );
+	#define EXPECT_ARG if( i == argc - 1 ) FatalError( "Expected argument value" );
+
+	const char* game= "q3";
+	const char* map_path= "maps/q3/q3dm1.bsp";
+	plb_Config cfg;
+	cfg.textures_path= "textures/q3/";
+	for( int i= 1; i < argc; ++i )
+	{
+		if( argv[i][0] == '-' )
+		{
+			const char* const val= i == argc - 1 ? "" : argv[i+1];
+			if( std::strcmp( argv[i], "-game" ) == 0 )
+			{
+				EXPECT_ARG
+				game= val;
+					 if( std::strcmp( game, "q1" ) == 0 ) cfg.source_data_type= plb_Config::SourceDataType::Quake1BSP;
+				else if( std::strcmp( game, "q2" ) == 0 ) cfg.source_data_type= plb_Config::SourceDataType::Quake2BSP;
+				else if( std::strcmp( game, "q3" ) == 0 ) cfg.source_data_type= plb_Config::SourceDataType::Quake3BSP;
+				else if( std::strcmp( game, "hl" ) == 0 ) cfg.source_data_type= plb_Config::SourceDataType::HalfLifeBSP;
+				else
+					FatalError( "unknown game" );
+			}
+			else if( std::strcmp( argv[i], "-map" ) == 0 )
+			{
+				EXPECT_ARG
+				map_path= val;
+			}
+			else if( std::strcmp( argv[i], "-textures_dir" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.textures_path= val;
+			}
+			else if( std::strcmp( argv[i], "-textures_gamma" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.textures_gamma= std::max( 0.5f, std::min( float(std::atof( val )), 2.0f ) );
+			}
+			else if( std::strcmp( argv[i], "-min_textures_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.min_textures_size_log2= std::max( 4, std::min( std::atoi( val ), 8 ) );
+			}
+			else if( std::strcmp( argv[i], "-max_textures_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.max_textures_size_log2= std::max( 6, std::min( std::atoi( val ), 10 ) );
+			}
+			else if( std::strcmp( argv[i], "-lightmap_scale_to_original" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.lightmap_scale_to_original= std::max( 1, std::min( std::atoi( val ), 8 ) );
+			}
+			else if( std::strcmp( argv[i], "-point_light_shadowmap_cubemap_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.point_light_shadowmap_cubemap_size_log2= std::max( 9, std::min( std::atoi( val ), 11 ) );
+			}
+			else if( std::strcmp( argv[i], "-directional_light_shadowmap_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.directional_light_shadowmap_size_log2= std::max( 10, std::min( std::atoi( val ), 12 ) );
+			}
+			else if( std::strcmp( argv[i], "-cone_light_shadowmap_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.cone_light_shadowmap_size_log2= std::max( 9, std::min( std::atoi( val ), 11 ) );
+			}
+			else if( std::strcmp( argv[i], "-secondary_light_pass_cubemap_size_log2" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.secondary_light_pass_cubemap_size_log2= std::max( 6, std::min( std::atoi( val ), 9 ) );
+			}
+			else if( std::strcmp( argv[i], "-max_luminocity_for_direct_luminous_surfaces_drawing" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.max_luminocity_for_direct_luminous_surfaces_drawing= std::max( 1.0f, std::min( float(std::atof( val )), 100.0f ) );
+			}
+			else if( std::strcmp( argv[i], "-luminous_surfaces_tessellation_inv_size" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.luminous_surfaces_tessellation_inv_size= std::max( 2, std::min( std::atoi( val ), 20 ) );
+			}
+			else if( std::strcmp( argv[i], "-secondary_lightmap_scaler" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.secondary_lightmap_scaler= std::max( 1, std::min( std::atoi( val ), 8 ) );
+			}
+			else if( std::strcmp( argv[i], "-use_average_texture_color_for_luminous_surfaces" ) == 0 )
+			{
+				EXPECT_ARG
+				cfg.use_average_texture_color_for_luminous_surfaces= std::atoi( val ) != 0;
+			}
+			else
+				FatalError( ( std::string( "unknown parameter: " ) +  argv[i] ).c_str() );
+		}
+	}
+
+	if( cfg.max_textures_size_log2 < cfg.min_textures_size_log2 )
+		cfg.max_textures_size_log2= cfg.min_textures_size_log2;
+
+	LoadLoaderLibrary( ( std::string(game) + "_loader" ).c_str() );
 
 	if( SDL_Init( SDL_INIT_VIDEO ) < 0 )
 		FatalError("Can not initialize sdl video");
@@ -78,12 +177,8 @@ extern "C" int main(int argc, char *argv[])
 	glDepthFunc(GL_LESS);
 	glEnable(GL_CULL_FACE);
 
-	plb_Config cfg;
-	cfg.textures_path= "textures/q3/";
-
 	std::unique_ptr<plb_LightmapsBuilder> lightmaps_builder(
-		new plb_LightmapsBuilder(
-			"maps/q3dm1.bsp", cfg ) );
+		new plb_LightmapsBuilder( map_path, cfg ) );
 
 	plb_CameraController cam_controller( m_Vec3(0.0f,0.0f,0.0f), m_Vec2(0.0f,0.0f), float(screen_width)/float(screen_height) );
 	m_Vec3 prev_pos= cam_controller.GetCamPos();
