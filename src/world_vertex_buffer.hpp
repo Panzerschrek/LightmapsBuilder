@@ -3,7 +3,7 @@
 
 #include <glsl_program.hpp>
 #include <polygon_buffer.hpp>
-#include <tracer.hpp>
+#include "tracer.hpp"
 
 #include "formats.hpp"
 
