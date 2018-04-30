@@ -400,4 +400,42 @@ void CalculateCurveCoordinatesForLightTexels(
 		if( normal_length >= 0.01f )
 			out_coordinates[i].normal/= normal_length;
 	}
+
+	// Zalivajem pustyje tocki v svetokarte smežnymi znacenijami poziçii i normali.
+	// TODO - vozmožno stoit kak-to ekstrapolirovatj poziçiju?
+	for( unsigned int iteration= 0u; iteration < 16u; iteration++ )
+	{
+		for( unsigned int y= 0u; y < lightmap_size[1]; y++ )
+		for( unsigned int x= 0u; x < lightmap_size[0]; x++ )
+		{
+			auto& texel= out_coordinates[ x + y * lightmap_size[0] ];
+			if( texel.normal.SquareLength() >= 0.001f )
+				continue;
+
+			unsigned int count= 0u;
+			PositionAndNormal avg;
+			avg.pos= m_Vec3( 0.0f, 0.0f, 0.0f );
+			avg.normal= m_Vec3( 0.0f, 0.0f, 0.0f );
+			static const int c_deltas[4][2]= { { -1, 0 }, { +1, 0 }, { 0, -1 }, { 0, +1 } };
+			for( unsigned int d= 0; d < 4u; ++d )
+			{
+				const int x_clamped= std::max( 0, std::min( int(x) + c_deltas[d][0], int(lightmap_size[0]) - 1 ) );
+				const int y_clamped= std::max( 0, std::min( int(y) + c_deltas[d][1], int(lightmap_size[1]) - 1 ) );
+
+				const auto& near= out_coordinates[ x_clamped + y_clamped * lightmap_size[0] ];
+				if( near.normal.SquareLength() < 0.001f )
+					continue;
+
+				avg.pos+= near.pos;
+				avg.normal+= near.normal;
+				++count;
+			}
+			if( count > 0u )
+			{
+				texel.pos= avg.pos / static_cast<float>(count);
+				texel.normal= avg.normal / static_cast<float>(count);
+				texel.normal.Normalize();
+			}
+		} // for yx
+	} // for iterations
 }

@@ -1848,12 +1848,27 @@ void plb_LightmapsBuilder::ClalulateLightmapAtlasCoordinates()
 			for( unsigned int j= 0; j < 2; j++ )
 			{
 				curve.lightmap_data.size[j]=
-					( curve.lightmap_data.size[j]	 + config_.secondary_lightmap_scaler - 1 ) /
+					( curve.lightmap_data.size[j] + config_.secondary_lightmap_scaler - 1 ) /
 					config_.secondary_lightmap_scaler * config_.secondary_lightmap_scaler;
-				if( curve.lightmap_data.size[j] < 2u )
-					curve.lightmap_data.size[j]= 2u;
+				if( curve.lightmap_data.size[j] < 2u * config_.secondary_lightmap_scaler )
+					curve.lightmap_data.size[j]= 2u * config_.secondary_lightmap_scaler;
 			}
 
+			// Denormalize and shift.
+			const float smooth_shift= 0.5f * float( config_.secondary_lightmap_scaler );
+			const float denorm_scale[2]=
+			{
+				float( curve.lightmap_data.size[0] - config_.secondary_lightmap_scaler ),
+				float( curve.lightmap_data.size[1] - config_.secondary_lightmap_scaler ),
+			};
+			for( unsigned int v= curve.first_vertex_number;
+				v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
+			{
+				for( unsigned int j= 0; j < 2; j++ )
+					v_p[v].lightmap_coord[j]= v_p[v].lightmap_coord[j] * denorm_scale[j] + smooth_shift;
+			}
+
+			// Swap lightmap sides, if needed.
 			if( curve.lightmap_data.size[0] < curve.lightmap_data.size[1] )
 			{
 				std::swap( curve.lightmap_data.size[0], curve.lightmap_data.size[1] );
@@ -2080,7 +2095,6 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 
 	if( level_data_.curved_surfaces_vertices.size() > 0 )
 	{
-
 		v_p= level_data_.curved_surfaces_vertices.data();
 		for( const plb_CurvedSurface& curve : level_data_.curved_surfaces )
 		{
@@ -2091,11 +2105,11 @@ void plb_LightmapsBuilder::CreateLightmapBuffers()
 			for( unsigned int v= curve.first_vertex_number;
 				v< curve.first_vertex_number + curve.grid_size[0] * curve.grid_size[1]; v++ )
 			{
-				v_p[v].lightmap_coord[0]= v_p[v].lightmap_coord[0] * float(lightmap_data.size[0]) + float(lightmap_data.coord[0]);
-				v_p[v].lightmap_coord[0]*= inv_lightmap_size[0];
-
-				v_p[v].lightmap_coord[1]= v_p[v].lightmap_coord[1] * float(lightmap_data.size[1]) + float(lightmap_data.coord[1]);
-				v_p[v].lightmap_coord[1]*= inv_lightmap_size[1];
+				for( unsigned int j= 0; j < 2; j++ )
+				{
+					v_p[v].lightmap_coord[j]=
+						( v_p[v].lightmap_coord[j] + float(lightmap_data.coord[j]) ) * inv_lightmap_size[j];
+				}
 
 				v_p[v].tex_maps[2]= lightmap_data.atlas_id;
 			}
