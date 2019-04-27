@@ -319,9 +319,6 @@ extern "C" int main(int argc, char *argv[])
 
 			SDL_GL_SwapWindow(window);
 		}
-		else
-			SDL_GL_SwapWindow(window);
-
 	};
 
 	main_loop_iteration();
@@ -332,6 +329,7 @@ extern "C" int main(int argc, char *argv[])
 
 	do
 	{
+		force_redraw = true;
 		main_loop_iteration();
 	}while( !quited );
 
