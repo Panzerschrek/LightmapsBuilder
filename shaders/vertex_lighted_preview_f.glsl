@@ -22,5 +22,6 @@ void main()
 	c.xyz= mix( c.xyz, vec3( 0.6, 0.6, 0.6 ), gray_factor );
 	vec3 linear_color= brightness * c.xyz * f_light;
 
-	color= vec4( linear_color, 1.0 );
+	color= vec4( vec3(1.0, 1.0, 1.0) - exp(-0.1 * linear_color), 1.0);
+	//color= vec4( linear_color, 1.0 );
 }

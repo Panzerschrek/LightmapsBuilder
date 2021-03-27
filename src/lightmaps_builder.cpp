@@ -2193,8 +2193,10 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 			const PositionAndNormal& position_and_normal=
 				curve_coords[ x + y * curve.lightmap_data.size[0] ];
 
-			if( position_and_normal.normal.Length() < 0.01f )
+			m_Vec3 normal= position_and_normal.normal;
+			if( normal.SquareLength() < 0.001f )
 				continue; // Bad texel
+			normal.Normalize();
 
 			vertices.emplace_back();
 			LightTexelVertex& v= vertices.back();
@@ -2202,7 +2204,7 @@ void plb_LightmapsBuilder::PrepareLightTexelsPoints()
 			for( unsigned int i= 0; i < 3; i++ )
 			{
 				v.pos[i]= position_and_normal.pos.ToArr()[i];
-				v.normal[i]= static_cast<char>( 127.0f * position_and_normal.normal.ToArr()[i] );
+				v.normal[i]= static_cast<char>( 127.0f * normal.ToArr()[i] );
 			}
 
 			v.lightmap_pos[0]= float( curve.lightmap_data.coord[0] + x ) + 0.5f;

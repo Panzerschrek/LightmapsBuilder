@@ -11,6 +11,7 @@
 
 static const float g_max_angle_rad= 8.0f * plb_Constants::to_rad;
 static const unsigned int g_max_subdivisions= 63;
+static const float g_normal_len_eps= 1e-3f;
 
 static void GetControlPointsWeights( float kx, float ky, float kx1, float ky1, float* out_weights )
 {
@@ -67,70 +68,35 @@ void GetPatchSubdivisions( const m_Vec3* control_vertices, float max_angle_rad, 
 
 static inline m_Vec3 GenCurveNormal( const m_Vec3* base_vertices, float kx, float ky, float kx1, float ky1 )
 {
-	static const float eps= 1e-5f;
-	static const float control_verties_k[]=
-	{
-		0.0f,0.0f, 0.5f,0.0f, 1.0f,0.0f,
-		0.0f,0.5f, 0.5f,0.5f, 1.0f,0.5f,
-		0.0f,1.0f, 0.5f,1.0f, 1.0f,1.0f,
-		0.33f,0.66f, 0.66f,0.33f,
-		0.25f,0.75f, 0.75f,0.25f,
-	};
-
-	const float in_k[2]= { kx, ky };
-
-	m_Vec3 result(1.0f, 0.0f, 0.0f );
-
 	// Try calculate normal, using derivatives of spline function.
 	// normal = cross( d_pos / du, d_pos / dv )
-	// If derivatives vectors or theirs cross product is zero - try to move
-	// sampling point to one of 9 control points of curve patch or other points in patch.
-	for( unsigned int i= 0; i< sizeof(control_verties_k) / (2*sizeof(float)); i++ )
-	{
-		float d_pos_dx_kx[3];
-		d_pos_dx_kx[0]= 2.0f * kx - 2.0f;
-		d_pos_dx_kx[1]= 2.0f - 4.0f * kx;
-		d_pos_dx_kx[2]= 2.0f * kx;
-		m_Vec3 d_pos_dx= 
-			ky1 *
-				( base_vertices[0]*d_pos_dx_kx[0] + base_vertices[1]*d_pos_dx_kx[1] + base_vertices[2]*d_pos_dx_kx[2] ) +
-			2.0f * ky * ky1 *
-				( base_vertices[3]*d_pos_dx_kx[0] + base_vertices[4]*d_pos_dx_kx[1] + base_vertices[5]*d_pos_dx_kx[2] ) +
-			ky * ky * 
-				( base_vertices[6]*d_pos_dx_kx[0] + base_vertices[7]*d_pos_dx_kx[1] + base_vertices[8]*d_pos_dx_kx[2] );
+	// If result normal has zero length - it is fine.
+	// Result normal in fragment will be interpolated across three vertices, at least one of them should have non-zero normal.
 
-		d_pos_dx_kx[0]= kx1 * kx1;
-		d_pos_dx_kx[1]= 2.0f * kx * kx1;
-		d_pos_dx_kx[2]= kx * kx;
-		m_Vec3 d_pos_dy= 
-			( 2.0f * ky - 2.0f ) *
-				( base_vertices[0]*d_pos_dx_kx[0] + base_vertices[1]*d_pos_dx_kx[1] + base_vertices[2]*d_pos_dx_kx[2] ) +
-			( 2.0f - 4.0f * ky ) *
-				( base_vertices[3]*d_pos_dx_kx[0] + base_vertices[4]*d_pos_dx_kx[1] + base_vertices[5]*d_pos_dx_kx[2] ) +
-			2.0f * ky *
-				( base_vertices[6]*d_pos_dx_kx[0] + base_vertices[7]*d_pos_dx_kx[1] + base_vertices[8]*d_pos_dx_kx[2] );
+	float d_pos_dx_kx[3];
+	d_pos_dx_kx[0]= 2.0f * kx - 2.0f;
+	d_pos_dx_kx[1]= 2.0f - 4.0f * kx;
+	d_pos_dx_kx[2]= 2.0f * kx;
+	const m_Vec3 d_pos_dx=
+		ky1 *
+			( base_vertices[0]*d_pos_dx_kx[0] + base_vertices[1]*d_pos_dx_kx[1] + base_vertices[2]*d_pos_dx_kx[2] ) +
+		2.0f * ky * ky1 *
+			( base_vertices[3]*d_pos_dx_kx[0] + base_vertices[4]*d_pos_dx_kx[1] + base_vertices[5]*d_pos_dx_kx[2] ) +
+		ky * ky *
+			( base_vertices[6]*d_pos_dx_kx[0] + base_vertices[7]*d_pos_dx_kx[1] + base_vertices[8]*d_pos_dx_kx[2] );
 
-		float l0= d_pos_dx.Length();
-		float l1= d_pos_dy.Length();
-		if( l0 > eps && l1 > eps )
-		{
-			result= mVec3Cross( d_pos_dy, d_pos_dx );
-			float rl= result.Length();
-			if( rl > eps )
-			{
-				result/= rl;
-				break;
-			}
-		}
+	d_pos_dx_kx[0]= kx1 * kx1;
+	d_pos_dx_kx[1]= 2.0f * kx * kx1;
+	d_pos_dx_kx[2]= kx * kx;
+	const m_Vec3 d_pos_dy=
+		( 2.0f * ky - 2.0f ) *
+			( base_vertices[0]*d_pos_dx_kx[0] + base_vertices[1]*d_pos_dx_kx[1] + base_vertices[2]*d_pos_dx_kx[2] ) +
+		( 2.0f - 4.0f * ky ) *
+			( base_vertices[3]*d_pos_dx_kx[0] + base_vertices[4]*d_pos_dx_kx[1] + base_vertices[5]*d_pos_dx_kx[2] ) +
+		2.0f * ky *
+			( base_vertices[6]*d_pos_dx_kx[0] + base_vertices[7]*d_pos_dx_kx[1] + base_vertices[8]*d_pos_dx_kx[2] );
 
-		kx= in_k[0] * 0.92f +  control_verties_k[i*2  ] * 0.08f;
-		ky= in_k[1] * 0.92f +  control_verties_k[i*2+1] * 0.08f;
-
-		kx1= 1.0f - kx;
-		ky1= 1.0f - ky;
-	}// for iterations
-
-	return result;
+	return mVec3Cross( d_pos_dy, d_pos_dx );
 }
 
 void GenCurveMesh(
@@ -252,7 +218,10 @@ void GenCurveMesh(
 				vert[ind].tex_coord[0]= tex_coord.x;
 				vert[ind].tex_coord[1]= tex_coord.y;
 
-				const m_Vec3 normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+				m_Vec3 normal= GenCurveNormal( base_vertices, kx, ky, kx1, ky1 );
+				const float normal_len= normal.Length();
+				if( normal_len > g_normal_len_eps )
+					normal/= normal_len;
 				normals[ind].xyz[0]= (char)(normal.x * 127.0f);
 				normals[ind].xyz[1]= (char)(normal.y * 127.0f);
 				normals[ind].xyz[2]= (char)(normal.z * 127.0f);
@@ -397,7 +366,7 @@ void CalculateCurveCoordinatesForLightTexels(
 	for( unsigned int i= 0; i < lightmap_size[0] * lightmap_size[1]; i++ )
 	{
 		const float normal_length= out_coordinates[i].normal.Length();
-		if( normal_length >= 0.01f )
+		if( normal_length > 0.0f )
 			out_coordinates[i].normal/= normal_length;
 	}
 
@@ -409,7 +378,7 @@ void CalculateCurveCoordinatesForLightTexels(
 		for( unsigned int x= 0u; x < lightmap_size[0]; x++ )
 		{
 			auto& texel= out_coordinates[ x + y * lightmap_size[0] ];
-			if( texel.normal.SquareLength() >= 0.001f )
+			if( texel.normal.SquareLength() >= g_normal_len_eps )
 				continue;
 
 			unsigned int count= 0u;
@@ -423,7 +392,7 @@ void CalculateCurveCoordinatesForLightTexels(
 				const int y_clamped= std::max( 0, std::min( int(y) + c_deltas[d][1], int(lightmap_size[1]) - 1 ) );
 
 				const auto& near= out_coordinates[ x_clamped + y_clamped * lightmap_size[0] ];
-				if( near.normal.SquareLength() < 0.001f )
+				if( near.normal.SquareLength() < g_normal_len_eps )
 					continue;
 
 				avg.pos+= near.pos;
