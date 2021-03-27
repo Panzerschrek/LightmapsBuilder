@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <cstring>
+#include <chrono>
 
 #include <shaders_loading.hpp>
 
@@ -376,6 +378,8 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 	const unsigned int c_cone_lights_per_wake_up= 80u;
 	const unsigned int c_suraface_sample_lights_per_wake_up= c_point_lights_per_wake_up;
 
+	const auto start_time= std::chrono::steady_clock::now();
+
 	// Point lights
 	iteration= 0u;
 	for( const plb_PointLight& light : level_data_.point_lights )
@@ -405,6 +409,17 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 			c_point_lights_per_wake_up,
 			&light == &level_data_.point_lights.back() );
 	}
+
+	const auto end_time= std::chrono::steady_clock::now();
+	const auto time_ms= std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+	glFlush();
+	glFinish();
+	wake_up_callback();
+	std::cout << "Build light for " << level_data_.point_lights.size() << " point lights." <<
+		" Time: " << static_cast<float>(time_ms) / 1000.0f << " s." <<
+		" Lights per second: " << static_cast<float>(level_data_.point_lights.size()) / static_cast<float>( time_ms ) * 1000.0f
+		<< std::endl;
 
 	// Directional lights
 	iteration= 0u;
@@ -482,6 +497,7 @@ void plb_LightmapsBuilder::MakePrimaryLight(
 void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake_up_callback )
 {
 	unsigned int counter= 0;
+	unsigned int total_secondary_texels= 0u;
 
 	glGenFramebuffers( 1, &lightmap_atlas_texture_.secondary_tex_fbo );
 	glBindFramebuffer( GL_FRAMEBUFFER, lightmap_atlas_texture_.secondary_tex_fbo );
@@ -501,6 +517,7 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 	plb_Tracer::SurfacesList surfaces_list;
 	plb_Tracer::LineSegments segments;
 
+	const auto start_time= std::chrono::steady_clock::now();
 	for( const plb_Polygon& poly : level_data_.polygons )
 	{
 		if( ( poly.flags & plb_SurfaceFlags::NoLightmap ) != 0 )
@@ -561,6 +578,7 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				printf( "Polygon : %d/%d\n", &poly - level_data_.polygons.data(), level_data_.polygons.size() );
 			}
 		}
+		total_secondary_texels+= sx * sy;
 	}
 
 	std::vector<PositionAndNormal> curve_coords;
@@ -635,6 +653,7 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				wake_up_callback();
 			}
 		}
+		total_secondary_texels+= lightmap_size[0] * lightmap_size[1];
 	}
 
 	// Correct lightmap coordinates for secondary lightmaps,
@@ -690,7 +709,15 @@ void plb_LightmapsBuilder::MakeSecondaryLight( const std::function<void()>& wake
 				wake_up_callback();
 			}
 		} // for model vertices
+		total_secondary_texels+= model.vertex_count;
 	} // for models
+
+	const auto end_time= std::chrono::steady_clock::now();
+	const auto time_s= std::chrono::duration_cast<std::chrono::seconds>(end_time - start_time).count();
+
+	std::cout << "Build light for " << total_secondary_texels << " texels." <<
+		" Time: " << time_s << " s." <<
+		" Texels per second: " << total_secondary_texels / time_s;
 
 	r_Framebuffer::BindScreenFramebuffer();
 }

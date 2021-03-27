@@ -71,6 +71,8 @@ plb_WorldVertexBuffer::plb_WorldVertexBuffer( const plb_LevelData& level_data )
 
 	glEnableVertexAttribArray( Attrib::Normal );
 	glVertexAttribPointer( Attrib::Normal, 3, GL_BYTE, true, sizeof(plb_Normal), NULL );
+
+	std::cout << "Total triangles in world: " << index_buffer.size() / 3u << std::endl;
 }
 
 plb_WorldVertexBuffer::~plb_WorldVertexBuffer()
